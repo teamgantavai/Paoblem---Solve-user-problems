@@ -137,7 +137,7 @@ export default function Navbar() {
                       padding: '0.75rem'
                     }}
                   >
-                    <div style={{ padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-color)', pb: '0.5rem', marginBottom: '0.25rem' }}>
+                    <div style={{ padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
                       <p style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                         {session.user.user_metadata?.full_name || 'Member'}
                       </p>
