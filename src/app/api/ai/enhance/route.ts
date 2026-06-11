@@ -62,10 +62,15 @@ Rules:
           if (enhanced) {
             return NextResponse.json({ original: text, enhanced });
           }
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          const errMsg = errData.error?.message || response.statusText || 'Groq API error';
+          console.error('[ai/enhance] GROQ API failed with status:', response.status, errData);
+          return NextResponse.json({ error: `AI Enhancer error: ${errMsg}` }, { status: response.status });
         }
-        // Fall through to local enhancement if GROQ fails
-      } catch (groqError) {
-        console.error('[ai/enhance] GROQ API error, falling back to local:', groqError);
+      } catch (groqError: any) {
+        console.error('[ai/enhance] GROQ API error:', groqError);
+        return NextResponse.json({ error: `AI Enhancer connection failed: ${groqError.message || groqError}` }, { status: 500 });
       }
     }
 

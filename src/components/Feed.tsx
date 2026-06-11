@@ -689,19 +689,29 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
           ) : (
             comments?.map((comment) => {
               const isCommentOwner = session?.user?.id === comment.user_id;
+              const authorName = (comment.profiles?.full_name?.trim() ? comment.profiles.full_name : null) || 
+                (isCommentOwner ? session?.user?.user_metadata?.full_name : null) || 
+                'Anonymous';
+              const authorAvatar = comment.profiles?.avatar_url || 
+                (isCommentOwner ? session?.user?.user_metadata?.avatar_url : null) || 
+                `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`;
+              const authorRole = comment.profiles?.role || 
+                (isCommentOwner ? session?.user?.user_metadata?.role : null) || 
+                'Innovator';
+
               return (
                 <div className="comment-item" key={comment.id}>
                   <img 
-                    src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`} 
-                    alt={comment.profiles?.full_name || 'User'} 
+                    src={authorAvatar} 
+                    alt={authorName} 
                     className="comment-avatar" 
                   />
                   <div className="comment-content">
                     <div className="comment-author-time">
                       <span className="comment-author">
-                        {comment.profiles?.full_name || 'Anonymous'}
+                        {authorName}
                         <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginLeft: '0.4rem', fontWeight: 500 }}>
-                          {comment.profiles?.role || 'Innovator'}
+                          {authorRole}
                         </span>
                       </span>
                       <span className="comment-time" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
