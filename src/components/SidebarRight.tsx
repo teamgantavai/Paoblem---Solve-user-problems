@@ -5,17 +5,14 @@ export default function SidebarRight() {
     <aside className="right-sidebar">
       {/* Try Premium Card */}
       <div className="card promo-card promo-card-premium" style={{ padding: '1.25rem', borderRadius: '18px' }}>
-        <div className="promo-tag">
-          <span style={{ transform: 'rotate(-45deg)', display: 'block', fontSize: '0.55rem' }}>in</span>
-        </div>
-        
+
         <h3 className="promo-title" style={{ marginTop: '0.25rem' }}>
           Try Premium<br />
           <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
             <span style={{ color: '#ffbf00' }}>🌙</span> for free <span style={{ color: '#ffbf00' }}>🌙</span>
           </span>
         </h3>
-        
+
         <p className="promo-subtitle" style={{ display: 'flex', alignItems: 'center', marginTop: '0.4rem' }}>
           ~One month free <span className="promo-arrow">➜</span>
         </p>
@@ -46,7 +43,7 @@ export default function SidebarRight() {
         <h3 style={{ fontSize: '0.85rem', marginBottom: '1.25rem', color: 'white', fontWeight: 600 }}>
           Trending Problems
         </h3>
-        
+
         <div className="flex flex-col gap-4">
           <div className="flex items-start justify-between">
             <div className="flex gap-3">
@@ -54,7 +51,7 @@ export default function SidebarRight() {
               <div>
                 <h4 style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>CEO of Figma</h4>
                 <p style={{ fontSize: '0.85rem', marginTop: '2px', fontWeight: 600, lineHeight: '1.25' }}>
-                  Why designing<br/>Sucks!!!
+                  Why designing<br />Sucks!!!
                 </p>
               </div>
             </div>
@@ -67,7 +64,7 @@ export default function SidebarRight() {
               <div>
                 <h4 style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>CEO of LinkedIn</h4>
                 <p style={{ fontSize: '0.85rem', marginTop: '2px', fontWeight: 600, lineHeight: '1.25' }}>
-                  Why designing<br/>Sucks!!!
+                  Why designing<br />Sucks!!!
                 </p>
               </div>
             </div>
@@ -80,18 +77,15 @@ export default function SidebarRight() {
 
       {/* Download Reddit Card */}
       <div className="card promo-card promo-card-reddit" style={{ padding: '1.25rem', borderRadius: '18px' }}>
-        <div className="promo-tag">
-          <span style={{ transform: 'rotate(-45deg)', display: 'block', fontSize: '0.55rem' }}>in</span>
-        </div>
-        
+
         <h3 className="promo-title" style={{ marginTop: '0.25rem' }}>
           Download Reddit
         </h3>
-        
+
         <p className="promo-subtitle" style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', marginTop: '0.35rem' }}>
           <span style={{ color: '#ffbf00' }}>🌙</span> <span style={{ color: '#ffbf00' }}>🌙</span>
         </p>
-        
+
         <p className="promo-subtitle" style={{ display: 'flex', alignItems: 'center', marginTop: '0.4rem' }}>
           ~One month free <span className="promo-arrow">➜</span>
         </p>
