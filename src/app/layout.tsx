@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Paoblem - Problem Sharing Network",
+  title: "Paoblem - Social network for founders",
   description: "Share your problems and find solutions",
 };
 

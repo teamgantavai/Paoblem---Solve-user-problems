@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Home, 
   NotebookPen, 
@@ -22,12 +22,23 @@ import {
 import { supabase } from '@/lib/supabase';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
+import DevelopmentNotice from './DevelopmentNotice';
 
 export default function Navbar() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const filter = searchParams.get('filter') || 'all';
+
   const [isOpen, setIsOpen] = useState(false);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [noticeFeature, setNoticeFeature] = useState('');
+
+  const triggerNotice = (feature: string) => {
+    setNoticeFeature(feature);
+    setIsNoticeOpen(true);
+  };
   const [session, setSession] = useState<any>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -93,14 +104,14 @@ export default function Navbar() {
               </div>
               <span>Solution</span>
             </div>
-            <div className="nav-item">
+            <div className="nav-item" onClick={() => triggerNotice('Notifications')}>
               <div className="nav-icon-wrap">
                 <Bell size={22} strokeWidth={2} />
                 <span className="nav-badge">9+</span>
               </div>
               <span>Notifications</span>
             </div>
-            <div className="nav-item">
+            <div className="nav-item" onClick={() => triggerNotice('Chats')}>
               <div className="nav-icon-wrap">
                 <MessageCircle size={22} strokeWidth={2} />
                 <span className="nav-badge">6</span>
@@ -182,12 +193,14 @@ export default function Navbar() {
           </div>
 
           {session ? (
-            <button className="search-btn mobile-only" style={{ position: 'relative' }} onClick={handleMeClick}>
-              <img 
-                src={session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`} 
-                alt="Me" 
-                style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} 
-              />
+            <button 
+              className="search-btn mobile-only" 
+              style={{ position: 'relative' }} 
+              aria-label="Notifications"
+              onClick={() => triggerNotice('Notifications')}
+            >
+              <Bell size={20} strokeWidth={2} />
+              <span className="nav-badge">9+</span>
             </button>
           ) : (
             <button className="btn btn-primary mobile-only" style={{ padding: '0.35rem 0.85rem' }} onClick={() => setIsAuthOpen(true)}>
@@ -197,7 +210,7 @@ export default function Navbar() {
 
         </div>
       </nav>
-
+ 
       {/* Mobile Bottom Navigation */}
       <div className="mobile-bottom-nav">
         <div className="mobile-nav-item active" onClick={() => router.push('/')}>
@@ -206,7 +219,7 @@ export default function Navbar() {
           </div>
           <span>Home</span>
         </div>
-        <div className="mobile-nav-item" onClick={() => router.push('/')}>
+        <div className="mobile-nav-item" onClick={() => triggerNotice('Solutions')}>
           <div className="nav-icon-wrap">
             <NotebookPen size={20} strokeWidth={2} />
           </div>
@@ -218,7 +231,7 @@ export default function Navbar() {
           </div>
           <span>Post</span>
         </div>
-        <div className="mobile-nav-item">
+        <div className="mobile-nav-item" onClick={() => triggerNotice('Chats')}>
           <div className="nav-icon-wrap">
             <MessageCircle size={20} strokeWidth={2} />
             <span className="nav-badge">6</span>
@@ -240,13 +253,13 @@ export default function Navbar() {
           <span>{session ? 'Me' : 'Sign In'}</span>
         </div>
       </div>
-
+ 
       {/* Drawer Overlay */}
       <div
         className={`drawer-overlay ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen(false)}
       />
-
+ 
       {/* Side Drawer */}
       <div className={`drawer ${isOpen ? 'open' : ''}`}>
         <div className="drawer-header">
@@ -300,33 +313,49 @@ export default function Navbar() {
               </button>
             </div>
           )}
-
+ 
           {/* Navigation Menu */}
           <div className="drawer-menu-section">
-            <div className="drawer-menu-item active" onClick={() => setIsOpen(false)}>
+            <div 
+              className={`drawer-menu-item ${filter === 'all' || filter === 'problem' || filter === 'idea' ? 'active' : ''}`} 
+              onClick={() => { setIsOpen(false); router.push('/'); }}
+            >
               <TrendingUp size={20} />
               <span>Trending Problems</span>
             </div>
-            <div className="drawer-menu-item" onClick={() => setIsOpen(false)}>
+            <div className="drawer-menu-item" onClick={() => { setIsOpen(false); triggerNotice('Analytics'); }}>
               <BarChart2 size={20} />
               <span>Analytics</span>
             </div>
-            <div className="drawer-menu-item" onClick={() => setIsOpen(false)}>
+            <div 
+              className={`drawer-menu-item ${filter === 'saved' ? 'active' : ''}`} 
+              onClick={() => { setIsOpen(false); router.push('/?filter=saved'); }}
+            >
               <Bookmark size={20} />
               <span>Saved Problems</span>
             </div>
-            <div className="drawer-menu-item" onClick={() => setIsOpen(false)}>
+            <div 
+              className={`drawer-menu-item ${filter === 'mine' ? 'active' : ''}`} 
+              onClick={() => {
+                setIsOpen(false);
+                if (!session) {
+                  setIsAuthOpen(true);
+                } else {
+                  router.push('/?filter=mine');
+                }
+              }}
+            >
               <Star size={20} />
-              <span>My Solutions</span>
+              <span>My Posts</span>
             </div>
-
+ 
             <div className="drawer-menu-divider" />
-
+ 
             <div className="drawer-menu-item" onClick={() => { setIsOpen(false); setIsSettingsOpen(true); }}>
               <Settings size={20} />
               <span>Settings</span>
             </div>
-
+ 
             {session && (
               <div className="drawer-menu-item" onClick={handleLogout} style={{ color: '#ef4444' }}>
                 <LogOut size={20} />
@@ -336,10 +365,11 @@ export default function Navbar() {
           </div>
         </div>
       </div>
-
+ 
       {/* Modals */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <DevelopmentNotice isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} featureName={noticeFeature} />
     </>
   );
 }

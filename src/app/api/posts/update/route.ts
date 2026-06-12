@@ -12,6 +12,7 @@ const updatePostSchema = z.object({
   type: z.enum(['problem', 'idea']),
   image_url: z.string().url().nullable().optional(),
   external_link: z.string().url().nullable().optional(),
+  link_name: z.string().max(60).nullable().optional(),
 });
 
 function sanitize(text: string): string {
@@ -50,7 +51,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const { id, title, body: postBody, type, image_url, external_link } = parsed.data;
+    const { id, title, body: postBody, type, image_url, external_link, link_name } = parsed.data;
 
     // Verify ownership
     const { data: post, error: fetchError } = await supabase
@@ -70,16 +71,23 @@ export async function PUT(req: NextRequest) {
     const sanitizedTitle = sanitize(title);
     const sanitizedBody = sanitize(postBody);
 
+    const updatePayload: Record<string, unknown> = {
+      title: sanitizedTitle,
+      body: sanitizedBody,
+      type,
+      image_url: image_url || null,
+      external_link: external_link || null,
+      updated_at: new Date().toISOString(),
+    };
+
+    // Only set link_name if explicitly provided
+    if (link_name !== undefined) {
+      updatePayload.link_name = link_name;
+    }
+
     const { data, error: updateError } = await supabase
       .from('posts')
-      .update({
-        title: sanitizedTitle,
-        body: sanitizedBody,
-        type,
-        image_url: image_url || null,
-        external_link: external_link || null,
-        updated_at: new Date().toISOString(),
-      })
+      .update(updatePayload)
       .eq('id', id)
       .select()
       .single();

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
+import { useRouter, useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
   BarChart2,
@@ -14,11 +15,23 @@ import {
 import { supabase } from '@/lib/supabase';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
+import DevelopmentNotice from './DevelopmentNotice';
 
 export default function SidebarLeft() {
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  const filter = searchParams.get('filter') || 'all';
+
   const [session, setSession] = useState<any>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [noticeFeature, setNoticeFeature] = useState('');
+
+  const triggerNotice = (feature: string) => {
+    setNoticeFeature(feature);
+    setIsNoticeOpen(true);
+  };
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -106,21 +119,39 @@ export default function SidebarLeft() {
 
       {/* Navigation Menu */}
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <div className="menu-item active">
+        <div
+          className={`menu-item ${filter === 'all' || filter === 'problem' || filter === 'idea' ? 'active' : ''}`}
+          style={{ cursor: 'pointer' }}
+          onClick={() => router.push('/')}
+        >
           <TrendingUp size={20} />
           <span>Trending Problems</span>
         </div>
-        <div className="menu-item">
+        <div className="menu-item" style={{ cursor: 'pointer' }} onClick={() => triggerNotice('Analytics')}>
           <BarChart2 size={20} />
           <span>Analytics</span>
         </div>
-        <div className="menu-item">
+        <div
+          className={`menu-item ${filter === 'saved' ? 'active' : ''}`}
+          style={{ cursor: 'pointer' }}
+          onClick={() => router.push('/?filter=saved')}
+        >
           <Bookmark size={20} />
-          <span>Saved Problems</span>
+          <span>Saved Posts</span>
         </div>
-        <div className="menu-item">
+        <div
+          className={`menu-item ${filter === 'mine' ? 'active' : ''}`}
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
+            if (!session) {
+              setIsAuthOpen(true);
+            } else {
+              router.push('/?filter=mine');
+            }
+          }}
+        >
           <Star size={20} />
-          <span>My Solutions</span>
+          <span>My Posts</span>
         </div>
       </div>
 
@@ -139,6 +170,7 @@ export default function SidebarLeft() {
       {/* Modals rendered inline */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
+      <DevelopmentNotice isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} featureName={noticeFeature} />
 
     </aside>
   );

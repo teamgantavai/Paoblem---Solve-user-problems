@@ -18,6 +18,9 @@ import {
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useQueryClient } from '@tanstack/react-query';
+import { compressImage } from '@/app/lib/imageCompression';
+import PhotoEditorModal from '@/components/PhotoEditorModal';
+import DraftLeaveModal from '@/components/DraftLeaveModal';
 
 export default function CreatePost() {
   const router = useRouter();
@@ -43,6 +46,8 @@ export default function CreatePost() {
   // Custom Controls State
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showAiTooltip, setShowAiTooltip] = useState(false);
+  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
+  const [isDraftLeaveOpen, setIsDraftLeaveOpen] = useState(false);
 
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -181,23 +186,23 @@ export default function CreatePost() {
       return;
     }
 
-    const maxSize = 10 * 1024 * 1024;
-    if (file.size > maxSize) {
-      setError('File is too large. Maximum size is 10MB.');
-      return;
-    }
-
     setUploading(true);
     setError(null);
 
     try {
-      const fileExt = file.name.split('.').pop();
+      let uploadFileObj = file;
+      if (file.type !== 'image/gif') {
+        const compressedBlob = await compressImage(file, 0.75, 1200, 1200);
+        uploadFileObj = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
+      }
+
+      const fileExt = uploadFileObj.name.split('.').pop();
       const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
       const filePath = `post-images/${fileName}`;
 
-      const { error: uploadError, data } = await supabase.storage
+      const { error: uploadError } = await supabase.storage
         .from('post-images')
-        .upload(filePath, file);
+        .upload(filePath, uploadFileObj);
 
       if (uploadError) {
         throw new Error(uploadError.message);
@@ -211,6 +216,33 @@ export default function CreatePost() {
     } catch (err: any) {
       console.error('Error uploading image:', err);
       setError(err.message || 'Error uploading image. Please check your storage settings.');
+    } finally {
+      setUploading(false);
+    }
+  };
+
+  const handleEditedPhotoSave = async (editedBlob: Blob, editedDataUrl: string) => {
+    setUploading(true);
+    setError(null);
+    try {
+      const fileName = `edited-${Math.random().toString(36).substring(2)}-${Date.now()}.jpg`;
+      const filePath = `post-images/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('post-images')
+        .upload(filePath, editedBlob, { contentType: 'image/jpeg' });
+
+      if (uploadError) {
+        throw new Error(uploadError.message);
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(filePath);
+
+      setImageUrl(publicUrl);
+    } catch (err: any) {
+      setError(err.message || 'Failed to save edited photo.');
     } finally {
       setUploading(false);
     }
@@ -288,6 +320,12 @@ export default function CreatePost() {
     setSubmitting(true);
     setError(null);
 
+    let formattedLink = null;
+    if (externalLink) {
+      const trimmed = externalLink.trim();
+      formattedLink = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    }
+
     try {
       const res = await fetch('/api/posts/create', {
         method: 'POST',
@@ -300,7 +338,7 @@ export default function CreatePost() {
           body,
           type,
           image_url: imageUrl,
-          external_link: externalLink || null,
+          external_link: formattedLink || null,
           link_name: linkName || null,
         }),
       });
@@ -325,6 +363,36 @@ export default function CreatePost() {
     }
   };
 
+  const handleBackClick = () => {
+    const hasUnsavedChanges = title.trim() || body.trim() || imageUrl || externalLink;
+    if (hasUnsavedChanges) {
+      setIsDraftLeaveOpen(true);
+    } else {
+      router.push('/');
+    }
+  };
+
+  const handleSaveDraftAndExit = () => {
+    const draft = {
+      title,
+      type,
+      body,
+      externalLink,
+      linkName,
+      imageUrl,
+      timestamp: new Date().toISOString()
+    };
+    localStorage.setItem('paoblem-post-draft', JSON.stringify(draft));
+    setIsDraftLeaveOpen(false);
+    router.push('/');
+  };
+
+  const handleDiscardAndExit = () => {
+    localStorage.removeItem('paoblem-post-draft');
+    setIsDraftLeaveOpen(false);
+    router.push('/');
+  };
+
   const isFormValid = title.trim().length >= 3 && body.trim().length >= 10 && session;
 
   return (
@@ -336,7 +404,7 @@ export default function CreatePost() {
         {/* HEADER */}
         <div className="cp-header">
           <div className="cp-header-left">
-            <button className="cp-back-btn" onClick={() => router.push('/')} aria-label="Go Back">
+            <button className="cp-back-btn" onClick={handleBackClick} aria-label="Go Back">
               <ArrowLeft size={16} />
             </button>
             <div className="cp-header-title-block">
@@ -510,11 +578,27 @@ export default function CreatePost() {
               {/* IMAGE PREVIEW */}
               {imageUrl && (
                 <div className="cp-field">
-                  <div className="preview-container">
+                  <div className="preview-container" style={{ position: 'relative' }}>
                     <img src={imageUrl} alt="Upload preview" className="image-preview" />
-                    <button type="button" className="remove-img-btn" onClick={removeImage} aria-label="Remove image">
-                      <X size={14} />
-                    </button>
+                    <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '0.5rem' }}>
+                      <button
+                        type="button"
+                        className="btn"
+                        onClick={() => setIsPhotoEditorOpen(true)}
+                        style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.75)', color: 'white', border: 'none' }}
+                      >
+                        Edit Photo
+                      </button>
+                      <button 
+                        type="button" 
+                        className="remove-img-btn" 
+                        style={{ position: 'static', backgroundColor: 'rgba(0,0, 0, 0.75)' }}
+                        onClick={removeImage} 
+                        aria-label="Remove image"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
                   </div>
                 </div>
               )}
@@ -647,6 +731,22 @@ export default function CreatePost() {
           )}
         </button>
       </div>
+
+      {imageUrl && (
+        <PhotoEditorModal
+          isOpen={isPhotoEditorOpen}
+          onClose={() => setIsPhotoEditorOpen(false)}
+          imageUrl={imageUrl}
+          onSave={handleEditedPhotoSave}
+        />
+      )}
+
+      <DraftLeaveModal
+        isOpen={isDraftLeaveOpen}
+        onClose={() => setIsDraftLeaveOpen(false)}
+        onSaveDraft={handleSaveDraftAndExit}
+        onDiscard={handleDiscardAndExit}
+      />
     </div>
   );
 }

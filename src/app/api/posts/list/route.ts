@@ -4,15 +4,26 @@ import { createClient } from '@supabase/supabase-js';
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 
-const PAGE_SIZE = 10;
+const PAGE_SIZE = 5;
 
 export async function GET(req: NextRequest) {
   try {
     const { searchParams } = new URL(req.url);
     const cursor = searchParams.get('cursor');
     const type = searchParams.get('type');
+    const savedIds = searchParams.get('savedIds');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
+
+    let userId: string | null = null;
+    const authHeader = req.headers.get('authorization');
+    if (authHeader && authHeader.startsWith('Bearer ')) {
+      const token = authHeader.replace('Bearer ', '');
+      const { data: { user } } = await supabase.auth.getUser(token);
+      if (user) {
+        userId = user.id;
+      }
+    }
 
     let query = supabase
       .from('posts')
@@ -24,8 +35,22 @@ export async function GET(req: NextRequest) {
       query = query.lt('created_at', cursor);
     }
 
-    if (type && (type === 'problem' || type === 'idea')) {
+    if (type === 'problem' || type === 'idea') {
       query = query.eq('type', type);
+    } else if (type === 'mine') {
+      if (!userId) {
+        return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
+      }
+      query = query.eq('user_id', userId);
+    } else if (type === 'saved') {
+      if (!savedIds) {
+        return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
+      }
+      const idsArray = savedIds.split(',').filter(Boolean);
+      if (idsArray.length === 0) {
+        return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
+      }
+      query = query.in('id', idsArray);
     }
 
     const { data, error } = await query;

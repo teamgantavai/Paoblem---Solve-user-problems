@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useRef } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Image as ImageIcon, 
   Link2, 
@@ -17,21 +17,90 @@ import {
   ExternalLink,
   AlertTriangle,
   Lightbulb,
-  Loader2
+  Loader2,
+  Pencil,
+  Share2,
+  Copy
 } from 'lucide-react';
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Post, Comment } from '@/lib/types';
 import AuthModal from './AuthModal';
+import EditPostModal from './EditPostModal';
+import DeleteConfirmModal from './DeleteConfirmModal';
+import { parseLinksInText, Segment } from '@/app/lib/linkParser';
 
 export default function Feed() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const queryClient = useQueryClient();
+  
+  const activeFilter = searchParams.get('filter') || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
   const [shuffledPosts, setShuffledPosts] = useState<Post[]>([]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+
+  // Bookmarks state (localStorage)
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [activeShareMenuPostId, setActiveShareMenuPostId] = useState<string | null>(null);
+  const [showSubSharePostId, setShowSubSharePostId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+
+  // Synchronize URL query parameter with component state
+  useEffect(() => {
+    setFilterType(activeFilter);
+  }, [activeFilter]);
+
+  // Load saved post IDs on mount
+  useEffect(() => {
+    const saved = localStorage.getItem('paoblem_saved_posts');
+    if (saved) {
+      try {
+        setSavedIds(JSON.parse(saved));
+      } catch (e) {
+        console.error(e);
+      }
+    }
+  }, []);
+
+  const handleToggleSave = (postId: string) => {
+    let nextSaved: string[];
+    if (savedIds.includes(postId)) {
+      nextSaved = savedIds.filter(id => id !== postId);
+      showToast('Post removed from Saved Problems');
+    } else {
+      nextSaved = [...savedIds, postId];
+      showToast('Post added to Saved Problems');
+    }
+    setSavedIds(nextSaved);
+    localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
+    
+    // Invalidate react-query cache if we are in the saved list tab to instantly remove the post visually
+    if (filterType === 'saved') {
+      queryClient.invalidateQueries({ queryKey: ['posts', 'saved'] });
+    }
+  };
+
+  const showToast = (message: string) => {
+    setToastMessage(message);
+    setTimeout(() => {
+      setToastMessage(null);
+    }, 2500);
+  };
+
+  // Close sharing menu when clicking outside
+  useEffect(() => {
+    const handleOutsideClick = () => {
+      setActiveShareMenuPostId(null);
+      setShowSubSharePostId(null);
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
 
   // 1. Listen to Auth State
   useEffect(() => {
@@ -55,12 +124,22 @@ export default function Feed() {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['posts', filterType],
+    queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : ''],
     queryFn: async ({ pageParam = null }) => {
-      const url = pageParam 
-        ? `/api/posts/list?cursor=${encodeURIComponent(pageParam)}&type=${filterType}`
-        : `/api/posts/list?type=${filterType}`;
-      const res = await fetch(url);
+      let url = `/api/posts/list?type=${filterType}`;
+      if (pageParam) {
+        url += `&cursor=${encodeURIComponent(pageParam)}`;
+      }
+      if (filterType === 'saved') {
+        url += `&savedIds=${encodeURIComponent(savedIds.join(','))}`;
+      }
+
+      const headers: Record<string, string> = {};
+      if (session?.access_token) {
+        headers['Authorization'] = `Bearer ${session.access_token}`;
+      }
+
+      const res = await fetch(url, { headers });
       if (!res.ok) throw new Error('Failed to fetch posts');
       return res.json();
     },
@@ -218,11 +297,6 @@ export default function Feed() {
     voteMutation.mutate({ postId, voteType });
   };
 
-  const handleDeletePost = (postId: string) => {
-    if (confirm('Are you sure you want to delete this post?')) {
-      deletePostMutation.mutate(postId);
-    }
-  };
 
   const toggleComments = (postId: string) => {
     setOpenComments(prev => ({
@@ -297,40 +371,26 @@ export default function Feed() {
       </div>
 
       {/* Filter Tabs */}
-      <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0' }}>
-        <button 
-          className={`btn ${filterType === 'all' ? 'btn-primary' : ''}`}
-          style={{ 
-            background: filterType === 'all' ? undefined : 'var(--bg-card)', 
-            color: 'var(--text-main)',
-            border: filterType === 'all' ? 'none' : '1px solid var(--border-color)'
-          }}
-          onClick={() => setFilterType('all')}
-        >
-          All Feed
-        </button>
-        <button 
-          className={`btn ${filterType === 'problem' ? 'btn-primary' : ''}`}
-          style={{ 
-            background: filterType === 'problem' ? undefined : 'var(--bg-card)', 
-            color: 'var(--text-main)',
-            border: filterType === 'problem' ? 'none' : '1px solid var(--border-color)'
-          }}
-          onClick={() => setFilterType('problem')}
-        >
-          Problems
-        </button>
-        <button 
-          className={`btn ${filterType === 'idea' ? 'btn-primary' : ''}`}
-          style={{ 
-            background: filterType === 'idea' ? undefined : 'var(--bg-card)', 
-            color: 'var(--text-main)',
-            border: filterType === 'idea' ? 'none' : '1px solid var(--border-color)'
-          }}
-          onClick={() => setFilterType('idea')}
-        >
-          Ideas
-        </button>
+      <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none' }}>
+        {[
+          { id: 'all', label: 'All Feed' },
+          { id: 'problem', label: 'Problems' },
+          { id: 'idea', label: 'Ideas' }
+        ].map((tab) => (
+          <button 
+            key={tab.id}
+            className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
+            style={{ 
+              background: filterType === tab.id ? undefined : 'var(--bg-card)', 
+              color: 'var(--text-main)',
+              border: filterType === tab.id ? 'none' : '1px solid var(--border-color)',
+              flexShrink: 0
+            }}
+            onClick={() => router.push(tab.id === 'all' ? '/' : `/?filter=${tab.id}`)}
+          >
+            {tab.label}
+          </button>
+        ))}
       </div>
 
       {/* ── Posts List ── */}
@@ -387,22 +447,150 @@ export default function Feed() {
                 </div>
               </div>
               
-              <div className="flex items-center gap-2" style={{ color: 'var(--text-muted)' }}>
-                {isOwner && (
-                  <button 
-                    onClick={() => handleDeletePost(post.id)}
-                    style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', display: 'flex', alignItems: 'center', padding: '4px' }}
-                    title="Delete Post"
+              <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
+                <button
+                  onClick={() => handleToggleSave(post.id)}
+                  style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
+                  className="theme-toggle-btn"
+                  title={savedIds.includes(post.id) ? "Unsave Problem" : "Save Problem"}
+                >
+                  <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
+                </button>
+
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    const isClosing = activeShareMenuPostId === post.id;
+                    setActiveShareMenuPostId(isClosing ? null : post.id);
+                    setShowSubSharePostId(null);
+                  }}
+                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
+                  className="theme-toggle-btn"
+                  title="More Options"
+                >
+                  <MoreVertical size={18} />
+                </button>
+
+                {activeShareMenuPostId === post.id && (
+                  <div 
+                    className="share-dropdown-menu" 
+                    onClick={(e) => e.stopPropagation()}
+                    style={{ position: 'absolute', top: '34px', right: 0 }}
                   >
-                    <Trash2 size={16} />
-                  </button>
+                    {showSubSharePostId !== post.id ? (
+                      <>
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => setShowSubSharePostId(post.id)}
+                        >
+                          <Share2 size={13} /> Share Post…
+                        </button>
+                        
+                        {(isOwner) && (
+                          <>
+                            <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
+                            <button 
+                              className="share-menu-item"
+                              onClick={() => {
+                                setActiveShareMenuPostId(null);
+                                setEditingPost(post);
+                              }}
+                              style={{ color: 'var(--accent-blue)' }}
+                            >
+                              <Pencil size={13} /> Edit Post
+                            </button>
+                            <button 
+                              className="share-menu-item"
+                              onClick={() => {
+                                setActiveShareMenuPostId(null);
+                                setDeletingPostId(post.id);
+                              }}
+                              style={{ color: '#ef4444' }}
+                            >
+                              <Trash2 size={13} /> Delete Post
+                            </button>
+                          </>
+                        )}
+                      </>
+                    ) : (
+                      <>
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => setShowSubSharePostId(null)}
+                          style={{ fontWeight: 600, color: 'var(--text-muted)' }}
+                        >
+                          ← Back
+                        </button>
+                        <div style={{ height: '1px', background: 'var(--border-color)', margin: '2px 0' }} />
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => {
+                            setActiveShareMenuPostId(null);
+                            setShowSubSharePostId(null);
+                            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/?post=' + post.id)}`, '_blank');
+                          }}
+                        >
+                          💬 WhatsApp
+                        </button>
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => {
+                            setActiveShareMenuPostId(null);
+                            setShowSubSharePostId(null);
+                            window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}`, '_blank');
+                          }}
+                        >
+                          💼 LinkedIn
+                        </button>
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => {
+                            setActiveShareMenuPostId(null);
+                            setShowSubSharePostId(null);
+                            window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}&title=${encodeURIComponent(post.title)}`, '_blank');
+                          }}
+                        >
+                          👽 Reddit
+                        </button>
+                        <button 
+                          className="share-menu-item"
+                          onClick={() => {
+                            setActiveShareMenuPostId(null);
+                            setShowSubSharePostId(null);
+                            const shareUrl = `${window.location.origin}/?post=${post.id}`;
+                            navigator.clipboard.writeText(shareUrl);
+                            showToast('Link copied!');
+                          }}
+                        >
+                          <Copy size={13} /> Copy Link
+                        </button>
+                      </>
+                    )}
+                  </div>
                 )}
-                <Bookmark size={18} style={{ cursor: 'pointer' }} />
-                <MoreVertical size={18} style={{ cursor: 'pointer' }} />
               </div>
             </div>
 
             <div className="post-content">
+              {post.external_link && (
+                <a 
+                  href={post.external_link} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-1" 
+                  style={{ 
+                    color: 'var(--accent-blue)', 
+                    fontSize: '0.8rem', 
+                    fontWeight: 500, 
+                    marginBottom: '0.5rem',
+                    textDecoration: 'none',
+                    display: 'inline-flex'
+                  }}
+                >
+                  <ExternalLink size={12} />
+                  <span>{post.link_name || post.external_link}</span>
+                </a>
+              )}
               <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{post.title}</h3>
               <ExpandableBody body={post.body} />
             </div>
@@ -415,30 +603,6 @@ export default function Feed() {
                   style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '400px', objectFit: 'cover' }} 
                 />
               </div>
-            )}
-
-            {post.external_link && (
-              <a 
-                href={post.external_link} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="flex items-center gap-2" 
-                style={{ 
-                  background: 'var(--search-bg)', 
-                  border: '1px solid var(--border-color)', 
-                  padding: '0.65rem 1rem', 
-                  borderRadius: '12px', 
-                  marginBottom: '1rem',
-                  fontSize: '0.8rem',
-                  color: 'var(--accent-blue)',
-                  fontWeight: 500
-                }}
-              >
-                <ExternalLink size={14} />
-                <span style={{ textOverflow: 'ellipsis', overflow: 'hidden', whiteSpace: 'nowrap' }}>
-                  {post.link_name || post.external_link}
-                </span>
-              </a>
             )}
 
             <div className="post-footer" style={{ borderBottom: openComments[post.id] ? 'none' : undefined, paddingBottom: openComments[post.id] ? '0' : undefined }}>
@@ -548,6 +712,33 @@ export default function Feed() {
       )}
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
+
+      {editingPost && (
+        <EditPostModal
+          isOpen={!!editingPost}
+          onClose={() => setEditingPost(null)}
+          post={editingPost}
+          session={session}
+        />
+      )}
+
+      <DeleteConfirmModal
+        isOpen={!!deletingPostId}
+        onClose={() => setDeletingPostId(null)}
+        onConfirm={() => {
+          if (deletingPostId) {
+            deletePostMutation.mutate(deletingPostId);
+            setDeletingPostId(null);
+          }
+        }}
+        isPending={deletePostMutation.isPending}
+      />
+
+      {toastMessage && (
+        <div className="share-toast">
+          {toastMessage}
+        </div>
+      )}
     </main>
   );
 }
@@ -726,7 +917,9 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                         )}
                       </span>
                     </div>
-                    <div className="comment-text">{comment.body}</div>
+                    <div className="comment-text">
+                      <RenderSegments segments={parseLinksInText(comment.body)} />
+                    </div>
                   </div>
                 </div>
               );
@@ -786,10 +979,43 @@ function PostSkeleton() {
   );
 }
 
-// ── Expandable Body for long text ──
+// ── Expandable Body for long text with inline link detection ──
+function RenderSegments({ segments }: { segments: Segment[] }) {
+  return (
+    <>
+      {segments.map((seg, i) => {
+        if (seg.type === 'link') {
+          return (
+            <a
+              key={i}
+              href={seg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                color: 'var(--accent-blue)',
+                textDecoration: 'none',
+                fontWeight: 500,
+                wordBreak: 'break-all',
+              }}
+              onMouseEnter={(e) => (e.currentTarget.style.textDecoration = 'underline')}
+              onMouseLeave={(e) => (e.currentTarget.style.textDecoration = 'none')}
+            >
+              {seg.display}
+            </a>
+          );
+        }
+        return <React.Fragment key={i}>{seg.content}</React.Fragment>;
+      })}
+    </>
+  );
+}
+
 function ExpandableBody({ body }: { body: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const maxLength = 250;
+
+  const segments = parseLinksInText(body);
 
   if (body.length <= maxLength) {
     return (
@@ -801,12 +1027,14 @@ function ExpandableBody({ body }: { body: string }) {
         overflowWrap: 'break-word',
         whiteSpace: 'pre-wrap'
       }}>
-        {body}
+        <RenderSegments segments={segments} />
       </p>
     );
   }
 
+  // For truncated view, parse only the visible slice
   const displayText = isExpanded ? body : body.slice(0, maxLength) + '...';
+  const displaySegments = parseLinksInText(displayText);
 
   return (
     <div>
@@ -819,7 +1047,7 @@ function ExpandableBody({ body }: { body: string }) {
         whiteSpace: 'pre-wrap',
         margin: 0
       }}>
-        {displayText}
+        <RenderSegments segments={displaySegments} />
       </p>
       <button
         onClick={(e) => {
