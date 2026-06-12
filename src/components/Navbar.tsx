@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { 
   Home, 
@@ -24,7 +24,7 @@ import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
 
-export default function Navbar() {
+function NavbarInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
@@ -371,5 +371,13 @@ export default function Navbar() {
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <DevelopmentNotice isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} featureName={noticeFeature} />
     </>
+  );
+}
+
+export default function Navbar() {
+  return (
+    <Suspense fallback={null}>
+      <NavbarInner />
+    </Suspense>
   );
 }
