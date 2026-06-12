@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   TrendingUp,
@@ -17,7 +17,7 @@ import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
 
-export default function SidebarLeft() {
+function SidebarLeftInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
@@ -173,5 +173,13 @@ export default function SidebarLeft() {
       <DevelopmentNotice isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} featureName={noticeFeature} />
 
     </aside>
+  );
+}
+
+export default function SidebarLeft() {
+  return (
+    <Suspense fallback={null}>
+      <SidebarLeftInner />
+    </Suspense>
   );
 }

@@ -1,19 +1,19 @@
 'use client';
 
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { 
-  Image as ImageIcon, 
-  Link2, 
-  Wand2, 
-  Send, 
-  ChevronUp, 
-  ChevronDown, 
-  MessageCircle, 
-  Bookmark, 
-  MoreVertical, 
-  Smile, 
-  Trash2, 
+import {
+  Image as ImageIcon,
+  Link2,
+  Wand2,
+  Send,
+  ChevronUp,
+  ChevronDown,
+  MessageCircle,
+  Bookmark,
+  MoreVertical,
+  Smile,
+  Trash2,
   ExternalLink,
   AlertTriangle,
   Lightbulb,
@@ -30,11 +30,11 @@ import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { parseLinksInText, Segment } from '@/app/lib/linkParser';
 
-export default function Feed() {
+function FeedInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
-  
+
   const activeFilter = searchParams.get('filter') || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
@@ -78,7 +78,7 @@ export default function Feed() {
     }
     setSavedIds(nextSaved);
     localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
-    
+
     // Invalidate react-query cache if we are in the saved list tab to instantly remove the post visually
     if (filterType === 'saved') {
       queryClient.invalidateQueries({ queryKey: ['posts', 'saved'] });
@@ -156,7 +156,7 @@ export default function Feed() {
         .from('votes')
         .select('post_id, vote_type')
         .eq('user_id', session.user.id);
-      
+
       const map: Record<string, 'up' | 'down'> = {};
       votes?.forEach((v) => {
         map[v.post_id] = v.vote_type as 'up' | 'down';
@@ -170,7 +170,7 @@ export default function Feed() {
   const observerRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!observerRef.current) return;
-    
+
     const observer = new IntersectionObserver((entries) => {
       if (entries[0].isIntersecting && hasNextPage && !isFetchingNextPage) {
         fetchNextPage();
@@ -224,7 +224,7 @@ export default function Feed() {
             ...page,
             posts: page.posts.map((post: any) => {
               if (post.id !== postId) return post;
-              
+
               const currentVote = (previousUserVotes as any)?.[postId];
               let upDelta = 0;
               let downDelta = 0;
@@ -328,8 +328,8 @@ export default function Feed() {
       <h1 className="feed-title">Paoblems</h1>
 
       {/* ── Post Composer Trigger ── */}
-      <div 
-        className="card composer-card" 
+      <div
+        className="card composer-card"
         onClick={() => router.push('/create-post')}
         style={{ cursor: 'pointer' }}
       >
@@ -377,11 +377,11 @@ export default function Feed() {
           { id: 'problem', label: 'Problems' },
           { id: 'idea', label: 'Ideas' }
         ].map((tab) => (
-          <button 
+          <button
             key={tab.id}
             className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
-            style={{ 
-              background: filterType === tab.id ? undefined : 'var(--bg-card)', 
+            style={{
+              background: filterType === tab.id ? undefined : 'var(--bg-card)',
               color: 'var(--text-main)',
               border: filterType === tab.id ? 'none' : '1px solid var(--border-color)',
               flexShrink: 0
@@ -422,20 +422,20 @@ export default function Feed() {
           <div className="card" key={post.id}>
             <div className="post-header">
               <div className="post-user">
-                <img 
-                  src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`} 
-                  alt={post.profiles?.full_name || 'Anonymous'} 
-                  className="avatar" 
+                <img
+                  src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
+                  alt={post.profiles?.full_name || 'Anonymous'}
+                  className="avatar"
                 />
                 <div className="post-user-info">
                   <h4 className="flex items-center gap-2" style={{ fontWeight: 600 }}>
                     {post.profiles?.full_name || 'Anonymous'}
-                    <span 
-                      style={{ 
-                        fontSize: '0.65rem', 
-                        fontWeight: 500, 
-                        background: 'rgba(255,255,255,0.05)', 
-                        padding: '1px 6px', 
+                    <span
+                      style={{
+                        fontSize: '0.65rem',
+                        fontWeight: 500,
+                        background: 'rgba(255,255,255,0.05)',
+                        padding: '1px 6px',
                         borderRadius: '10px',
                         color: 'var(--text-muted)'
                       }}
@@ -446,7 +446,7 @@ export default function Feed() {
                   <p>{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                 </div>
               </div>
-              
+
               <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
                 <button
                   onClick={() => handleToggleSave(post.id)}
@@ -472,24 +472,24 @@ export default function Feed() {
                 </button>
 
                 {activeShareMenuPostId === post.id && (
-                  <div 
-                    className="share-dropdown-menu" 
+                  <div
+                    className="share-dropdown-menu"
                     onClick={(e) => e.stopPropagation()}
                     style={{ position: 'absolute', top: '34px', right: 0 }}
                   >
                     {showSubSharePostId !== post.id ? (
                       <>
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => setShowSubSharePostId(post.id)}
                         >
                           <Share2 size={13} /> Share Post…
                         </button>
-                        
+
                         {(isOwner) && (
                           <>
                             <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
-                            <button 
+                            <button
                               className="share-menu-item"
                               onClick={() => {
                                 setActiveShareMenuPostId(null);
@@ -499,7 +499,7 @@ export default function Feed() {
                             >
                               <Pencil size={13} /> Edit Post
                             </button>
-                            <button 
+                            <button
                               className="share-menu-item"
                               onClick={() => {
                                 setActiveShareMenuPostId(null);
@@ -514,7 +514,7 @@ export default function Feed() {
                       </>
                     ) : (
                       <>
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => setShowSubSharePostId(null)}
                           style={{ fontWeight: 600, color: 'var(--text-muted)' }}
@@ -522,7 +522,7 @@ export default function Feed() {
                           ← Back
                         </button>
                         <div style={{ height: '1px', background: 'var(--border-color)', margin: '2px 0' }} />
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => {
                             setActiveShareMenuPostId(null);
@@ -532,7 +532,7 @@ export default function Feed() {
                         >
                           💬 WhatsApp
                         </button>
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => {
                             setActiveShareMenuPostId(null);
@@ -542,7 +542,7 @@ export default function Feed() {
                         >
                           💼 LinkedIn
                         </button>
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => {
                             setActiveShareMenuPostId(null);
@@ -552,7 +552,7 @@ export default function Feed() {
                         >
                           👽 Reddit
                         </button>
-                        <button 
+                        <button
                           className="share-menu-item"
                           onClick={() => {
                             setActiveShareMenuPostId(null);
@@ -573,15 +573,15 @@ export default function Feed() {
 
             <div className="post-content">
               {post.external_link && (
-                <a 
-                  href={post.external_link} 
-                  target="_blank" 
+                <a
+                  href={post.external_link}
+                  target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1" 
-                  style={{ 
-                    color: 'var(--accent-blue)', 
-                    fontSize: '0.8rem', 
-                    fontWeight: 500, 
+                  className="flex items-center gap-1"
+                  style={{
+                    color: 'var(--accent-blue)',
+                    fontSize: '0.8rem',
+                    fontWeight: 500,
                     marginBottom: '0.5rem',
                     textDecoration: 'none',
                     display: 'inline-flex'
@@ -597,10 +597,10 @@ export default function Feed() {
 
             {post.image_url && (
               <div style={{ position: 'relative', width: '100%', marginBottom: '1rem', borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                <img 
-                  src={post.image_url} 
-                  alt="Post content" 
-                  style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '400px', objectFit: 'cover' }} 
+                <img
+                  src={post.image_url}
+                  alt="Post content"
+                  style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '400px', objectFit: 'cover' }}
                 />
               </div>
             )}
@@ -609,8 +609,8 @@ export default function Feed() {
               <div className="flex items-center gap-2">
                 {/* Upvote Capsule */}
                 <div className="vote-container" style={{ borderColor: hasUpvoted ? 'var(--accent-blue)' : undefined, background: hasUpvoted ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
-                  <button 
-                    className="vote-btn" 
+                  <button
+                    className="vote-btn"
                     onClick={() => handleVote(post.id, 'up')}
                     style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
                     aria-label="Upvote"
@@ -624,8 +624,8 @@ export default function Feed() {
 
                 {/* Downvote Capsule */}
                 <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
-                  <button 
-                    className="vote-btn" 
+                  <button
+                    className="vote-btn"
                     onClick={() => handleVote(post.id, 'down')}
                     style={{ color: hasDownvoted ? '#ef4444' : undefined }}
                     aria-label="Downvote"
@@ -638,7 +638,7 @@ export default function Feed() {
                 </div>
 
                 {/* Comments Toggle */}
-                <div 
+                <div
                   onClick={() => toggleComments(post.id)}
                   style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '0.5rem', color: openComments[post.id] ? 'var(--text-main)' : 'var(--text-muted)' }}
                   aria-label="Toggle comments"
@@ -665,8 +665,8 @@ export default function Feed() {
       })}
 
       {!session && displayedPosts.length > 0 && (
-        <div 
-          className="card" 
+        <div
+          className="card"
           style={{
             textAlign: 'center',
             padding: '3rem 2rem',
@@ -694,8 +694,8 @@ export default function Feed() {
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '400px', lineHeight: '1.5', margin: '0 auto' }}>
             You have read all preview posts. Join or sign in to our developer community to view more startup ideas, vote on problems, or write comments.
           </p>
-          <button 
-            className="btn btn-primary" 
+          <button
+            className="btn btn-primary"
             onClick={() => setIsAuthOpen(true)}
             style={{ padding: '0.65rem 1.75rem', fontWeight: 600, fontSize: '0.88rem', marginTop: '0.5rem' }}
           >
@@ -763,27 +763,27 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
         .select('*, profiles:user_id(full_name, avatar_url)')
         .eq('post_id', postId)
         .order('created_at', { ascending: true });
-      
+
       if (error) {
         console.warn('Comments join query failed (likely missing FK constraint). Falling back to split fetch...', error);
-        
+
         // 2. Fallback: Fetch raw comments first
         const { data: rawComments, error: commentsError } = await supabase
           .from('comments')
           .select('*')
           .eq('post_id', postId)
           .order('created_at', { ascending: true });
-          
+
         if (commentsError) throw new Error(commentsError.message);
         if (!rawComments || rawComments.length === 0) return [];
-        
+
         // 3. Fetch profiles for user_ids in comments
         const userIds = Array.from(new Set(rawComments.map(c => c.user_id)));
         const { data: profiles, error: profilesError } = await supabase
           .from('profiles')
           .select('id, full_name, avatar_url, role')
           .in('id', userIds);
-          
+
         if (profilesError) {
           console.warn('Fallback profiles fetch failed:', profilesError);
           return rawComments.map(c => ({
@@ -791,7 +791,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
             profiles: null
           }));
         }
-        
+
         // 4. Map profiles back to comments
         const profileMap = new Map(profiles.map(p => [p.id, p]));
         return rawComments.map(c => ({
@@ -799,7 +799,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
           profiles: profileMap.get(c.user_id) || null
         }));
       }
-      
+
       return data || [];
     }
   });
@@ -880,22 +880,22 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
           ) : (
             comments?.map((comment) => {
               const isCommentOwner = session?.user?.id === comment.user_id;
-              const authorName = (comment.profiles?.full_name?.trim() ? comment.profiles.full_name : null) || 
-                (isCommentOwner ? session?.user?.user_metadata?.full_name : null) || 
+              const authorName = (comment.profiles?.full_name?.trim() ? comment.profiles.full_name : null) ||
+                (isCommentOwner ? session?.user?.user_metadata?.full_name : null) ||
                 'Anonymous';
-              const authorAvatar = comment.profiles?.avatar_url || 
-                (isCommentOwner ? session?.user?.user_metadata?.avatar_url : null) || 
+              const authorAvatar = comment.profiles?.avatar_url ||
+                (isCommentOwner ? session?.user?.user_metadata?.avatar_url : null) ||
                 `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`;
-              const authorRole = comment.profiles?.role || 
-                (isCommentOwner ? session?.user?.user_metadata?.role : null) || 
+              const authorRole = comment.profiles?.role ||
+                (isCommentOwner ? session?.user?.user_metadata?.role : null) ||
                 'Innovator';
 
               return (
                 <div className="comment-item" key={comment.id}>
-                  <img 
-                    src={authorAvatar} 
-                    alt={authorName} 
-                    className="comment-avatar" 
+                  <img
+                    src={authorAvatar}
+                    alt={authorName}
+                    className="comment-avatar"
                   />
                   <div className="comment-content">
                     <div className="comment-author-time">
@@ -908,7 +908,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                       <span className="comment-time" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {new Date(comment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         {isCommentOwner && (
-                          <button 
+                          <button
                             onClick={() => handleDeleteComment(comment.id)}
                             style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}
                           >
@@ -930,20 +930,20 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
 
       {/* Write Comment Form */}
       <form onSubmit={handleCommentSubmit} className="comment-input-wrapper">
-        <img 
-          src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"} 
-          alt="You" 
-          style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }} 
+        <img
+          src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
+          alt="You"
+          style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
         />
-        <input 
-          type="text" 
-          placeholder={session ? "Write a comment..." : "Sign in to write a comment"} 
+        <input
+          type="text"
+          placeholder={session ? "Write a comment..." : "Sign in to write a comment"}
           value={commentText}
           onChange={(e) => setCommentText(e.target.value)}
           disabled={!session || addCommentMutation.isPending}
         />
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '4px' }}
           disabled={!session || !commentText.trim() || addCommentMutation.isPending}
         >
@@ -1019,9 +1019,9 @@ function ExpandableBody({ body }: { body: string }) {
 
   if (body.length <= maxLength) {
     return (
-      <p style={{ 
-        fontSize: '0.88rem', 
-        color: 'var(--text-muted)', 
+      <p style={{
+        fontSize: '0.88rem',
+        color: 'var(--text-muted)',
         lineHeight: '1.5',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
@@ -1038,9 +1038,9 @@ function ExpandableBody({ body }: { body: string }) {
 
   return (
     <div>
-      <p style={{ 
-        fontSize: '0.88rem', 
-        color: 'var(--text-muted)', 
+      <p style={{
+        fontSize: '0.88rem',
+        color: 'var(--text-muted)',
         lineHeight: '1.5',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
@@ -1070,5 +1070,13 @@ function ExpandableBody({ body }: { body: string }) {
         {isExpanded ? 'See less' : 'See more'}
       </button>
     </div>
+  );
+}
+
+export default function Feed() {
+  return (
+    <Suspense fallback={null}>
+      <FeedInner />
+    </Suspense>
   );
 }
