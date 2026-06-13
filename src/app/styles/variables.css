@@ -3,6 +3,7 @@
   --bg-card: #121214;
   --bg-hover: #1c1c1f;
   --text-main: #ffffff;
+  --text-body: #c9c9cf;   /* High-contrast body text, WCAG AA on dark bg */
   --text-muted: #7f7f84;
   --border-color: #1e1e21;
   --accent-blue: #0084ff;
@@ -17,6 +18,7 @@
   --bg-card: #ffffff;
   --bg-hover: #f9fafb;
   --text-main: #111827;
+  --text-body: #374151;   /* High-contrast body text for light mode */
   --text-muted: #6b7280;
   --border-color: #e5e7eb;
   --accent-blue: #2563eb;

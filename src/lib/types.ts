@@ -83,3 +83,25 @@ export interface AIEnhanceResponse {
   original: string;
   enhanced: string;
 }
+
+export interface Notification {
+  id: string;
+  user_id: string;
+  type: 'upvote' | 'comment' | 'follow' | 'system';
+  title: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+  post_id?: string | null;
+}
+
+export interface Message {
+  id: string;
+  sender_id: string;
+  sender_name: string;
+  sender_avatar: string;
+  body: string;
+  read: boolean;
+  created_at: string;
+}
+

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useState, useEffect, useCallback } from 'react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '../lib/supabase';
 
 // Inline CheckIcon definition to prevent missing file imports
@@ -28,6 +29,7 @@ type AuthStep =
   | 'success';
 
 export default function AuthModal({ isOpen, onClose, onAuthenticated, initialStep }: AuthModalProps) {
+  const router = useRouter();
   const [step, setStep] = useState<AuthStep>(initialStep || 'email');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -141,6 +143,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       } else if (data.user) {
         if (onAuthenticated) onAuthenticated();
         handleClose();
+        router.push('/profile');
       }
     } catch (err) {
       setError('Something went wrong. Please try again.');
@@ -254,6 +257,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
           } else if (retryData.user) {
             if (onAuthenticated) onAuthenticated();
             setStep('success');
+            setTimeout(() => { handleClose(); router.push('/profile'); }, 800);
           }
         } else {
           throw new Error(signInError.message);
@@ -261,6 +265,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       } else if (data.user) {
         if (onAuthenticated) onAuthenticated();
         setStep('success');
+        setTimeout(() => { handleClose(); router.push('/profile'); }, 800);
       }
     } catch (err: any) {
       console.error(err);

@@ -1,6 +1,15 @@
+'use client';
+
 import React from 'react';
+import { useRouter } from 'next/navigation';
 
 export default function SidebarRight() {
+  const router = useRouter();
+
+  const handleNavigatePost = (postId: string) => {
+    router.push(`/?post=${postId}`);
+  };
+
   return (
     <aside className="right-sidebar">
       {/* Try Premium Card */}
@@ -55,7 +64,13 @@ export default function SidebarRight() {
                 </p>
               </div>
             </div>
-            <button className="btn" style={{ padding: '0.2rem 0.8rem', fontSize: '0.72rem' }}>View</button>
+            <button 
+              className="btn" 
+              style={{ padding: '0.2rem 0.8rem', fontSize: '0.72rem' }}
+              onClick={() => handleNavigatePost('dylan-post')}
+            >
+              View
+            </button>
           </div>
 
           <div className="flex items-start justify-between">
@@ -64,15 +79,21 @@ export default function SidebarRight() {
               <div>
                 <h4 style={{ fontSize: '0.72rem', color: 'var(--text-muted)', fontWeight: 500 }}>CEO of LinkedIn</h4>
                 <p style={{ fontSize: '0.85rem', marginTop: '2px', fontWeight: 600, lineHeight: '1.25' }}>
-                  Why designing<br />Sucks!!!
+                  Recruiting in 2026<br />is totally broken
                 </p>
               </div>
             </div>
-            <button className="btn" style={{ padding: '0.2rem 0.8rem', fontSize: '0.72rem' }}>View</button>
+            <button 
+              className="btn" 
+              style={{ padding: '0.2rem 0.8rem', fontSize: '0.72rem' }}
+              onClick={() => handleNavigatePost('ryan-post')}
+            >
+              View
+            </button>
           </div>
         </div>
 
-        <button className="btn-see-all">See All</button>
+        <button className="btn-see-all" onClick={() => router.push('/')}>See All</button>
       </div>
 
       {/* Download Reddit Card */}

@@ -9,7 +9,20 @@ const createPostSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(300, 'Title too long'),
   body: z.string().min(10, 'Body must be at least 10 characters').max(10000, 'Body too long'),
   type: z.enum(['problem', 'idea']),
-  image_url: z.string().url().nullable().optional(),
+  image_url: z.string().nullable().optional().refine((val) => {
+    if (!val) return true;
+    try {
+      if (val.startsWith('[') && val.endsWith(']')) {
+        const arr = JSON.parse(val);
+        return Array.isArray(arr) && arr.length <= 10 && arr.every((item: any) => typeof item === 'string' && /^https?:\/\//i.test(item));
+      }
+      return /^https?:\/\//i.test(val);
+    } catch {
+      return false;
+    }
+  }, {
+    message: 'Image URL must be a valid URL or a JSON array of up to 10 valid URLs'
+  }),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
 });
@@ -34,10 +47,7 @@ function checkRateLimit(key: string): boolean {
 function sanitize(text: string): string {
   return text
     .replace(/</g, '&lt;')
-    .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;')
-    .replace(/'/g, '&#x27;')
-    .replace(/\//g, '&#x2F;');
+    .replace(/>/g, '&gt;');
 }
 
 export async function POST(req: NextRequest) {

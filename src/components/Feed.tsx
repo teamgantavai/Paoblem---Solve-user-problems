@@ -29,6 +29,9 @@ import AuthModal from './AuthModal';
 import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { parseLinksInText, Segment } from '@/app/lib/linkParser';
+import ImageGallery from './ImageGallery';
+import ErrorBoundary from './ErrorBoundary';
+import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 
 function FeedInner() {
   const router = useRouter();
@@ -115,6 +118,8 @@ function FeedInner() {
     return () => subscription.unsubscribe();
   }, []);
 
+  const singlePostId = searchParams.get('post');
+
   // 2. Infinite Query for Posts
   const {
     data,
@@ -124,14 +129,18 @@ function FeedInner() {
     isLoading,
     isError,
   } = useInfiniteQuery({
-    queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : ''],
+    queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : '', singlePostId || ''],
     queryFn: async ({ pageParam = null }) => {
       let url = `/api/posts/list?type=${filterType}`;
-      if (pageParam) {
-        url += `&cursor=${encodeURIComponent(pageParam)}`;
-      }
-      if (filterType === 'saved') {
-        url += `&savedIds=${encodeURIComponent(savedIds.join(','))}`;
+      if (singlePostId) {
+        url = `/api/posts/list?postId=${encodeURIComponent(singlePostId)}`;
+      } else {
+        if (pageParam) {
+          url += `&cursor=${encodeURIComponent(pageParam)}`;
+        }
+        if (filterType === 'saved') {
+          url += `&savedIds=${encodeURIComponent(savedIds.join(','))}`;
+        }
       }
 
       const headers: Record<string, string> = {};
@@ -327,71 +336,98 @@ function FeedInner() {
     <main className="center-feed">
       <h1 className="feed-title">Paoblems</h1>
 
+      {singlePostId && (
+        <button 
+          className="btn" 
+          onClick={() => router.push('/')}
+          style={{ 
+            marginBottom: '1.25rem', 
+            display: 'inline-flex', 
+            alignItems: 'center', 
+            gap: '0.5rem', 
+            backgroundColor: 'var(--bg-hover)', 
+            border: '1px solid var(--border-color)',
+            color: 'var(--text-main)',
+            padding: '0.55rem 1rem',
+            borderRadius: '12px',
+            cursor: 'pointer',
+            fontSize: '0.82rem',
+            fontWeight: 600
+          }}
+        >
+          ← Back to Feed
+        </button>
+      )}
+
       {/* ── Post Composer Trigger ── */}
-      <div
-        className="card composer-card"
-        onClick={() => router.push('/create-post')}
-        style={{ cursor: 'pointer' }}
-      >
-        <div className="composer-top">
-          <img
-            src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
-            alt="You"
-            className="composer-avatar"
-          />
-          <div className="composer-input-wrap">
-            <div className="composer-input" style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
-              What's your Problem or Idea?
+      {!singlePostId && (
+        <div
+          className="card composer-card"
+          onClick={() => router.push('/create-post')}
+          style={{ cursor: 'pointer' }}
+        >
+          <div className="composer-top">
+            <img
+              src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
+              alt="You"
+              className="composer-avatar"
+            />
+            <div className="composer-input-wrap">
+              <div className="composer-input" style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
+                What's your Problem or Idea?
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="composer-divider" />
+          <div className="composer-divider" />
 
-        <div className="composer-actions">
-          <div className="composer-action-group">
-            <div className="composer-action-btn">
-              <ImageIcon size={16} />
-              <span>Photo</span>
+          <div className="composer-actions">
+            <div className="composer-action-group">
+              <div className="composer-action-btn">
+                <ImageIcon size={16} />
+                <span>Photo</span>
+              </div>
+              <div className="composer-action-btn">
+                <Link2 size={16} />
+                <span>Link</span>
+              </div>
+              <div className="composer-action-btn">
+                <Wand2 size={16} />
+                <span>AI Enhance</span>
+              </div>
             </div>
-            <div className="composer-action-btn">
-              <Link2 size={16} />
-              <span>Link</span>
-            </div>
-            <div className="composer-action-btn">
-              <Wand2 size={16} />
-              <span>AI Enhance</span>
-            </div>
+            <button className="composer-send-btn" type="button">
+              <span>Post</span>
+              <Send size={14} />
+            </button>
           </div>
-          <button className="composer-send-btn" type="button">
-            <span>Post</span>
-            <Send size={14} />
-          </button>
         </div>
-      </div>
+      )}
 
       {/* Filter Tabs */}
-      <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none' }}>
-        {[
-          { id: 'all', label: 'All Feed' },
-          { id: 'problem', label: 'Problems' },
-          { id: 'idea', label: 'Ideas' }
-        ].map((tab) => (
-          <button
-            key={tab.id}
-            className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
-            style={{
-              background: filterType === tab.id ? undefined : 'var(--bg-card)',
-              color: 'var(--text-main)',
-              border: filterType === tab.id ? 'none' : '1px solid var(--border-color)',
-              flexShrink: 0
-            }}
-            onClick={() => router.push(tab.id === 'all' ? '/' : `/?filter=${tab.id}`)}
-          >
-            {tab.label}
-          </button>
-        ))}
-      </div>
+      {!singlePostId && (
+        <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none' }}>
+          {[
+            { id: 'all', label: 'All Feed' },
+            { id: 'problem', label: 'Problems' },
+            { id: 'idea', label: 'Ideas' }
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
+              style={{
+                background: filterType === tab.id ? undefined : 'var(--bg-card)',
+                color: 'var(--text-main)',
+                border: filterType === tab.id ? 'none' : '1px solid var(--border-color)',
+                flexShrink: 0
+              }}
+              onClick={() => router.push(tab.id === 'all' ? '/' : `/?filter=${tab.id}`)}
+            >
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
 
       {/* ── Posts List ── */}
       {isLoading && (
@@ -419,248 +455,245 @@ function FeedInner() {
         const isOwner = session?.user?.id === post.user_id;
 
         return (
-          <div className="card" key={post.id}>
-            <div className="post-header">
-              <div className="post-user">
-                <img
-                  src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
-                  alt={post.profiles?.full_name || 'Anonymous'}
-                  className="avatar"
-                />
-                <div className="post-user-info">
-                  <h4 className="flex items-center gap-2" style={{ fontWeight: 600 }}>
-                    {post.profiles?.full_name || 'Anonymous'}
-                    <span
-                      style={{
-                        fontSize: '0.65rem',
-                        fontWeight: 500,
-                        background: 'rgba(255,255,255,0.05)',
-                        padding: '1px 6px',
-                        borderRadius: '10px',
-                        color: 'var(--text-muted)'
-                      }}
-                    >
-                      {post.profiles?.role || 'Innovator'}
-                    </span>
-                  </h4>
-                  <p>{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
-                </div>
-              </div>
-
-              <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
-                <button
-                  onClick={() => handleToggleSave(post.id)}
-                  style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                  className="theme-toggle-btn"
-                  title={savedIds.includes(post.id) ? "Unsave Problem" : "Save Problem"}
-                >
-                  <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
-                </button>
-
-                <button
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    const isClosing = activeShareMenuPostId === post.id;
-                    setActiveShareMenuPostId(isClosing ? null : post.id);
-                    setShowSubSharePostId(null);
-                  }}
-                  style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                  className="theme-toggle-btn"
-                  title="More Options"
-                >
-                  <MoreVertical size={18} />
-                </button>
-
-                {activeShareMenuPostId === post.id && (
-                  <div
-                    className="share-dropdown-menu"
-                    onClick={(e) => e.stopPropagation()}
-                    style={{ position: 'absolute', top: '34px', right: 0 }}
-                  >
-                    {showSubSharePostId !== post.id ? (
-                      <>
-                        <button
-                          className="share-menu-item"
-                          onClick={() => setShowSubSharePostId(post.id)}
-                        >
-                          <Share2 size={13} /> Share Post…
-                        </button>
-
-                        {(isOwner) && (
-                          <>
-                            <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
-                            <button
-                              className="share-menu-item"
-                              onClick={() => {
-                                setActiveShareMenuPostId(null);
-                                setEditingPost(post);
-                              }}
-                              style={{ color: 'var(--accent-blue)' }}
-                            >
-                              <Pencil size={13} /> Edit Post
-                            </button>
-                            <button
-                              className="share-menu-item"
-                              onClick={() => {
-                                setActiveShareMenuPostId(null);
-                                setDeletingPostId(post.id);
-                              }}
-                              style={{ color: '#ef4444' }}
-                            >
-                              <Trash2 size={13} /> Delete Post
-                            </button>
-                          </>
-                        )}
-                      </>
-                    ) : (
-                      <>
-                        <button
-                          className="share-menu-item"
-                          onClick={() => setShowSubSharePostId(null)}
-                          style={{ fontWeight: 600, color: 'var(--text-muted)' }}
-                        >
-                          ← Back
-                        </button>
-                        <div style={{ height: '1px', background: 'var(--border-color)', margin: '2px 0' }} />
-                        <button
-                          className="share-menu-item"
-                          onClick={() => {
-                            setActiveShareMenuPostId(null);
-                            setShowSubSharePostId(null);
-                            window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/?post=' + post.id)}`, '_blank');
-                          }}
-                        >
-                          💬 WhatsApp
-                        </button>
-                        <button
-                          className="share-menu-item"
-                          onClick={() => {
-                            setActiveShareMenuPostId(null);
-                            setShowSubSharePostId(null);
-                            window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}`, '_blank');
-                          }}
-                        >
-                          💼 LinkedIn
-                        </button>
-                        <button
-                          className="share-menu-item"
-                          onClick={() => {
-                            setActiveShareMenuPostId(null);
-                            setShowSubSharePostId(null);
-                            window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}&title=${encodeURIComponent(post.title)}`, '_blank');
-                          }}
-                        >
-                          👽 Reddit
-                        </button>
-                        <button
-                          className="share-menu-item"
-                          onClick={() => {
-                            setActiveShareMenuPostId(null);
-                            setShowSubSharePostId(null);
-                            const shareUrl = `${window.location.origin}/?post=${post.id}`;
-                            navigator.clipboard.writeText(shareUrl);
-                            showToast('Link copied!');
-                          }}
-                        >
-                          <Copy size={13} /> Copy Link
-                        </button>
-                      </>
-                    )}
+          <ErrorBoundary key={post.id}>
+            <div className="card">
+              <div className="post-header">
+                <div className="post-user">
+                  <img
+                    src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
+                    alt={post.profiles?.full_name || 'Anonymous'}
+                    className="avatar"
+                  />
+                  <div className="post-user-info">
+                    <h4 className="flex items-center gap-2" style={{ fontWeight: 600 }}>
+                      {post.profiles?.full_name || 'Anonymous'}
+                      <span
+                        style={{
+                          fontSize: '0.65rem',
+                          fontWeight: 500,
+                          background: 'rgba(255,255,255,0.05)',
+                          padding: '1px 6px',
+                          borderRadius: '10px',
+                          color: 'var(--text-muted)'
+                        }}
+                      >
+                        {post.profiles?.role || 'Innovator'}
+                      </span>
+                    </h4>
+                    <p>{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
                   </div>
+                </div>
+
+                <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
+                  <button
+                    onClick={() => handleToggleSave(post.id)}
+                    style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
+                    className="theme-toggle-btn"
+                    title={savedIds.includes(post.id) ? "Unsave Problem" : "Save Problem"}
+                  >
+                    <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
+                  </button>
+
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const isClosing = activeShareMenuPostId === post.id;
+                      setActiveShareMenuPostId(isClosing ? null : post.id);
+                      setShowSubSharePostId(null);
+                    }}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
+                    className="theme-toggle-btn"
+                    title="More Options"
+                  >
+                    <MoreVertical size={18} />
+                  </button>
+
+                  {activeShareMenuPostId === post.id && (
+                    <div
+                      className="share-dropdown-menu"
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ position: 'absolute', top: '34px', right: 0 }}
+                    >
+                      {showSubSharePostId !== post.id ? (
+                        <>
+                          <button
+                            className="share-menu-item"
+                            onClick={() => setShowSubSharePostId(post.id)}
+                          >
+                            <Share2 size={13} /> Share Post…
+                          </button>
+
+                          {(isOwner) && (
+                            <>
+                              <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
+                              <button
+                                className="share-menu-item"
+                                onClick={() => {
+                                  setActiveShareMenuPostId(null);
+                                  setEditingPost(post);
+                                }}
+                                style={{ color: 'var(--accent-blue)' }}
+                              >
+                                <Pencil size={13} /> Edit Post
+                              </button>
+                              <button
+                                className="share-menu-item"
+                                onClick={() => {
+                                  setActiveShareMenuPostId(null);
+                                  setDeletingPostId(post.id);
+                                }}
+                                style={{ color: '#ef4444' }}
+                              >
+                                <Trash2 size={13} /> Delete Post
+                              </button>
+                            </>
+                          )}
+                        </>
+                      ) : (
+                        <>
+                          <button
+                            className="share-menu-item"
+                            onClick={() => setShowSubSharePostId(null)}
+                            style={{ fontWeight: 600, color: 'var(--text-muted)' }}
+                          >
+                            ← Back
+                          </button>
+                          <div style={{ height: '1px', background: 'var(--border-color)', margin: '2px 0' }} />
+                          <button
+                            className="share-menu-item"
+                            onClick={() => {
+                              setActiveShareMenuPostId(null);
+                              setShowSubSharePostId(null);
+                              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/?post=' + post.id)}`, '_blank');
+                            }}
+                          >
+                            💬 WhatsApp
+                          </button>
+                          <button
+                            className="share-menu-item"
+                            onClick={() => {
+                              setActiveShareMenuPostId(null);
+                              setShowSubSharePostId(null);
+                              window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}`, '_blank');
+                            }}
+                          >
+                            💼 LinkedIn
+                          </button>
+                          <button
+                            className="share-menu-item"
+                            onClick={() => {
+                              setActiveShareMenuPostId(null);
+                              setShowSubSharePostId(null);
+                              window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}&title=${encodeURIComponent(post.title)}`, '_blank');
+                            }}
+                          >
+                            👽 Reddit
+                          </button>
+                          <button
+                            className="share-menu-item"
+                            onClick={() => {
+                              setActiveShareMenuPostId(null);
+                              setShowSubSharePostId(null);
+                              const shareUrl = `${window.location.origin}/?post=${post.id}`;
+                              navigator.clipboard.writeText(shareUrl);
+                              showToast('Link copied!');
+                            }}
+                          >
+                            <Copy size={13} /> Copy Link
+                          </button>
+                        </>
+                      )}
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="post-content">
+                {post.external_link && (
+                  <a
+                    href={post.external_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1"
+                    style={{
+                      color: 'var(--accent-blue)',
+                      fontSize: '0.8rem',
+                      fontWeight: 500,
+                      marginBottom: '0.5rem',
+                      textDecoration: 'none',
+                      display: 'inline-flex'
+                    }}
+                  >
+                    <ExternalLink size={12} />
+                    <span>{post.link_name || post.external_link}</span>
+                  </a>
                 )}
+                <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: '1.3', marginBottom: '0.6rem', color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+                  {decodeHTMLEntities(post.title)}
+                </h3>
+                <ExpandableBody body={post.body} />
               </div>
-            </div>
 
-            <div className="post-content">
-              {post.external_link && (
-                <a
-                  href={post.external_link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center gap-1"
-                  style={{
-                    color: 'var(--accent-blue)',
-                    fontSize: '0.8rem',
-                    fontWeight: 500,
-                    marginBottom: '0.5rem',
-                    textDecoration: 'none',
-                    display: 'inline-flex'
-                  }}
-                >
-                  <ExternalLink size={12} />
-                  <span>{post.link_name || post.external_link}</span>
-                </a>
+              {/* Multiple Image Gallery Grid / Lightbox display */}
+              <ImageGallery imageUrlsString={post.image_url} />
+
+              <div className="post-footer" style={{ borderBottom: openComments[post.id] ? 'none' : undefined, paddingBottom: openComments[post.id] ? '0' : undefined }}>
+                <div className="flex items-center gap-2">
+                  {/* Upvote Capsule */}
+                  <div className="vote-container" style={{ borderColor: hasUpvoted ? 'var(--accent-blue)' : undefined, background: hasUpvoted ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
+                    <button
+                      className="vote-btn"
+                      onClick={() => handleVote(post.id, 'up')}
+                      style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
+                      aria-label="Upvote"
+                    >
+                      <ChevronUp size={16} />
+                    </button>
+                    <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}>
+                      +{post.upvotes}
+                    </span>
+                  </div>
+
+                  {/* Downvote Capsule */}
+                  <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
+                    <button
+                      className="vote-btn"
+                      onClick={() => handleVote(post.id, 'down')}
+                      style={{ color: hasDownvoted ? '#ef4444' : undefined }}
+                      aria-label="Downvote"
+                    >
+                      <ChevronDown size={16} />
+                    </button>
+                    <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>
+                      -{post.downvotes}
+                    </span>
+                  </div>
+
+                  {/* Comments Toggle */}
+                  <div
+                    onClick={() => toggleComments(post.id)}
+                    style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '0.5rem', color: openComments[post.id] ? 'var(--text-main)' : 'var(--text-muted)' }}
+                    aria-label="Toggle comments"
+                  >
+                    <MessageCircle size={19} />
+                    <span className="comment-count-badge" style={{ background: openComments[post.id] ? 'var(--text-main)' : undefined, color: openComments[post.id] ? 'var(--bg-dark)' : undefined }}>
+                      {post.comments_count}
+                    </span>
+                  </div>
+
+                  {/* Post Type Badge */}
+                  <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
+                    {post.type === 'problem' ? 'Problem' : 'Idea'}
+                  </span>
+                </div>
+              </div>
+
+              {/* Collapsible Comments Section */}
+              {openComments[post.id] && (
+                <CommentsSection postId={post.id} session={session} />
               )}
-              <h3 style={{ fontSize: '1.05rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>{post.title}</h3>
-              <ExpandableBody body={post.body} />
             </div>
-
-            {post.image_url && (
-              <div style={{ position: 'relative', width: '100%', marginBottom: '1rem', borderRadius: '14px', overflow: 'hidden', border: '1px solid var(--border-color)' }}>
-                <img
-                  src={post.image_url}
-                  alt="Post content"
-                  style={{ width: '100%', height: 'auto', display: 'block', maxHeight: '400px', objectFit: 'cover' }}
-                />
-              </div>
-            )}
-
-            <div className="post-footer" style={{ borderBottom: openComments[post.id] ? 'none' : undefined, paddingBottom: openComments[post.id] ? '0' : undefined }}>
-              <div className="flex items-center gap-2">
-                {/* Upvote Capsule */}
-                <div className="vote-container" style={{ borderColor: hasUpvoted ? 'var(--accent-blue)' : undefined, background: hasUpvoted ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
-                  <button
-                    className="vote-btn"
-                    onClick={() => handleVote(post.id, 'up')}
-                    style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
-                    aria-label="Upvote"
-                  >
-                    <ChevronUp size={16} />
-                  </button>
-                  <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}>
-                    +{post.upvotes}
-                  </span>
-                </div>
-
-                {/* Downvote Capsule */}
-                <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
-                  <button
-                    className="vote-btn"
-                    onClick={() => handleVote(post.id, 'down')}
-                    style={{ color: hasDownvoted ? '#ef4444' : undefined }}
-                    aria-label="Downvote"
-                  >
-                    <ChevronDown size={16} />
-                  </button>
-                  <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>
-                    -{post.downvotes}
-                  </span>
-                </div>
-
-                {/* Comments Toggle */}
-                <div
-                  onClick={() => toggleComments(post.id)}
-                  style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '0.5rem', color: openComments[post.id] ? 'var(--text-main)' : 'var(--text-muted)' }}
-                  aria-label="Toggle comments"
-                >
-                  <MessageCircle size={19} />
-                  <span className="comment-count-badge" style={{ background: openComments[post.id] ? 'var(--text-main)' : undefined, color: openComments[post.id] ? 'var(--bg-dark)' : undefined }}>
-                    {post.comments_count}
-                  </span>
-                </div>
-
-                {/* Post Type Badge */}
-                <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
-                  {post.type === 'problem' ? 'Problem' : 'Idea'}
-                </span>
-              </div>
-            </div>
-
-            {/* Collapsible Comments Section */}
-            {openComments[post.id] && (
-              <CommentsSection postId={post.id} session={session} />
-            )}
-          </div>
+          </ErrorBoundary>
         );
       })}
 
@@ -918,7 +951,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                       </span>
                     </div>
                     <div className="comment-text">
-                      <RenderSegments segments={parseLinksInText(comment.body)} />
+                      <RenderSegments segments={parseLinksInText(decodeHTMLEntities(comment.body))} />
                     </div>
                   </div>
                 </div>
@@ -1015,14 +1048,17 @@ function ExpandableBody({ body }: { body: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const maxLength = 250;
 
-  const segments = parseLinksInText(body);
+  const decodedBody = decodeHTMLEntities(body);
+  const segments = parseLinksInText(decodedBody);
 
-  if (body.length <= maxLength) {
+  if (decodedBody.length <= maxLength) {
     return (
-      <p style={{
-        fontSize: '0.88rem',
-        color: 'var(--text-muted)',
-        lineHeight: '1.5',
+      <p className="post-body-text" style={{
+        fontSize: '0.925rem',
+        color: 'var(--text-body)',
+        lineHeight: '1.65',
+        fontWeight: 400,
+        letterSpacing: '0.01em',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         whiteSpace: 'pre-wrap'
@@ -1033,15 +1069,17 @@ function ExpandableBody({ body }: { body: string }) {
   }
 
   // For truncated view, parse only the visible slice
-  const displayText = isExpanded ? body : body.slice(0, maxLength) + '...';
+  const displayText = isExpanded ? decodedBody : decodedBody.slice(0, maxLength) + '...';
   const displaySegments = parseLinksInText(displayText);
 
   return (
     <div>
-      <p style={{
-        fontSize: '0.88rem',
-        color: 'var(--text-muted)',
-        lineHeight: '1.5',
+      <p className="post-body-text" style={{
+        fontSize: '0.925rem',
+        color: 'var(--text-body)',
+        lineHeight: '1.65',
+        fontWeight: 400,
+        letterSpacing: '0.01em',
         wordBreak: 'break-word',
         overflowWrap: 'break-word',
         whiteSpace: 'pre-wrap',

@@ -19,14 +19,19 @@ import {
   LogOut, 
   LogIn 
 } from 'lucide-react';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
+import { Notification, Message } from '@/lib/types';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
+import NotificationItem from './NotificationItem';
+import MessageItem from './MessageItem';
 
 function NavbarInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
+  const queryClient = useQueryClient();
   const filter = searchParams.get('filter') || 'all';
 
   const [isOpen, setIsOpen] = useState(false);
@@ -34,14 +39,34 @@ function NavbarInner() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [noticeFeature, setNoticeFeature] = useState('');
+  const [session, setSession] = useState<any>(null);
+  const [dropdownOpen, setDropdownOpen] = useState(false);
+
+  // Dropdown states for notifications and chats
+  const [notifDropdownOpen, setNotifDropdownOpen] = useState(false);
+  const [msgDropdownOpen, setMsgDropdownOpen] = useState(false);
 
   const triggerNotice = (feature: string) => {
     setNoticeFeature(feature);
     setIsNoticeOpen(true);
   };
-  const [session, setSession] = useState<any>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
 
+  // Close dropdowns on clicking outside
+  useEffect(() => {
+    const handleOutsideClick = (e: MouseEvent) => {
+      const target = e.target as HTMLElement;
+      if (!target.closest('.nav-item-notif') && !target.closest('.notif-dropdown-wrapper')) {
+        setNotifDropdownOpen(false);
+      }
+      if (!target.closest('.nav-item-msg') && !target.closest('.msg-dropdown-wrapper')) {
+        setMsgDropdownOpen(false);
+      }
+    };
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, []);
+
+  // Listen to Auth State
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
@@ -53,6 +78,92 @@ function NavbarInner() {
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // React Query: Fetch notifications
+  const { data: notifications = [] } = useQuery<Notification[]>({
+    queryKey: ['notifications', session?.access_token],
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      const res = await fetch('/api/notifications', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.notifications || [];
+    },
+    enabled: !!session?.access_token,
+    refetchInterval: 30000 // poll every 30s
+  });
+
+  // React Query: Fetch messages
+  const { data: messages = [] } = useQuery<Message[]>({
+    queryKey: ['messages', session?.access_token],
+    queryFn: async () => {
+      if (!session?.access_token) return [];
+      const res = await fetch('/api/messages', {
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (!res.ok) return [];
+      const data = await res.json();
+      return data.messages || [];
+    },
+    enabled: !!session?.access_token,
+    refetchInterval: 30000 // poll every 30s
+  });
+
+  // Mark notification read mutation
+  const markNotifReadMutation = useMutation({
+    mutationFn: async ({ id, read }: { id: string; read: boolean }) => {
+      await fetch('/api/notifications', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id, read })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', session?.access_token] });
+    }
+  });
+
+  // Mark message read mutation
+  const markMsgReadMutation = useMutation({
+    mutationFn: async ({ id, read }: { id: string; read: boolean }) => {
+      await fetch('/api/messages', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ id, read })
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['messages', session?.access_token] });
+    }
+  });
+
+  const handleMarkAllNotifsRead = () => {
+    notifications.forEach(n => {
+      if (!n.read) {
+        markNotifReadMutation.mutate({ id: n.id, read: true });
+      }
+    });
+  };
+
+  const handleMarkAllMsgsRead = () => {
+    messages.forEach(m => {
+      if (!m.read) {
+        markMsgReadMutation.mutate({ id: m.id, read: true });
+      }
+    });
+  };
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
@@ -69,6 +180,9 @@ function NavbarInner() {
       setDropdownOpen(!dropdownOpen);
     }
   };
+
+  const unreadNotifCount = notifications.filter(n => !n.read).length;
+  const unreadMsgCount = messages.filter(m => !m.read).length;
 
   return (
     <>
@@ -91,33 +205,128 @@ function NavbarInner() {
             />
           </div>
 
-          <div className="nav-links desktop-only">
+          <div className="nav-links desktop-only" style={{ position: 'relative' }}>
             <div className="nav-item active" onClick={() => router.push('/')}>
               <div className="nav-icon-wrap">
                 <Home size={22} strokeWidth={2} />
               </div>
               <span>Home</span>
             </div>
+            
             <div className="nav-item" onClick={() => router.push('/')}>
               <div className="nav-icon-wrap">
                 <NotebookPen size={22} strokeWidth={2} />
               </div>
               <span>Solution</span>
             </div>
-            <div className="nav-item" onClick={() => triggerNotice('Notifications')}>
+
+            {/* Dynamic Notifications Link */}
+            <div 
+              className={`nav-item nav-item-notif ${notifDropdownOpen ? 'active' : ''}`} 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (session) {
+                  setNotifDropdownOpen(!notifDropdownOpen);
+                  setMsgDropdownOpen(false);
+                } else {
+                  setIsAuthOpen(true);
+                }
+              }}
+            >
               <div className="nav-icon-wrap">
                 <Bell size={22} strokeWidth={2} />
-                <span className="nav-badge">9+</span>
+                {unreadNotifCount > 0 && (
+                  <span className="nav-badge">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </span>
+                )}
               </div>
               <span>Notifications</span>
             </div>
-            <div className="nav-item" onClick={() => triggerNotice('Chats')}>
+
+            {/* Dynamic Chats Link */}
+            <div 
+              className={`nav-item nav-item-msg ${msgDropdownOpen ? 'active' : ''}`} 
+              onClick={(e) => {
+                e.stopPropagation();
+                if (session) {
+                  setMsgDropdownOpen(!msgDropdownOpen);
+                  setNotifDropdownOpen(false);
+                } else {
+                  setIsAuthOpen(true);
+                }
+              }}
+            >
               <div className="nav-icon-wrap">
                 <MessageCircle size={22} strokeWidth={2} />
-                <span className="nav-badge">6</span>
+                {unreadMsgCount > 0 && (
+                  <span className="nav-badge">
+                    {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+                  </span>
+                )}
               </div>
               <span>Chats</span>
             </div>
+
+            {/* Notifications Dropdown Popover */}
+            {notifDropdownOpen && (
+              <div className="notif-dropdown-wrapper" onClick={(e) => e.stopPropagation()}>
+                <div className="dropdown-header">
+                  <h3>Notifications</h3>
+                  {unreadNotifCount > 0 && (
+                    <button className="dropdown-action-btn" onClick={handleMarkAllNotifsRead}>
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                <div className="dropdown-body">
+                  {notifications.length === 0 ? (
+                    <div className="dropdown-empty">
+                      <Bell size={28} style={{ color: 'var(--text-muted)' }} />
+                      <p className="dropdown-empty-text">No notifications yet.</p>
+                    </div>
+                  ) : (
+                    notifications.map((notif) => (
+                      <NotificationItem 
+                        key={notif.id} 
+                        notification={notif} 
+                        onMarkAsRead={(id) => markNotifReadMutation.mutate({ id, read: true })}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Chats Dropdown Popover */}
+            {msgDropdownOpen && (
+              <div className="msg-dropdown-wrapper" onClick={(e) => e.stopPropagation()}>
+                <div className="dropdown-header">
+                  <h3>Chats & Messages</h3>
+                  {unreadMsgCount > 0 && (
+                    <button className="dropdown-action-btn" onClick={handleMarkAllMsgsRead}>
+                      Mark all as read
+                    </button>
+                  )}
+                </div>
+                <div className="dropdown-body">
+                  {messages.length === 0 ? (
+                    <div className="dropdown-empty">
+                      <MessageCircle size={28} style={{ color: 'var(--text-muted)' }} />
+                      <p className="dropdown-empty-text">No active messages.</p>
+                    </div>
+                  ) : (
+                    messages.map((msg) => (
+                      <MessageItem 
+                        key={msg.id} 
+                        message={msg} 
+                        onMarkAsRead={(id) => markMsgReadMutation.mutate({ id, read: true })}
+                      />
+                    ))
+                  )}
+                </div>
+              </div>
+            )}
 
             {/* Authenticated / Guest User Tab */}
             {session ? (
@@ -159,6 +368,14 @@ function NavbarInner() {
                     <div 
                       className="menu-item" 
                       style={{ padding: '0.4rem 0.5rem', fontSize: '0.82rem' }}
+                      onClick={() => { setDropdownOpen(false); router.push('/profile'); }}
+                    >
+                      <User size={16} />
+                      <span>My Profile</span>
+                    </div>
+                    <div 
+                      className="menu-item" 
+                      style={{ padding: '0.4rem 0.5rem', fontSize: '0.82rem' }}
                       onClick={() => { setDropdownOpen(false); setIsSettingsOpen(true); }}
                     >
                       <Settings size={16} />
@@ -194,13 +411,21 @@ function NavbarInner() {
 
           {session ? (
             <button 
-              className="search-btn mobile-only" 
+              className="search-btn mobile-only nav-item-notif" 
               style={{ position: 'relative' }} 
               aria-label="Notifications"
-              onClick={() => triggerNotice('Notifications')}
+              onClick={(e) => {
+                e.stopPropagation();
+                setNotifDropdownOpen(!notifDropdownOpen);
+                setMsgDropdownOpen(false);
+              }}
             >
               <Bell size={20} strokeWidth={2} />
-              <span className="nav-badge">9+</span>
+              {unreadNotifCount > 0 && (
+                <span className="nav-badge">
+                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                </span>
+              )}
             </button>
           ) : (
             <button className="btn btn-primary mobile-only" style={{ padding: '0.35rem 0.85rem' }} onClick={() => setIsAuthOpen(true)}>
@@ -231,14 +456,29 @@ function NavbarInner() {
           </div>
           <span>Post</span>
         </div>
-        <div className="mobile-nav-item" onClick={() => triggerNotice('Chats')}>
+        <div 
+          className="mobile-nav-item nav-item-msg" 
+          onClick={(e) => {
+            e.stopPropagation();
+            if (session) {
+              setMsgDropdownOpen(!msgDropdownOpen);
+              setNotifDropdownOpen(false);
+            } else {
+              setIsAuthOpen(true);
+            }
+          }}
+        >
           <div className="nav-icon-wrap">
             <MessageCircle size={20} strokeWidth={2} />
-            <span className="nav-badge">6</span>
+            {unreadMsgCount > 0 && (
+              <span className="nav-badge">
+                {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
+              </span>
+            )}
           </div>
           <span>Chats</span>
         </div>
-        <div className="mobile-nav-item" onClick={handleMeClick}>
+        <div className="mobile-nav-item" onClick={() => { if (session) { router.push('/profile'); } else { setIsAuthOpen(true); } }}>
           <div className="nav-icon-wrap">
             {session ? (
               <img 
@@ -250,7 +490,7 @@ function NavbarInner() {
               <User size={20} strokeWidth={2} />
             )}
           </div>
-          <span>{session ? 'Me' : 'Sign In'}</span>
+          <span>{session ? 'Profile' : 'Sign In'}</span>
         </div>
       </div>
  
@@ -351,6 +591,14 @@ function NavbarInner() {
  
             <div className="drawer-menu-divider" />
  
+            <div
+              className="drawer-menu-item"
+              onClick={() => { setIsOpen(false); router.push('/profile'); }}
+            >
+              <User size={20} />
+              <span>My Profile</span>
+            </div>
+
             <div className="drawer-menu-item" onClick={() => { setIsOpen(false); setIsSettingsOpen(true); }}>
               <Settings size={20} />
               <span>Settings</span>

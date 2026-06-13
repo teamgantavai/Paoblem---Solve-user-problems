@@ -7,8 +7,6 @@ import {
   Sparkles,
   AlertTriangle,
   Lightbulb,
-  Image as ImageIcon,
-  Link as LinkIcon,
   X,
   Loader2,
   CheckCircle,
@@ -18,9 +16,9 @@ import {
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useQueryClient } from '@tanstack/react-query';
-import { compressImage } from '@/app/lib/imageCompression';
-import PhotoEditorModal from '@/components/PhotoEditorModal';
 import DraftLeaveModal from '@/components/DraftLeaveModal';
+import ImageUploader from '@/components/ImageUploader';
+import ImageGallery from '@/components/ImageGallery';
 
 export default function CreatePost() {
   const router = useRouter();
@@ -30,13 +28,11 @@ export default function CreatePost() {
   const [title, setTitle] = useState('');
   const [type, setType] = useState<'problem' | 'idea'>('problem');
   const [body, setBody] = useState('');
-  const [imageUrl, setImageUrl] = useState<string | null>(null);
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [externalLink, setExternalLink] = useState('');
   const [linkName, setLinkName] = useState('');
 
   // Status State
-  const [dragActive, setDragActive] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -46,12 +42,11 @@ export default function CreatePost() {
   // Custom Controls State
   const [showLinkInput, setShowLinkInput] = useState(false);
   const [showAiTooltip, setShowAiTooltip] = useState(false);
-  const [isPhotoEditorOpen, setIsPhotoEditorOpen] = useState(false);
   const [isDraftLeaveOpen, setIsDraftLeaveOpen] = useState(false);
 
-  const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const titleTextareaRef = useRef<HTMLTextAreaElement>(null);
+  const uploaderRef = useRef<HTMLDivElement>(null);
 
   // AI Enhancer State
   const [aiEnhancing, setAiEnhancing] = useState(false);
@@ -85,7 +80,6 @@ export default function CreatePost() {
     }
   }, []);
 
-
   // Auto-expand title textarea height
   useEffect(() => {
     if (titleTextareaRef.current) {
@@ -116,7 +110,14 @@ export default function CreatePost() {
           setShowLinkInput(true);
         }
         if (parsed.linkName) setLinkName(parsed.linkName);
-        if (parsed.imageUrl) setImageUrl(parsed.imageUrl);
+        
+        // Handle restoring multiple images or single legacy image
+        if (parsed.imageUrls) {
+          setImageUrls(parsed.imageUrls);
+        } else if (parsed.imageUrl) {
+          setImageUrls([parsed.imageUrl]);
+        }
+        
         if (parsed.timestamp) {
           const date = new Date(parsed.timestamp);
           setLastSaved(date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -129,7 +130,7 @@ export default function CreatePost() {
 
   // Auto-Save Draft to Local Storage
   useEffect(() => {
-    if (!title && !body && !externalLink && !imageUrl) return;
+    if (!title && !body && !externalLink && imageUrls.length === 0) return;
 
     const delayDebounceFn = setTimeout(() => {
       const draft = {
@@ -138,7 +139,7 @@ export default function CreatePost() {
         body,
         externalLink,
         linkName,
-        imageUrl,
+        imageUrls,
         timestamp: new Date().toISOString()
       };
       localStorage.setItem('paoblem-post-draft', JSON.stringify(draft));
@@ -146,110 +147,15 @@ export default function CreatePost() {
     }, 1000); // 1-second debounce
 
     return () => clearTimeout(delayDebounceFn);
-  }, [title, type, body, externalLink, linkName, imageUrl]);
+  }, [title, type, body, externalLink, linkName, imageUrls]);
 
   // Character Counter for AI unlock
   const charCount = body.trim().length;
   const isEnhanceEnabled = charCount >= 15;
 
-  // File Upload Logic
-  const handleDrag = (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (e.type === 'dragenter' || e.type === 'dragover') {
-      setDragActive(true);
-    } else if (e.type === 'dragleave') {
-      setDragActive(false);
-    }
-  };
-
-  const handleDrop = async (e: React.DragEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    setDragActive(false);
-
-    if (e.dataTransfer.files && e.dataTransfer.files[0]) {
-      await uploadFile(e.dataTransfer.files[0]);
-    }
-  };
-
-  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (e.target.files && e.target.files[0]) {
-      await uploadFile(e.target.files[0]);
-    }
-  };
-
-  const uploadFile = async (file: File) => {
-    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-    if (!validTypes.includes(file.type)) {
-      setError('Invalid file type. Please upload a PNG, JPEG, GIF, or WEBP image.');
-      return;
-    }
-
-    setUploading(true);
-    setError(null);
-
-    try {
-      let uploadFileObj = file;
-      if (file.type !== 'image/gif') {
-        const compressedBlob = await compressImage(file, 0.75, 1200, 1200);
-        uploadFileObj = new File([compressedBlob], file.name.replace(/\.[^/.]+$/, '.jpg'), { type: 'image/jpeg' });
-      }
-
-      const fileExt = uploadFileObj.name.split('.').pop();
-      const fileName = `${Math.random().toString(36).substring(2)}-${Date.now()}.${fileExt}`;
-      const filePath = `post-images/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('post-images')
-        .upload(filePath, uploadFileObj);
-
-      if (uploadError) {
-        throw new Error(uploadError.message);
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('post-images')
-        .getPublicUrl(filePath);
-
-      setImageUrl(publicUrl);
-    } catch (err: any) {
-      console.error('Error uploading image:', err);
-      setError(err.message || 'Error uploading image. Please check your storage settings.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleEditedPhotoSave = async (editedBlob: Blob, editedDataUrl: string) => {
-    setUploading(true);
-    setError(null);
-    try {
-      const fileName = `edited-${Math.random().toString(36).substring(2)}-${Date.now()}.jpg`;
-      const filePath = `post-images/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('post-images')
-        .upload(filePath, editedBlob, { contentType: 'image/jpeg' });
-
-      if (uploadError) {
-        throw new Error(uploadError.message);
-      }
-
-      const { data: { publicUrl } } = supabase.storage
-        .from('post-images')
-        .getPublicUrl(filePath);
-
-      setImageUrl(publicUrl);
-    } catch (err: any) {
-      setError(err.message || 'Failed to save edited photo.');
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const removeImage = () => {
-    setImageUrl(null);
+  // Focus on image uploader
+  const handleScrollToUploader = () => {
+    uploaderRef.current?.scrollIntoView({ behavior: 'smooth' });
   };
 
   // AI Enhancer Logic
@@ -337,7 +243,7 @@ export default function CreatePost() {
           title,
           body,
           type,
-          image_url: imageUrl,
+          image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           external_link: formattedLink || null,
           link_name: linkName || null,
         }),
@@ -364,7 +270,7 @@ export default function CreatePost() {
   };
 
   const handleBackClick = () => {
-    const hasUnsavedChanges = title.trim() || body.trim() || imageUrl || externalLink;
+    const hasUnsavedChanges = title.trim() || body.trim() || imageUrls.length > 0 || externalLink;
     if (hasUnsavedChanges) {
       setIsDraftLeaveOpen(true);
     } else {
@@ -379,7 +285,7 @@ export default function CreatePost() {
       body,
       externalLink,
       linkName,
-      imageUrl,
+      imageUrls,
       timestamp: new Date().toISOString()
     };
     localStorage.setItem('paoblem-post-draft', JSON.stringify(draft));
@@ -421,7 +327,7 @@ export default function CreatePost() {
           <button
             type="button"
             className={`cp-publish-btn desktop-only ${!isFormValid ? 'cp-publish-btn--disabled' : ''}`}
-            disabled={!isFormValid || submitting || uploading}
+            disabled={!isFormValid || submitting}
             onClick={handleSubmit}
           >
             {submitting ? (
@@ -575,43 +481,15 @@ export default function CreatePost() {
                 </div>
               )}
 
-              {/* IMAGE PREVIEW */}
-              {imageUrl && (
-                <div className="cp-field">
-                  <div className="preview-container" style={{ position: 'relative' }}>
-                    <img src={imageUrl} alt="Upload preview" className="image-preview" />
-                    <div style={{ position: 'absolute', top: '10px', right: '10px', display: 'flex', gap: '0.5rem' }}>
-                      <button
-                        type="button"
-                        className="btn"
-                        onClick={() => setIsPhotoEditorOpen(true)}
-                        style={{ fontSize: '0.72rem', padding: '0.35rem 0.65rem', background: 'rgba(0,0,0,0.75)', color: 'white', border: 'none' }}
-                      >
-                        Edit Photo
-                      </button>
-                      <button 
-                        type="button" 
-                        className="remove-img-btn" 
-                        style={{ position: 'static', backgroundColor: 'rgba(0,0, 0, 0.75)' }}
-                        onClick={removeImage} 
-                        aria-label="Remove image"
-                      >
-                        <X size={14} />
-                      </button>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* Hidden File Input */}
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handleFileChange}
-                accept="image/png, image/jpeg, image/gif, image/webp"
-                style={{ display: 'none' }}
-                disabled={uploading || submitting}
-              />
+              {/* REUSABLE MULTIPLE IMAGE UPLOADER */}
+              <div className="cp-field" ref={uploaderRef}>
+                <span className="cp-field-label">Attachments</span>
+                <ImageUploader 
+                  imageUrls={imageUrls} 
+                  onChange={setImageUrls} 
+                  maxFiles={10} 
+                />
+              </div>
 
               {/* TOOLBAR */}
               <div className="cp-toolbar">
@@ -619,12 +497,11 @@ export default function CreatePost() {
                   <button
                     type="button"
                     className="cp-tool-btn"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploading || submitting}
-                    title="Attach image"
+                    onClick={handleScrollToUploader}
+                    disabled={submitting}
+                    title="Scroll to uploader"
                   >
-                    {uploading ? <Loader2 size={15} className="spin" /> : <ImageIcon size={15} />}
-                    <span>Image</span>
+                    <span>Add Images</span>
                   </button>
 
                   <button
@@ -633,7 +510,6 @@ export default function CreatePost() {
                     onClick={() => setShowLinkInput(!showLinkInput)}
                     title="Add link"
                   >
-                    <LinkIcon size={15} />
                     <span>Link</span>
                   </button>
 
@@ -696,9 +572,10 @@ export default function CreatePost() {
                 {body.length > 200 && '…'}
               </p>
 
-              {imageUrl && (
-                <div className="cp-preview-image-wrap">
-                  <img src={imageUrl} alt="Preview" style={{ width: '100%', height: 'auto', display: 'block' }} />
+              {/* Gallery Preview */}
+              {imageUrls.length > 0 && (
+                <div className="cp-preview-image-wrap" style={{ marginTop: '0.75rem' }}>
+                  <ImageGallery imageUrlsString={JSON.stringify(imageUrls)} />
                 </div>
               )}
 
@@ -719,7 +596,7 @@ export default function CreatePost() {
         <button
           type="button"
           onClick={handleSubmit}
-          disabled={!isFormValid || submitting || uploading}
+          disabled={!isFormValid || submitting}
           className={`cp-publish-btn cp-publish-btn--full ${!isFormValid ? 'cp-publish-btn--disabled' : ''}`}
         >
           {submitting ? (
@@ -731,15 +608,6 @@ export default function CreatePost() {
           )}
         </button>
       </div>
-
-      {imageUrl && (
-        <PhotoEditorModal
-          isOpen={isPhotoEditorOpen}
-          onClose={() => setIsPhotoEditorOpen(false)}
-          imageUrl={imageUrl}
-          onSave={handleEditedPhotoSave}
-        />
-      )}
 
       <DraftLeaveModal
         isOpen={isDraftLeaveOpen}
