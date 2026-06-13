@@ -6,10 +6,8 @@ import {
   TrendingUp,
   BarChart2,
   Bookmark,
-  Settings,
   Plus,
   Star,
-  LogOut,
   LogIn
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -23,6 +21,7 @@ function SidebarLeftInner() {
   const filter = searchParams.get('filter') || 'all';
 
   const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
@@ -45,46 +44,47 @@ function SidebarLeftInner() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-    window.location.reload();
-  };
+  // Fetch profile from DB (so role changes are reflected immediately)
+  useEffect(() => {
+    if (!session?.user?.id) {
+      setProfile(null);
+      return;
+    }
+    supabase
+      .from('profiles')
+      .select('full_name, avatar_url, role')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) setProfile(data);
+      });
+  }, [session?.user?.id]);
+
+  const displayName = profile?.full_name || session?.user?.user_metadata?.full_name || 'Member';
+  const displayRole = profile?.role || 'Innovator';
+  const displayAvatar = profile?.avatar_url || session?.user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session?.user?.id}`;
 
   return (
     <aside className="left-sidebar">
 
       {/* Profile Card / Promo Card */}
       {session ? (
-        <div className="profile-card">
+        <div className="profile-card" onClick={() => router.push('/profile')} style={{ cursor: 'pointer' }}>
           <div className="profile-banner"></div>
           <div className="profile-body">
             <div className="profile-avatar-wrap">
               <img
-                src={session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`}
-                alt={session.user.user_metadata?.full_name || 'Member'}
+                src={displayAvatar}
+                alt={displayName}
                 className="profile-avatar"
               />
             </div>
             <div className="profile-info">
               <div className="profile-name-row">
-                <span className="profile-name">{session.user.user_metadata?.full_name || 'Member'}</span>
+                <span className="profile-name">{displayName}</span>
               </div>
-              <p className="profile-role">{session.user.user_metadata?.role || 'Innovator'}</p>
+              <p className="profile-role">{displayRole}</p>
             </div>
-            <div className="profile-progress-row">
-              <div className="profile-progress-bar">
-                <div className="profile-progress-fill" style={{ width: '90%' }}></div>
-              </div>
-              <span className="profile-progress-label">90%</span>
-            </div>
-          </div>
-          <div
-            className="profile-footer"
-            onClick={handleLogout}
-            style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.45rem', cursor: 'pointer' }}
-          >
-            <LogOut size={14} />
-            <span>Sign Out</span>
           </div>
         </div>
       ) : (
@@ -155,17 +155,7 @@ function SidebarLeftInner() {
         </div>
       </div>
 
-      {/* Settings Action Row */}
-      <div className="card" style={{ padding: '0.75rem 1.25rem' }}>
-        <div
-          className="menu-item"
-          style={{ padding: '0' }}
-          onClick={() => setIsSettingsOpen(true)}
-        >
-          <Settings size={20} />
-          <span>Settings</span>
-        </div>
-      </div>
+
 
       {/* Modals rendered inline */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />

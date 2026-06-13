@@ -33,12 +33,12 @@ import ImageGallery from './ImageGallery';
 import ErrorBoundary from './ErrorBoundary';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 
-function FeedInner() {
+function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
 
-  const activeFilter = searchParams.get('filter') || 'all';
+  const activeFilter = searchParams.get('filter') || defaultFilter || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
   const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
@@ -463,15 +463,21 @@ function FeedInner() {
                     src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
                     alt={post.profiles?.full_name || 'Anonymous'}
                     className="avatar"
+                    onClick={() => router.push(`/profile?userId=${post.user_id}`)}
+                    style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="post-user-info">
-                    <h4 className="flex items-center gap-2" style={{ fontWeight: 600 }}>
+                    <h4
+                      className="flex items-center gap-2"
+                      style={{ fontWeight: 600, cursor: 'pointer' }}
+                      onClick={() => router.push(`/profile?userId=${post.user_id}`)}
+                    >
                       {post.profiles?.full_name || 'Anonymous'}
                       <span
                         style={{
                           fontSize: '0.65rem',
                           fontWeight: 500,
-                          background: 'rgba(255,255,255,0.05)',
+                          background: 'var(--bg-hover)',
                           padding: '1px 6px',
                           borderRadius: '10px',
                           color: 'var(--text-muted)'
@@ -784,6 +790,7 @@ interface CommentsSectionProps {
 
 function CommentsSection({ postId, session }: CommentsSectionProps) {
   const queryClient = useQueryClient();
+  const router = useRouter();
   const [commentText, setCommentText] = useState('');
 
   // Fetch comments for this post
@@ -929,10 +936,16 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                     src={authorAvatar}
                     alt={authorName}
                     className="comment-avatar"
+                    onClick={() => router.push(`/profile?userId=${comment.user_id}`)}
+                    style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="comment-content">
                     <div className="comment-author-time">
-                      <span className="comment-author">
+                      <span
+                        className="comment-author"
+                        onClick={() => router.push(`/profile?userId=${comment.user_id}`)}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {authorName}
                         <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginLeft: '0.4rem', fontWeight: 500 }}>
                           {authorRole}
@@ -1111,10 +1124,10 @@ function ExpandableBody({ body }: { body: string }) {
   );
 }
 
-export default function Feed() {
+export default function Feed({ defaultFilter }: { defaultFilter?: string }) {
   return (
     <Suspense fallback={null}>
-      <FeedInner />
+      <FeedInner defaultFilter={defaultFilter} />
     </Suspense>
   );
 }

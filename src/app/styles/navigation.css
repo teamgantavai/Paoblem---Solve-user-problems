@@ -52,7 +52,7 @@
 
 .nav-item:hover,
 .nav-item.active {
-  color: white;
+  color: var(--text-main);
 }
 
 .nav-item.active::after {
@@ -63,7 +63,7 @@
   transform: translateX(-50%);
   width: 70%;
   height: 3px;
-  background-color: white;
+  background-color: var(--text-main);
   border-top-left-radius: 3px;
   border-top-right-radius: 3px;
 }
@@ -101,7 +101,7 @@
 }
 
 .search-bar {
-  background-color: #1a1a1e;
+  background-color: var(--search-bg);
   border-radius: 30px;
   padding: 0.25rem 0.25rem 0.25rem 1rem;
   display: flex;
@@ -113,13 +113,13 @@
   background: transparent;
   border: none;
   outline: none;
-  color: white;
+  color: var(--text-main);
   width: 100%;
   font-size: 0.85rem;
 }
 
 .search-btn {
-  background-color: #27272a;
+  background-color: var(--bg-hover);
   border: none;
   border-radius: 50%;
   width: 32px;
@@ -128,13 +128,13 @@
   align-items: center;
   justify-content: center;
   cursor: pointer;
-  color: #a1a1aa;
+  color: var(--text-muted);
   transition: background-color 0.2s;
 }
 
 .search-btn:hover {
-  background-color: #3f3f46;
-  color: white;
+  background-color: var(--border-color);
+  color: var(--text-main);
 }
 
 /* Left Sidebar menu */
@@ -153,7 +153,7 @@
 .menu-item:hover,
 .menu-item.active {
   background: var(--bg-hover);
-  color: white;
+  color: var(--text-main);
 }
 
 .btn-see-all {
@@ -170,7 +170,7 @@
 }
 
 .btn-see-all:hover {
-  color: white;
+  color: var(--text-main);
 }
 
 /* Mobile Bottom Navigation Bar styling */
@@ -204,7 +204,7 @@
 }
 
 .mobile-nav-item.active {
-  color: white;
+  color: var(--text-main);
 }
 
 .mobile-nav-item svg {
@@ -246,7 +246,7 @@
 }
 
 .menu-toggle-btn:hover {
-  color: white;
+  color: var(--text-main);
   background-color: var(--bg-hover);
 }
 
@@ -283,7 +283,7 @@
   width: 300px;
   max-width: 85%;
   height: 100vh;
-  background-color: #0b0b0d;
+  background-color: var(--bg-card);
   border-right: 1px solid var(--border-color);
   z-index: 1001;
   display: flex;
@@ -305,7 +305,7 @@
   justify-content: space-between;
   padding: 0 1.5rem;
   border-bottom: 1px solid var(--border-color);
-  background-color: #070708;
+  background-color: var(--nav-bg);
 }
 
 .drawer-close-btn {
@@ -323,7 +323,7 @@
 }
 
 .drawer-close-btn:hover {
-  color: white;
+  color: var(--text-main);
   background-color: var(--bg-hover);
 }
 
@@ -392,7 +392,7 @@
 .drawer-profile-progress-bar {
   flex: 1;
   height: 4px;
-  background: #1e1e21;
+  background: var(--border-color);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -436,17 +436,17 @@
 }
 
 .drawer-menu-item:hover {
-  color: white;
-  background-color: rgba(255, 255, 255, 0.03);
+  color: var(--text-main);
+  background-color: var(--bg-hover);
 }
 
 .drawer-menu-item:hover svg {
   transform: translateX(2px);
-  color: white;
+  color: var(--text-main);
 }
 
 .drawer-menu-item.active {
-  color: white;
+  color: var(--text-main);
   background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
   font-weight: 600;
 }

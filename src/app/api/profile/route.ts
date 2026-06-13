@@ -22,6 +22,7 @@ export async function GET(req: NextRequest) {
       .single();
 
     if (profileError || !profile) {
+      console.error('[GET /api/profile] profileError:', profileError, 'profile:', profile);
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 

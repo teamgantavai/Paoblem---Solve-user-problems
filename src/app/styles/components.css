@@ -32,12 +32,21 @@
   font-weight: 500;
 }
 
+.comment-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  object-fit: cover;
+  flex-shrink: 0;
+  background-color: var(--bg-hover);
+}
+
 .avatar {
   width: 38px;
   height: 38px;
   border-radius: 50%;
   object-fit: cover;
-  background-color: #27272a;
+  background-color: var(--bg-hover);
 }
 
 .avatar-white {
@@ -174,7 +183,7 @@
 .profile-progress-bar {
   flex: 1;
   height: 4px;
-  background: #27272a;
+  background: var(--border-color);
   border-radius: 2px;
   overflow: hidden;
 }
@@ -205,7 +214,7 @@
 }
 
 .profile-footer:hover {
-  color: white;
+  color: var(--text-main);
 }
 
 /* Modals styling */
