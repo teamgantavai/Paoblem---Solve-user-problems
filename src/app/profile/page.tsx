@@ -134,6 +134,80 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const rolePickerRef = useRef<HTMLDivElement>(null);
 
+  // Avatar upload states
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [tempAvatar, setTempAvatar] = useState<string | null>(null);
+  const avatarInputRef = useRef<HTMLInputElement>(null);
+
+  const handleAvatarClick = () => {
+    if (isOwnProfile && !avatarUploading) {
+      avatarInputRef.current?.click();
+    }
+  };
+
+  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const validTypes = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
+    if (!validTypes.includes(file.type)) {
+      alert('Invalid file type. PNG, JPEG, GIF, or WEBP only.');
+      return;
+    }
+
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size too large. Limit is 5MB.');
+      return;
+    }
+
+    // Optimistic UI update
+    const localUrl = URL.createObjectURL(file);
+    setTempAvatar(localUrl);
+    setAvatarUploading(true);
+
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `avatar-${session.user.id}-${Date.now()}.${fileExt}`;
+      const filePath = `post-images/${fileName}`;
+
+      const { error: uploadErr } = await supabase.storage
+        .from('post-images')
+        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+
+      if (uploadErr) throw uploadErr;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('post-images')
+        .getPublicUrl(filePath);
+
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ avatar_url: publicUrl }),
+      });
+
+      if (!res.ok) {
+        throw new Error('Failed to update profile avatar');
+      }
+
+      await queryClient.invalidateQueries({ queryKey: ['profile', displayUserId] });
+      await queryClient.invalidateQueries({ queryKey: ['profile'] });
+      await queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
+      await queryClient.invalidateQueries({ queryKey: ['messages'] });
+      await queryClient.invalidateQueries({ queryKey: ['posts'] });
+      refetch();
+    } catch (err: any) {
+      console.error(err);
+      alert(err.message || 'Failed to upload image. Reverting...');
+      setTempAvatar(null);
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
   // Close role picker on outside click
   useEffect(() => {
     const handler = (e: MouseEvent) => {
@@ -305,7 +379,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
     );
   }
 
-  const avatarSrc = profile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${displayUserId}`;
+  const avatarSrc = tempAvatar || profile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${displayUserId}`;
   const displayName = profile?.full_name || 'Member';
   const currentRole = profile?.role || 'Innovator';
   const bio = profile?.bio || '';
@@ -340,13 +414,64 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
         {/* Identity Section */}
         <div className="profile-identity-section">
           <div className="profile-avatar-col">
-            <div className="profile-full-avatar-wrap">
+            <div 
+              className={`profile-full-avatar-wrap ${isOwnProfile ? 'editable-avatar' : ''}`}
+              onClick={handleAvatarClick}
+              style={{ position: 'relative', cursor: isOwnProfile ? 'pointer' : 'default', overflow: 'hidden', borderRadius: '50%' }}
+            >
               <img
                 src={avatarSrc}
                 alt={displayName}
                 className="profile-full-avatar"
+                style={{ opacity: avatarUploading ? 0.6 : 1, transition: 'opacity 0.2s', width: '100%', height: '100%', objectFit: 'cover' }}
               />
+              {isOwnProfile && (
+                <div className="avatar-edit-overlay" style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  opacity: 0,
+                  transition: 'opacity 0.2s',
+                }}>
+                  <Camera size={20} color="white" />
+                </div>
+              )}
+              {avatarUploading && (
+                <div style={{
+                  position: 'absolute',
+                  top: 0,
+                  left: 0,
+                  width: '100%',
+                  height: '100%',
+                  background: 'rgba(0, 0, 0, 0.5)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Loader2 size={24} className="spin" color="white" />
+                </div>
+              )}
             </div>
+            {isOwnProfile && (
+              <input 
+                type="file"
+                ref={avatarInputRef}
+                onChange={handleAvatarFileChange}
+                accept="image/png, image/jpeg, image/gif, image/webp"
+                style={{ display: 'none' }}
+              />
+            )}
+            <style dangerouslySetInnerHTML={{ __html: `
+              .profile-full-avatar-wrap:hover .avatar-edit-overlay {
+                opacity: 1 !important;
+              }
+            ` }} />
           </div>
 
           <div className="profile-info-col">
