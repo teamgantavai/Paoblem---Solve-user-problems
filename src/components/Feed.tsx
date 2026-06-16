@@ -792,6 +792,9 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
   const queryClient = useQueryClient();
   const router = useRouter();
   const [commentText, setCommentText] = useState('');
+  const [editCommentId, setEditCommentId] = useState<string | null>(null);
+  const [editCommentText, setEditCommentText] = useState('');
+  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
 
   // Fetch comments for this post
   const { data: comments, isLoading, isError } = useQuery<Comment[]>({
@@ -876,6 +879,24 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
       if (error) throw new Error(error.message);
     },
     onSuccess: () => {
+      setDeletingCommentId(null);
+      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    }
+  });
+
+  // Update Comment Mutation
+  const updateCommentMutation = useMutation({
+    mutationFn: async ({ commentId, body }: { commentId: string; body: string }) => {
+      const { error } = await supabase
+        .from('comments')
+        .update({ body })
+        .eq('id', commentId);
+      if (error) throw new Error(error.message);
+    },
+    onSuccess: () => {
+      setEditCommentId(null);
+      setEditCommentText('');
       queryClient.invalidateQueries({ queryKey: ['comments', postId] });
       queryClient.invalidateQueries({ queryKey: ['posts'] });
     }
@@ -892,9 +913,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
   };
 
   const handleDeleteComment = (commentId: string) => {
-    if (confirm('Delete this comment?')) {
-      deleteCommentMutation.mutate(commentId);
-    }
+    setDeletingCommentId(commentId);
   };
 
   return (
@@ -954,17 +973,83 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                       <span className="comment-time" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                         {new Date(comment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
                         {isCommentOwner && (
-                          <button
-                            onClick={() => handleDeleteComment(comment.id)}
-                            style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}
-                          >
-                            <Trash2 size={12} />
-                          </button>
+                          <div style={{ display: 'flex', gap: '4px' }}>
+                            <button
+                              onClick={() => {
+                                setEditCommentId(comment.id);
+                                setEditCommentText(comment.body);
+                              }}
+                              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                              title="Edit"
+                            >
+                              <Pencil size={12} />
+                            </button>
+                            <button
+                              onClick={() => handleDeleteComment(comment.id)}
+                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}
+                              title="Delete"
+                            >
+                              <Trash2 size={12} />
+                            </button>
+                          </div>
                         )}
                       </span>
                     </div>
                     <div className="comment-text">
-                      <RenderSegments segments={parseLinksInText(decodeHTMLEntities(comment.body))} />
+                      {editCommentId === comment.id ? (
+                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
+                          <textarea
+                            value={editCommentText}
+                            onChange={(e) => setEditCommentText(e.target.value)}
+                            style={{ 
+                              width: '100%', 
+                              minHeight: '60px',
+                              padding: '10px 12px', 
+                              borderRadius: '8px', 
+                              border: '1px solid var(--border-color)', 
+                              background: 'var(--bg-secondary)', 
+                              color: 'var(--text-main)', 
+                              fontSize: '0.9rem',
+                              fontFamily: 'inherit',
+                              resize: 'vertical',
+                              outline: 'none',
+                              transition: 'border-color 0.2s',
+                            }}
+                            onFocus={(e) => e.target.style.borderColor = 'var(--accent-blue)'}
+                            onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Enter' && !e.shiftKey) {
+                                e.preventDefault();
+                                updateCommentMutation.mutate({ commentId: comment.id, body: editCommentText });
+                              } else if (e.key === 'Escape') {
+                                setEditCommentId(null);
+                              }
+                            }}
+                          />
+                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
+                            <button 
+                              onClick={() => setEditCommentId(null)}
+                              style={{ fontSize: '0.85rem', padding: '6px 12px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontWeight: 500, borderRadius: '6px', transition: 'background 0.2s' }}
+                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
+                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            >
+                              Cancel
+                            </button>
+                            <button 
+                              onClick={() => updateCommentMutation.mutate({ commentId: comment.id, body: editCommentText })}
+                              style={{ fontSize: '0.85rem', padding: '6px 16px', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: 600, transition: 'opacity 0.2s' }}
+                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
+                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
+                              disabled={!editCommentText.trim() || updateCommentMutation.isPending}
+                            >
+                              {updateCommentMutation.isPending ? <Loader2 size={12} className="spin" /> : 'Save'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <RenderSegments segments={parseLinksInText(decodeHTMLEntities(comment.body))} />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -996,6 +1081,19 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
           {addCommentMutation.isPending ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
         </button>
       </form>
+
+      <DeleteConfirmModal
+        isOpen={!!deletingCommentId}
+        onClose={() => setDeletingCommentId(null)}
+        onConfirm={() => {
+          if (deletingCommentId) {
+            deleteCommentMutation.mutate(deletingCommentId);
+          }
+        }}
+        title="Delete Comment"
+        description="Are you sure you want to delete this comment? This action is permanent and cannot be undone."
+        isPending={deleteCommentMutation.isPending}
+      />
     </div>
   );
 }

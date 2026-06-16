@@ -42,6 +42,7 @@ function NavbarInner() {
   const [noticeFeature, setNoticeFeature] = useState('');
   const [session, setSession] = useState<any>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [theme, setTheme] = useState('dark');
 
   // Profile fetched from DB (so role changes propagate immediately)
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
@@ -55,6 +56,24 @@ function NavbarInner() {
     setNoticeFeature(feature);
     setIsNoticeOpen(true);
   };
+
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const isLight = document.documentElement.classList.contains('light-theme');
+      setTheme(isLight ? 'light' : 'dark');
+
+      const observer = new MutationObserver((mutations) => {
+        mutations.forEach((mutation) => {
+          if (mutation.attributeName === 'class') {
+            const isNowLight = document.documentElement.classList.contains('light-theme');
+            setTheme(isNowLight ? 'light' : 'dark');
+          }
+        });
+      });
+      observer.observe(document.documentElement, { attributes: true });
+      return () => observer.disconnect();
+    }
+  }, []);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -163,7 +182,7 @@ function NavbarInner() {
               <AlignLeft size={24} strokeWidth={2.5} />
             </button>
             <img 
-              src="/logo.svg" 
+              src={theme === 'light' ? '/logo-light.png' : '/logo.svg'} 
               alt="Paoblem Logo" 
               style={{ height: '38px', objectFit: 'contain', cursor: 'pointer' }} 
               onClick={() => router.push('/')}
@@ -400,7 +419,7 @@ function NavbarInner() {
       {/* Side Drawer */}
       <div className={`drawer ${isOpen ? 'open' : ''}`}>
         <div className="drawer-header">
-          <img src="/logo.svg" alt="Paoblem Logo" style={{ height: '32px', objectFit: 'contain' }} />
+          <img src={theme === 'light' ? '/logo-light.png' : '/logo.svg'} alt="Paoblem Logo" style={{ height: '32px', objectFit: 'contain' }} />
           <button
             className="drawer-close-btn"
             onClick={() => setIsOpen(false)}
