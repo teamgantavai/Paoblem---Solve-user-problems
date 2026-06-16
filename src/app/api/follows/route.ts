@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { notificationQueue } from '@/lib/queue';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -111,6 +112,19 @@ export async function POST(req: NextRequest) {
         });
 
       if (error) throw error;
+
+      try {
+        await notificationQueue.add('follow', {
+          user_id: targetUserId,
+          actor_id: user.id,
+          type: 'follow',
+          title: 'New Follower',
+          bodyTemplate: '{name} started following you.',
+        });
+      } catch (notifErr) {
+        console.error('Failed to enqueue follow notification:', notifErr);
+      }
+
       return NextResponse.json({ isFollowing: true });
     }
   } catch (err: any) {
