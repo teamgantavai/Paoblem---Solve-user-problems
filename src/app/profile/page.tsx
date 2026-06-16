@@ -28,6 +28,7 @@ interface Profile {
   role: string | null;
   bio: string | null;
   location: string | null;
+  username: string | null;
   created_at: string;
 }
 
@@ -800,10 +801,11 @@ function CommentsTab({ comments }: { comments: UserComment[] }) {
 /* ────────────────────────────────────────────────────────
    Settings Tab Component (Dedicated Settings Section)
    ───────────────────────────────────────────────────────── */
-function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Profile; onSaved: () => void }) {
+function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Profile & { username?: string | null }; onSaved: () => void }) {
   const [fullName, setFullName] = useState(profile?.full_name || session?.user?.user_metadata?.full_name || '');
   const [location, setLocation] = useState(profile?.location || '');
   const [bio, setBio] = useState(profile?.bio || '');
+  const [username, setUsername] = useState(profile?.username || session?.user?.user_metadata?.username || '');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -835,7 +837,7 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ full_name: fullName, bio, location }),
+        body: JSON.stringify({ full_name: fullName, bio, location, username }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -955,6 +957,17 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
       <div className="card" style={{ padding: '1.5rem' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-main)' }}>Profile Settings</h3>
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+          <div className="profile-edit-field">
+            <label className="profile-edit-label">Username (SEO URL)</label>
+            <input
+              className="profile-edit-input"
+              value={username}
+              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+              placeholder="username"
+              maxLength={30}
+              required
+            />
+          </div>
           <div className="profile-edit-field">
             <label className="profile-edit-label">Display Name</label>
             <input
