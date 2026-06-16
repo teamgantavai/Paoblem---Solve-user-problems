@@ -1,0 +1,52 @@
+version: '3.8'
+
+services:
+  redis:
+    image: redis:alpine
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: always
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount the local directory to /app in the container for instant hot-reloading
+      - .:/app
+      # Keep node_modules isolated to the container environment
+      - /app/node_modules
+      - /app/.next
+    env_file:
+      - .env.local
+    environment:
+      - REDIS_URL=redis://redis:6379
+    # Run the Next.js development server
+    command: npm run dev
+    depends_on:
+      - redis
+
+  worker:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    restart: always
+    volumes:
+      - .:/app
+      - /app/node_modules
+    env_file:
+      - .env.local
+    environment:
+      - REDIS_URL=redis://redis:6379
+      - NODE_OPTIONS=--experimental-websocket
+    # Run the worker with 'watch' flag so it hot-reloads when worker.ts changes!
+    command: npx tsx watch src/worker.ts
+    depends_on:
+      - redis
+
+volumes:
+  redis_data:

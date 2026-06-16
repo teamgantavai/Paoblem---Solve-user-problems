@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { notificationQueue } from '@/lib/queue';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -25,6 +26,11 @@ export async function POST(req: NextRequest) {
         },
       },
     });
+
+    const supabaseAdmin = createClient(
+      supabaseUrl,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
 
     const { data: { user }, error: authError } = await supabase.auth.getUser(token);
     if (authError || !user) {
@@ -71,6 +77,23 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Send notification via Queue
+    try {
+      const { data: post } = await supabaseAdmin.from('posts').select('user_id').eq('id', post_id).single();
+      if (post && post.user_id !== user.id) {
+        await notificationQueue.add('vote', {
+          user_id: post.user_id,
+          actor_id: user.id,
+          type: vote_type === 'up' ? 'upvote' : 'system',
+          title: vote_type === 'up' ? 'New Upvote' : 'New Downvote',
+          bodyTemplate: `{name} ${vote_type}voted your post.`,
+          post_id: post_id
+        });
+      }
+    } catch (notifErr) {
+      console.error('Failed to enqueue vote notification:', notifErr);
     }
 
     return NextResponse.json({ action: 'created', vote_type }, { status: 201 });

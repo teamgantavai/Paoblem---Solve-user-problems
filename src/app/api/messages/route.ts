@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { notificationQueue } from '@/lib/queue';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -88,6 +89,18 @@ export async function POST(req: NextRequest) {
       .single();
 
     if (error) throw error;
+
+    try {
+      await notificationQueue.add('message', {
+        user_id: recipientId,
+        actor_id: user.id,
+        type: 'system',
+        title: 'New Message',
+        bodyTemplate: `{name} sent you a message.`,
+      });
+    } catch (notifErr) {
+      console.error('Failed to enqueue message notification:', notifErr);
+    }
 
     const isSentByMe = data.sender_id === user.id;
     const partner = isSentByMe ? data.recipient : data.sender;
