@@ -13,12 +13,14 @@ export interface Post {
   downvotes: number;
   comments_count: number;
   views_count: number;
+  slug: string | null;
   created_at: string;
   updated_at: string;
   profiles?: {
     full_name: string | null;
     avatar_url: string | null;
     role: string | null;
+    username: string | null;
   } | null;
 }
 

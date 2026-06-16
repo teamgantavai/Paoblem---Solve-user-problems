@@ -10,39 +10,48 @@ const supabaseAdmin = createClient(
 export async function GET(req: NextRequest) {
   try {
     const userId = req.nextUrl.searchParams.get('userId');
-    if (!userId) {
-      return NextResponse.json({ error: 'userId is required' }, { status: 400 });
+    const username = req.nextUrl.searchParams.get('username');
+    if (!userId && !username) {
+      return NextResponse.json({ error: 'userId or username is required' }, { status: 400 });
     }
 
     // Fetch profile
-    const { data: profile, error: profileError } = await supabaseAdmin
+    let query = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, avatar_url, role, bio, location, created_at')
-      .eq('id', userId)
-      .single();
+      .select('id, full_name, avatar_url, role, bio, location, created_at, username');
+
+    if (userId) {
+      query = query.eq('id', userId);
+    } else {
+      query = query.eq('username', username);
+    }
+
+    const { data: profile, error: profileError } = await query.single();
 
     if (profileError || !profile) {
       console.error('[GET /api/profile] profileError:', profileError, 'profile:', profile);
       return NextResponse.json({ error: 'Profile not found' }, { status: 404 });
     }
 
+    const targetUserId = profile.id;
+
     // Fetch post count
     const { count: postCount } = await supabaseAdmin
       .from('posts')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .eq('user_id', targetUserId);
 
     // Fetch comment count
     const { count: commentCount } = await supabaseAdmin
       .from('comments')
       .select('id', { count: 'exact', head: true })
-      .eq('user_id', userId);
+      .eq('user_id', targetUserId);
 
     // Fetch total upvotes received on user's posts
     const { data: posts } = await supabaseAdmin
       .from('posts')
       .select('upvotes')
-      .eq('user_id', userId);
+      .eq('user_id', targetUserId);
 
     const totalUpvotes = posts?.reduce((sum, p) => sum + (p.upvotes || 0), 0) ?? 0;
 
@@ -75,7 +84,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { full_name, role, bio, location, avatar_url } = body;
+    const { full_name, role, bio, location, avatar_url, username } = body;
 
     // Validate role
     const VALID_ROLES = ['Innovator', 'Founder', 'Builder', 'Developer', 'Designer', 'Investor', 'Maker', 'Researcher'];
@@ -89,6 +98,12 @@ export async function PUT(req: NextRequest) {
     if (bio !== undefined) updates.bio = bio?.trim() || null;
     if (location !== undefined) updates.location = location?.trim() || null;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+    if (username !== undefined) {
+      const cleanUsername = username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
+      if (cleanUsername && cleanUsername.length >= 3) {
+        updates.username = cleanUsername;
+      }
+    }
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
@@ -106,14 +121,15 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    // Also update auth metadata so role/name/avatar is reflected in session
-    if (full_name !== undefined || role !== undefined || avatar_url !== undefined) {
+    // Also update auth metadata so role/name/avatar/username is reflected in session
+    if (full_name !== undefined || role !== undefined || avatar_url !== undefined || username !== undefined) {
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: {
           ...user.user_metadata,
           ...(full_name !== undefined ? { full_name: updates.full_name } : {}),
           ...(role !== undefined ? { role } : {}),
           ...(avatar_url !== undefined ? { avatar_url } : {}),
+          ...(username !== undefined ? { username: updates.username } : {}),
         }
       });
     }

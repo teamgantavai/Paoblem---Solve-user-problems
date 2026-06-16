@@ -21,8 +21,17 @@ export default function SidebarRight() {
 
   const trendingPosts = postsData?.posts?.slice(0, 3) || [];
 
-  const handleNavigatePost = (postId: string) => {
-    router.push(`/?post=${postId}`);
+  const handleNavigatePost = (post: Post) => {
+    // Check if the post is a mock post
+    if (post.id === 'dylan-post') {
+      router.push('/post/why-designing-sucks');
+    } else if (post.id === 'ryan-post') {
+      router.push('/post/recruiting-in-2026-is-totally-broken');
+    } else if (post.slug) {
+      router.push(`/post/${post.slug}`);
+    } else {
+      router.push(`/?post=${post.id}`);
+    }
   };
 
   return (
@@ -78,6 +87,9 @@ export default function SidebarRight() {
               const authorAvatar = post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`;
               const authorRole = post.profiles?.role || 'Innovator';
 
+              const authorUsername = post.profiles?.username;
+              const authorProfileUrl = authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`;
+
               return (
                 <div key={post.id} className="flex items-start justify-between" style={{ gap: '0.5rem' }}>
                   <div className="flex gap-3" style={{ flex: 1, minWidth: 0 }}>
@@ -85,13 +97,20 @@ export default function SidebarRight() {
                       src={authorAvatar}
                       alt={authorName}
                       className="avatar"
-                      style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                      onClick={() => router.push(authorProfileUrl)}
+                      style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
                     />
                     <div style={{ minWidth: 0, flex: 1 }}>
-                      <h4 style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                      <h4 
+                        style={{ fontSize: '0.68rem', color: 'var(--text-muted)', fontWeight: 500, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', cursor: 'pointer' }}
+                        onClick={() => router.push(authorProfileUrl)}
+                      >
                         {authorName} • {authorRole}
                       </h4>
-                      <p style={{ fontSize: '0.82rem', marginTop: '2px', fontWeight: 600, lineHeight: '1.3', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical' }}>
+                      <p 
+                        style={{ fontSize: '0.82rem', marginTop: '2px', fontWeight: 600, lineHeight: '1.3', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', display: '-webkit-box', WebkitLineClamp: 2, WebkitBoxOrient: 'vertical', cursor: 'pointer' }}
+                        onClick={() => handleNavigatePost(post)}
+                      >
                         {post.title}
                       </p>
                     </div>
@@ -99,7 +118,7 @@ export default function SidebarRight() {
                   <button
                     className="btn"
                     style={{ padding: '0.2rem 0.65rem', fontSize: '0.72rem', height: 'fit-content' }}
-                    onClick={() => handleNavigatePost(post.id)}
+                    onClick={() => handleNavigatePost(post)}
                   >
                     View
                   </button>

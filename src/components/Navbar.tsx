@@ -95,7 +95,7 @@ function NavbarInner() {
     }
     supabase
       .from('profiles')
-      .select('full_name, avatar_url, role')
+      .select('full_name, avatar_url, role, username')
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => {
