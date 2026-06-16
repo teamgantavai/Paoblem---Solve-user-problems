@@ -217,16 +217,17 @@ function NavbarInner() {
                   setIsAuthOpen(true);
                 }
               }}
+              style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}
             >
               <div className="nav-icon-wrap">
-                <MessageCircle size={22} strokeWidth={2} />
+                <MessageCircle size={22} strokeWidth={2} style={unreadMsgCount > 0 ? { stroke: '#ef4444' } : undefined} />
                 {unreadMsgCount > 0 && (
-                  <span className="nav-badge">
+                  <span className="nav-badge" style={{ backgroundColor: '#ef4444', color: 'white' }}>
                     {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                   </span>
                 )}
               </div>
-              <span>Chats</span>
+              <span style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}>Chats</span>
             </div>
 
             {/* Authenticated / Guest User Tab */}
@@ -362,16 +363,17 @@ function NavbarInner() {
               setIsAuthOpen(true);
             }
           }}
+          style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}
         >
           <div className="nav-icon-wrap">
-            <MessageCircle size={20} strokeWidth={2} />
+            <MessageCircle size={20} strokeWidth={2} style={unreadMsgCount > 0 ? { stroke: '#ef4444' } : undefined} />
             {unreadMsgCount > 0 && (
-              <span className="nav-badge">
+              <span className="nav-badge" style={{ backgroundColor: '#ef4444', color: 'white' }}>
                 {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
               </span>
             )}
           </div>
-          <span>Chats</span>
+          <span style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}>Chats</span>
         </div>
         <div className={`mobile-nav-item ${isProfileActive ? 'active' : ''}`} onClick={() => { if (session) { router.push('/profile'); } else { setIsAuthOpen(true); } }}>
           <div className="nav-icon-wrap">
