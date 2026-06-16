@@ -290,7 +290,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       if (saved) {
         try {
           setSavedIds(JSON.parse(saved));
-        } catch {}
+        } catch { }
       }
     }
   }, [isOwnProfile]);
@@ -414,7 +414,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
         {/* Identity Section */}
         <div className="profile-identity-section">
           <div className="profile-avatar-col">
-            <div 
+            <div
               className={`profile-full-avatar-wrap ${isOwnProfile ? 'editable-avatar' : ''}`}
               onClick={handleAvatarClick}
               style={{ position: 'relative', cursor: isOwnProfile ? 'pointer' : 'default', overflow: 'hidden', borderRadius: '50%' }}
@@ -459,7 +459,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               )}
             </div>
             {isOwnProfile && (
-              <input 
+              <input
                 type="file"
                 ref={avatarInputRef}
                 onChange={handleAvatarFileChange}
@@ -467,7 +467,8 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
                 style={{ display: 'none' }}
               />
             )}
-            <style dangerouslySetInnerHTML={{ __html: `
+            <style dangerouslySetInnerHTML={{
+              __html: `
               .profile-full-avatar-wrap:hover .avatar-edit-overlay {
                 opacity: 1 !important;
               }
@@ -626,7 +627,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
             <Lightbulb size={16} />
             <span>Ideas ({ideasList.length})</span>
           </button>
-          
+
           {isOwnProfile && (
             <>
               <button
