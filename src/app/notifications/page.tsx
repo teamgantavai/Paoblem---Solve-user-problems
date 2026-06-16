@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Bell, CheckCircle } from 'lucide-react';
+import { Loader2, Bell, CheckCircle, Trash2 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import SidebarLeft from '@/components/SidebarLeft';
@@ -61,6 +61,20 @@ export default function NotificationsPage() {
     }
   });
 
+  const clearNotifsMutation = useMutation({
+    mutationFn: async () => {
+      await fetch('/api/notifications', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['notifications', session?.access_token] });
+    }
+  });
+
   const handleMarkAllRead = () => {
     notifications.forEach(n => {
       if (!n.read) {
@@ -101,26 +115,37 @@ export default function NotificationsPage() {
       <div className="main-content">
         <SidebarLeft />
         
-        <div className="feed-container">
-          <div className="card" style={{ padding: '1.25rem', marginBottom: '1rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'between', alignItems: 'center', width: '100%' }}>
+        <div className="center-feed">
+          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h2 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--text-main)' }}>Notifications</h2>
+                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)' }}>Notifications</h2>
                 {unreadCount > 0 && (
                   <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: 'var(--accent-blue)', color: 'white', fontWeight: 700 }}>
                     {unreadCount} new
                   </span>
                 )}
               </div>
-              {unreadCount > 0 && (
-                <button
-                  onClick={handleMarkAllRead}
-                  style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--accent-blue)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600, marginLeft: 'auto' }}
-                >
-                  <CheckCircle size={14} />
-                  Mark all as read
-                </button>
-              )}
+              <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
+                {unreadCount > 0 && (
+                  <button
+                    onClick={handleMarkAllRead}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--accent-blue)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    <CheckCircle size={14} />
+                    Mark all as read
+                  </button>
+                )}
+                {notifications.length > 0 && (
+                  <button
+                    onClick={() => clearNotifsMutation.mutate()}
+                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                  >
+                    <Trash2 size={14} />
+                    Clear all
+                  </button>
+                )}
+              </div>
             </div>
           </div>
 
@@ -130,9 +155,9 @@ export default function NotificationsPage() {
                 <Loader2 size={24} className="spin" style={{ margin: '0 auto', color: 'var(--text-muted)' }} />
               </div>
             ) : notifications.length === 0 ? (
-              <div className="card" style={{ padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
-                <Bell size={36} style={{ margin: '0 auto 1rem', color: 'var(--text-muted)' }} />
-                <p>All caught up! No notifications yet.</p>
+              <div className="card" style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '400px', padding: '4rem 2rem', textAlign: 'center', color: 'var(--text-muted)' }}>
+                <Bell size={42} style={{ margin: '0 auto 1rem', color: 'var(--text-muted)', opacity: 0.8 }} />
+                <p style={{ fontSize: '1.1rem' }}>All caught up! No notifications yet.</p>
               </div>
             ) : (
               notifications.map((notif) => (
