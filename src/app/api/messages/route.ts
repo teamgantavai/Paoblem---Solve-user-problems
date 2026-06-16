@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
-import { notificationQueue } from '@/lib/queue';
+import { enqueueNotification } from '@/lib/queue';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -278,7 +278,7 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
 
     try {
-      await notificationQueue.add('message', {
+      await enqueueNotification('message', {
         user_id: recipientId,
         actor_id: user.id,
         type: 'system',
