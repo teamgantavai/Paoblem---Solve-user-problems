@@ -7,8 +7,7 @@ import {
   Link2,
   Wand2,
   Send,
-  ChevronUp,
-  ChevronDown,
+  TriangleIcon,
   MessageCircle,
   Bookmark,
   MoreVertical,
@@ -337,15 +336,15 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       <h1 className="feed-title">Paoblems</h1>
 
       {singlePostId && (
-        <button 
-          className="btn" 
+        <button
+          className="btn"
           onClick={() => router.push('/')}
-          style={{ 
-            marginBottom: '1.25rem', 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: '0.5rem', 
-            backgroundColor: 'var(--bg-hover)', 
+          style={{
+            marginBottom: '1.25rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            backgroundColor: 'var(--bg-hover)',
             border: '1px solid var(--border-color)',
             color: 'var(--text-main)',
             padding: '0.55rem 1rem',
@@ -653,7 +652,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
                       aria-label="Upvote"
                     >
-                      <ChevronUp size={16} />
+                      <TriangleIcon size={16} />
                     </button>
                     <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}>
                       +{post.upvotes}
@@ -668,7 +667,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       style={{ color: hasDownvoted ? '#ef4444' : undefined }}
                       aria-label="Downvote"
                     >
-                      <ChevronDown size={16} />
+                      <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} />
                     </button>
                     <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>
                       -{post.downvotes}
