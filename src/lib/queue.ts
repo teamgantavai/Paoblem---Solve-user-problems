@@ -17,7 +17,7 @@ export const notificationQueue = isVercel ? null : new Queue('notifications', {
 export interface NotificationJobData {
   user_id: string; // The user receiving the notification
   actor_id: string; // The user performing the action
-  type: 'upvote' | 'comment' | 'follow' | 'system';
+  type: 'upvote' | 'downvote' | 'comment' | 'follow' | 'system';
   title: string;
   bodyTemplate: string; // e.g., "{name} upvoted your post"
   post_id?: string;
@@ -34,11 +34,11 @@ export async function enqueueNotification(jobName: string, data: NotificationJob
       
       const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('full_name')
+        .select('username, full_name')
         .eq('id', data.actor_id)
         .single();
         
-      const actingName = profile?.full_name || 'Someone';
+      const actingName = profile?.username ? `@${profile.username}` : (profile?.full_name || 'Someone');
       const body = data.bodyTemplate.replace('{name}', actingName);
 
       const { error } = await supabaseAdmin.from('notifications').insert({

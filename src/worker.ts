@@ -23,14 +23,14 @@ const worker = new Worker(
     console.log(`Processing notification job ${job.id} for user ${data.user_id}`);
 
     try {
-      // Fetch the actor's profile to get their name
+      // Fetch the actor's profile to get their username and name
       const { data: profile } = await supabaseAdmin
         .from('profiles')
-        .select('full_name')
+        .select('username, full_name')
         .eq('id', data.actor_id)
         .single();
         
-      const actingName = profile?.full_name || 'Someone';
+      const actingName = profile?.username ? `@${profile.username}` : (profile?.full_name || 'Someone');
       const body = data.bodyTemplate.replace('{name}', actingName);
 
       // Insert the notification into Supabase

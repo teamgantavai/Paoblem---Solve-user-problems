@@ -99,10 +99,33 @@ export async function PUT(req: NextRequest) {
     if (location !== undefined) updates.location = location?.trim() || null;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (username !== undefined) {
-      const cleanUsername = username?.trim().toLowerCase().replace(/[^a-z0-9_]/g, '');
-      if (cleanUsername && cleanUsername.length >= 3) {
-        updates.username = cleanUsername;
+      const cleanUsername = username?.trim().toLowerCase();
+      if (!cleanUsername) {
+        return NextResponse.json({ error: 'Username cannot be empty' }, { status: 400 });
       }
+      if (cleanUsername.length < 3) {
+        return NextResponse.json({ error: 'Username must be at least 3 characters' }, { status: 400 });
+      }
+      if (/[^a-z0-9_]/.test(cleanUsername)) {
+        return NextResponse.json({ error: 'Username can only contain lowercase letters, numbers, and underscores' }, { status: 400 });
+      }
+
+      // Check if username is already taken by another user
+      const { data: existing, error: checkError } = await supabaseAdmin
+        .from('profiles')
+        .select('id')
+        .eq('username', cleanUsername)
+        .neq('id', user.id)
+        .maybeSingle();
+
+      if (checkError) {
+        return NextResponse.json({ error: 'Failed to validate username' }, { status: 500 });
+      }
+      if (existing) {
+        return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+      }
+
+      updates.username = cleanUsername;
     }
 
     if (Object.keys(updates).length === 0) {

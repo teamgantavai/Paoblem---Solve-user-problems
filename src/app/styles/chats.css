@@ -1,0 +1,285 @@
+/* ═══════════════════════════════════════════════════════════════
+   CHAT PAGE – Fixed-height, responsive layout
+   ═══════════════════════════════════════════════════════════════ */
+
+/* ── Root wrapper: fills the viewport below the Navbar ────────── */
+.chat-page-root {
+  display: flex;
+  flex-direction: column;
+  height: 100vh;
+  min-height: 0;               /* let flex children shrink */
+  background-color: #070708;
+  color: #f8f9fa;
+  overflow: hidden;            /* nothing escapes the viewport */
+}
+
+/* The area below the Navbar */
+.chat-layout {
+  flex: 1;
+  display: flex;
+  min-height: 0;               /* critical for nested scroll */
+  width: 100%;
+  overflow: hidden;
+}
+
+/* ── Left sidebar (conversation list) ─────────────────────────── */
+.chat-sidebar {
+  width: 320px;
+  max-width: 340px;
+  min-width: 280px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-right: 1px solid var(--border-color);
+  background-color: #121214;
+}
+
+.chat-sidebar-header {
+  flex-shrink: 0;
+  padding: 1rem 1rem 0.85rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.chat-sidebar-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 0.25rem 0.5rem;
+}
+
+/* ── Center panel (active conversation) ───────────────────────── */
+.chat-center {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  min-width: 0;
+  background-color: #070708;
+  padding: 0.5rem;
+}
+
+.chat-window {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: #121214;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+/* Header – fixed at top of chat */
+.chat-window-header {
+  flex-shrink: 0;
+  padding: 0.85rem 1.25rem;
+  border-bottom: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: #121214;
+}
+
+/* AI bar, search bar, failed-msg bar – all fixed height */
+.chat-toolbar {
+  flex-shrink: 0;
+}
+
+/* Message thread – THIS is the scrollable area */
+.chat-messages {
+  flex: 1;
+  min-height: 0;              /* ← the key fix */
+  overflow-y: auto;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+/* Composer – pinned to bottom */
+.chat-composer {
+  flex-shrink: 0;
+  padding: 1rem 1.25rem;
+  background-color: #121214;
+  border-top: 1px solid var(--border-color);
+}
+
+.chat-composer-bar {
+  display: flex;
+  gap: 0.75rem;
+  align-items: flex-end;
+  background-color: var(--search-bg);
+  padding: 0.5rem 0.75rem;
+  border-radius: 16px;
+  border: 1px solid var(--border-color);
+}
+
+/* ── Right sidebar (shared content) ───────────────────────────── */
+.chat-right-sidebar {
+  width: 280px;
+  max-width: 320px;
+  min-width: 260px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  border-left: 1px solid var(--border-color);
+  background-color: #121214;
+  padding: 0.5rem;
+}
+
+.chat-right-inner {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+  background-color: #1c1c1f;
+  border-radius: 20px;
+  border: 1px solid var(--border-color);
+  overflow: hidden;
+}
+
+.chat-right-scroll {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  padding: 1rem;
+}
+
+/* ── Scrollbar styling ────────────────────────────────────────── */
+.chat-sidebar-scroll::-webkit-scrollbar,
+.chat-messages::-webkit-scrollbar,
+.chat-right-scroll::-webkit-scrollbar {
+  width: 5px;
+}
+.chat-sidebar-scroll::-webkit-scrollbar-thumb,
+.chat-messages::-webkit-scrollbar-thumb,
+.chat-right-scroll::-webkit-scrollbar-thumb {
+  background-color: rgba(255, 255, 255, 0.06);
+  border-radius: 4px;
+}
+.chat-sidebar-scroll::-webkit-scrollbar-track,
+.chat-messages::-webkit-scrollbar-track,
+.chat-right-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+/* ── Conversation card hover ──────────────────────────────────── */
+.conversation-card-item {
+  transition: all 0.2s ease;
+}
+.conversation-card-item:hover {
+  background-color: var(--bg-hover) !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2) !important;
+}
+
+/* ── Message hover actions ────────────────────────────────────── */
+.message-actions-overlay {
+  display: none !important;
+  position: absolute;
+  top: -28px;
+  right: 8px;
+  z-index: 5;
+}
+.msg-row:hover .message-actions-overlay {
+  display: flex !important;
+}
+
+/* ── Typing dots animation ────────────────────────────────────── */
+.dot {
+  width: 5px;
+  height: 5px;
+  background-color: #6366f1;
+  border-radius: 50%;
+  display: inline-block;
+  animation: bounce 1.4s infinite ease-in-out both;
+}
+.dot1 { animation-delay: -0.32s; }
+.dot2 { animation-delay: -0.16s; }
+@keyframes bounce {
+  0%, 80%, 100% { transform: scale(0); }
+  40%           { transform: scale(1); }
+}
+
+/* ── Empty state ──────────────────────────────────────────────── */
+.chat-empty-state {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  align-items: center;
+  color: var(--text-muted);
+  gap: 1rem;
+  background-color: #070708;
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE – Tablet (≤ 1024px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 1024px) {
+  .chat-right-sidebar {
+    display: none !important;
+  }
+  .chat-sidebar {
+    width: 260px;
+    min-width: 220px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   RESPONSIVE – Mobile (≤ 768px)
+   ═══════════════════════════════════════════════════════════════ */
+@media (max-width: 768px) {
+  /* On mobile the chat page takes over the entire viewport */
+  .chat-page-root {
+    height: 100vh;
+    height: 100dvh;          /* dynamic viewport height for iOS */
+  }
+
+  .chat-sidebar {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0 !important;
+    border-right: none;
+  }
+
+  /* When a conversation is open, the sidebar hides */
+  .chat-sidebar.mobile-hidden {
+    display: none !important;
+  }
+
+  /* The chat center fills the whole screen */
+  .chat-center.mobile-active {
+    position: fixed;
+    inset: 0;
+    z-index: 500;
+    padding: 0;
+    width: 100%;
+    height: 100vh;
+    height: 100dvh;
+  }
+
+  .chat-center.mobile-hidden {
+    display: none !important;
+  }
+
+  /* Show the back button */
+  .back-btn-mobile {
+    display: flex !important;
+  }
+
+  .chat-right-sidebar {
+    display: none !important;
+  }
+
+  /* Chat window fills the overlay */
+  .chat-center.mobile-active .chat-window {
+    border-radius: 0;
+    border: none;
+  }
+}

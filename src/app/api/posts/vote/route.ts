@@ -86,7 +86,7 @@ export async function POST(req: NextRequest) {
         await enqueueNotification('vote', {
           user_id: post.user_id,
           actor_id: user.id,
-          type: vote_type === 'up' ? 'upvote' : 'system',
+          type: vote_type === 'up' ? 'upvote' : 'downvote',
           title: vote_type === 'up' ? 'New Upvote' : 'New Downvote',
           bodyTemplate: `{name} ${vote_type}voted your post.`,
           post_id: post_id

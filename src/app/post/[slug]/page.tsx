@@ -2,6 +2,7 @@ import { createClient } from '@supabase/supabase-js';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
+import { Suspense } from 'react';
 import Navbar from '@/components/Navbar';
 import SidebarLeft from '@/components/SidebarLeft';
 import SidebarRight from '@/components/SidebarRight';
@@ -75,11 +76,19 @@ async function getPost(slug: string): Promise<Post | null> {
   if (mock) return mock;
 
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  const { data, error } = await supabase
+  const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(slug);
+
+  let query = supabase
     .from('posts')
-    .select('*, profiles:user_id(full_name, avatar_url, role, username)')
-    .eq('slug', slug)
-    .maybeSingle();
+    .select('*, profiles:user_id(full_name, avatar_url, role, username)');
+
+  if (isUuid) {
+    query = query.eq('id', slug);
+  } else {
+    query = query.eq('slug', slug);
+  }
+
+  const { data, error } = await query.maybeSingle();
 
   if (error || !data) {
     return null;
@@ -337,7 +346,9 @@ export default async function PostPage({ params }: PageProps) {
           </nav>
 
           {/* Core Interactive post content */}
-          <InteractivePost initialPost={post} initialComments={comments} />
+          <Suspense fallback={<div className="card" style={{ padding: '3rem', textAlign: 'center', color: 'var(--text-muted)' }}>Loading startup discussion...</div>}>
+            <InteractivePost initialPost={post} initialComments={comments} />
+          </Suspense>
 
           {/* Internal Linking Area */}
           <section className="internal-linking-section" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem', marginTop: '2rem', padding: '1.5rem', border: '1px solid var(--border-color)', borderRadius: '18px', background: 'var(--bg-card)' }}>

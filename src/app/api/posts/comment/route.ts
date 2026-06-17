@@ -9,6 +9,7 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.
 const commentSchema = z.object({
   post_id: z.string().uuid(),
   body: z.string().min(1, 'Comment cannot be empty').max(2000, 'Comment too long'),
+  parent_id: z.string().uuid().optional().nullable(),
 });
 
 function sanitize(text: string): string {
@@ -49,7 +50,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const { post_id, body: commentBody } = parsed.data;
+    const { post_id, body: commentBody, parent_id } = parsed.data;
     const sanitizedBody = sanitize(commentBody);
 
     const { data, error } = await supabase
@@ -58,6 +59,7 @@ export async function POST(req: NextRequest) {
         user_id: user.id,
         post_id,
         body: sanitizedBody,
+        parent_id: parent_id || null,
       })
       .select()
       .single();

@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { X, Sun, Moon, Monitor, Check } from 'lucide-react';
+import { X, Sun, Moon, Check } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -10,6 +11,12 @@ interface SettingsModalProps {
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
+  const [session, setSession] = useState<any>(null);
+  const [username, setUsername] = useState('');
+  const [originalUsername, setOriginalUsername] = useState('');
+  const [usernameError, setUsernameError] = useState('');
+  const [usernameSuccess, setUsernameSuccess] = useState('');
+  const [savingUsername, setSavingUsername] = useState(false);
 
   useEffect(() => {
     const saved = localStorage.getItem('theme');
@@ -21,6 +28,98 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       document.documentElement.classList.remove('light-theme');
     }
   }, [isOpen]);
+
+  useEffect(() => {
+    if (isOpen) {
+      supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+        setSession(currentSession);
+        if (currentSession?.user?.id) {
+          fetchProfile(currentSession.user.id);
+        }
+      });
+    }
+  }, [isOpen]);
+
+  const fetchProfile = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/profile?userId=${userId}`);
+      const data = await res.json();
+      if (data.profile?.username) {
+        setUsername(data.profile.username);
+        setOriginalUsername(data.profile.username);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  useEffect(() => {
+    if (!username || username === originalUsername) {
+      setUsernameError('');
+      setUsernameSuccess('');
+      return;
+    }
+
+    if (username.length < 3) {
+      setUsernameError('Username must be at least 3 characters');
+      setUsernameSuccess('');
+      return;
+    }
+
+    if (/[^a-z0-9_]/.test(username)) {
+      setUsernameError('Can only contain lowercase letters, numbers, and underscores');
+      setUsernameSuccess('');
+      return;
+    }
+
+    // Debounce uniqueness check
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`/api/profile?username=${username}`);
+        if (res.status === 404) {
+          setUsernameSuccess('Username is available!');
+          setUsernameError('');
+        } else {
+          setUsernameError('Username is already taken');
+          setUsernameSuccess('');
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }, 400);
+
+    return () => clearTimeout(timer);
+  }, [username, originalUsername]);
+
+  const handleSaveUsername = async () => {
+    if (!session || !username || usernameError) return;
+    setSavingUsername(true);
+    try {
+      const res = await fetch('/api/profile', {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({ username })
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        setUsernameError(data.error || 'Failed to update username');
+        setUsernameSuccess('');
+      } else {
+        setOriginalUsername(username);
+        setUsernameSuccess('Username updated successfully!');
+        setUsernameError('');
+      }
+    } catch (e) {
+      console.error(e);
+      setUsernameError('Failed to save username');
+      setUsernameSuccess('');
+    } finally {
+      setSavingUsername(false);
+    }
+  };
 
   const applyTheme = (next: 'dark' | 'light') => {
     setTheme(next);
@@ -200,6 +299,80 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </span>
               </div>
             </button>
+          </div>
+
+          {/* Account Settings Section */}
+          <div style={{ marginTop: '1.5rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+            <p style={{
+              fontSize: '0.65rem',
+              fontWeight: 700,
+              color: 'var(--text-muted)',
+              textTransform: 'uppercase',
+              letterSpacing: '0.08em',
+              marginBottom: '0.9rem'
+            }}>
+              Account Username
+            </p>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ position: 'relative' }}>
+                <span style={{ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', fontSize: '0.85rem' }}>@</span>
+                <input
+                  type="text"
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value.toLowerCase().trim())}
+                  placeholder="username"
+                  style={{
+                    width: '100%',
+                    background: 'var(--bg-hover)',
+                    border: usernameError 
+                      ? '1px solid #ef4444' 
+                      : usernameSuccess 
+                        ? '1px solid #22c55e' 
+                        : '1px solid var(--border-color)',
+                    borderRadius: '10px',
+                    padding: '0.55rem 0.75rem 0.55rem 1.6rem',
+                    fontSize: '0.85rem',
+                    color: 'var(--text-main)',
+                    outline: 'none',
+                    transition: 'border 0.2s'
+                  }}
+                  disabled={savingUsername}
+                />
+              </div>
+
+              {usernameError && (
+                <span style={{ fontSize: '0.72rem', color: '#ef4444' }}>{usernameError}</span>
+              )}
+              {usernameSuccess && (
+                <span style={{ fontSize: '0.72rem', color: '#22c55e' }}>{usernameSuccess}</span>
+              )}
+
+              {username !== originalUsername && !usernameError && (
+                <button
+                  onClick={handleSaveUsername}
+                  disabled={savingUsername || !!usernameError}
+                  style={{
+                    marginTop: '0.5rem',
+                    background: 'var(--accent-blue)',
+                    color: 'white',
+                    border: 'none',
+                    borderRadius: '8px',
+                    padding: '0.5rem',
+                    fontSize: '0.8rem',
+                    fontWeight: 600,
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '4px',
+                    opacity: (savingUsername || !!usernameError) ? 0.6 : 1
+                  }}
+                >
+                  {savingUsername ? 'Saving...' : 'Save Username'}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Version info */}

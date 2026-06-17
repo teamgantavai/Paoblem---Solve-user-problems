@@ -256,6 +256,9 @@ function NavbarInner() {
                   <img 
                     src={displayAvatar} 
                     alt="Me" 
+                    onError={(e) => {
+                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                    }}
                     style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} 
                   />
                 </div>
@@ -400,6 +403,9 @@ function NavbarInner() {
               <img 
                 src={displayAvatar} 
                 alt="Me" 
+                onError={(e) => {
+                  e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                }}
                 style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} 
               />
             ) : (
@@ -435,6 +441,9 @@ function NavbarInner() {
                 <img
                   src={displayAvatar}
                   alt="Avatar"
+                  onError={(e) => {
+                    e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                  }}
                   className="drawer-profile-avatar"
                 />
                 <div className="drawer-profile-details">

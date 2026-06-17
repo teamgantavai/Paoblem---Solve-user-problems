@@ -423,6 +423,9 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               <img
                 src={avatarSrc}
                 alt={displayName}
+                onError={(e) => {
+                  e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                }}
                 className="profile-full-avatar"
                 style={{ opacity: avatarUploading ? 0.6 : 1, transition: 'opacity 0.2s', width: '100%', height: '100%', objectFit: 'cover' }}
               />

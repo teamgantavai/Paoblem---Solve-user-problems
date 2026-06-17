@@ -106,7 +106,41 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const { data, error } = await query;
+    let { data, error } = await query;
+
+    if (error && (error.message.includes('username') || error.message.includes('slug'))) {
+      console.warn('[posts/list] Fallback: profiles.username or posts.slug column missing, retrying query without them.');
+      let fallbackQuery = supabase
+        .from('posts')
+        .select('*, profiles:user_id(full_name, avatar_url, role)');
+
+      if (postId) {
+        fallbackQuery = fallbackQuery.eq('id', postId);
+      } else {
+        fallbackQuery = fallbackQuery.order('created_at', { ascending: false }).limit(PAGE_SIZE + 1);
+        if (cursor) {
+          fallbackQuery = fallbackQuery.lt('created_at', cursor);
+        }
+
+        if (type === 'problem' || type === 'idea') {
+          fallbackQuery = fallbackQuery.eq('type', type);
+        } else if (type === 'mine') {
+          if (userId) {
+            fallbackQuery = fallbackQuery.eq('user_id', userId);
+          }
+        } else if (type === 'saved') {
+          if (savedIds) {
+            const idsArray = savedIds.split(',').filter(Boolean);
+            if (idsArray.length > 0) {
+              fallbackQuery = fallbackQuery.in('id', idsArray);
+            }
+          }
+        }
+      }
+      const fallbackRes = await fallbackQuery;
+      data = fallbackRes.data;
+      error = fallbackRes.error;
+    }
 
     if (error) {
       console.error('[posts/list] Supabase error:', JSON.stringify(error));

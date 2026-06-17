@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { TriangleIcon, MessageCircle, User, Bell, Radio } from 'lucide-react';
+import { useRouter } from 'next/navigation';
+import { TriangleIcon, MessageCircle, User, Bell } from 'lucide-react';
 import { Notification } from '@/lib/types';
 
 interface NotificationItemProps {
@@ -10,6 +11,8 @@ interface NotificationItemProps {
 }
 
 export default function NotificationItem({ notification, onMarkAsRead }: NotificationItemProps) {
+  const router = useRouter();
+
   const getIcon = () => {
     switch (notification.type) {
       case 'upvote':
@@ -19,7 +22,7 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
       case 'follow':
         return <User size={16} className="notif-icon-follow" />;
       case 'downvote':
-        return <TriangleIcon size={16} className="notif-icon-vote" />;
+        return <TriangleIcon size={16} className="notif-icon-downvote" style={{ transform: 'rotate(180deg)' }} />;
       default:
         return <Bell size={16} className="notif-icon-system" />;
     }
@@ -40,10 +43,38 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
     }
   };
 
+  const handleClick = () => {
+    if (!notification.read) {
+      onMarkAsRead(notification.id);
+    }
+
+    if (notification.type === 'upvote' || notification.type === 'downvote') {
+      if (notification.post_id) {
+        router.push(`/post/${notification.post_id}`);
+      }
+    } else if (notification.type === 'comment') {
+      if (notification.post_id) {
+        const match = notification.body.match(/^@([a-zA-Z0-9_]+)/);
+        const username = match ? match[1] : '';
+        if (username) {
+          router.push(`/post/${notification.post_id}?highlightComment=${username}`);
+        } else {
+          router.push(`/post/${notification.post_id}`);
+        }
+      }
+    } else if (notification.type === 'follow') {
+      const match = notification.body.match(/^@([a-zA-Z0-9_]+)/);
+      const username = match ? match[1] : '';
+      if (username) {
+        router.push(`/user/${username}`);
+      }
+    }
+  };
+
   return (
     <div
       className={`notif-item ${notification.read ? 'read' : 'unread'}`}
-      onClick={() => !notification.read && onMarkAsRead(notification.id)}
+      onClick={handleClick}
     >
       <div className="notif-icon-container">
         {getIcon()}

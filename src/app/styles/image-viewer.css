@@ -519,6 +519,7 @@
 }
 
 .notif-icon-vote { color: var(--accent-blue); }
+.notif-icon-downvote { color: #ef4444; }
 .notif-icon-comment { color: var(--accent-yellow); }
 .notif-icon-follow { color: #10b981; }
 .notif-icon-system { color: #a855f7; }

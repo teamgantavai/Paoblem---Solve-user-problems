@@ -566,30 +566,15 @@ function ChatsPageContent() {
   const sharedLinks = activeMessages.filter(m => m.type === 'LINK' || m.body.includes('http://') || m.body.includes('https://'));
 
   return (
-    <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="chat-page-root">
       <Navbar />
       
-      <div className="main-content" style={{ padding: '0', height: 'calc(100vh - 65px)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#070708' }}>
+      <div className="chat-layout">
           
           {/* 1. LEFT SIDEBAR: Redesigned with NO red or blue borders, uses 22%-25% width */}
-          <div 
-            className={`chats-sidebar-list ${mobileConversationOpen ? 'mobile-hidden' : ''}`}
-            style={{ 
-              width: '25%', 
-              maxWidth: '340px',
-              minWidth: '280px',
-              flexShrink: 0,
-              borderRight: '1px solid var(--border-color)', 
-              display: 'flex', 
-              flexDirection: 'column', 
-              height: '100%', 
-              backgroundColor: '#121214',
-              padding: '0.5rem'
-            }}
-          >
+          <div className={`chat-sidebar ${mobileConversationOpen ? 'mobile-hidden' : ''}`}>
             {/* Search and Header */}
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div className="chat-sidebar-header">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                 <h2 style={{ fontSize: '1.35rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                   Messages
@@ -617,7 +602,7 @@ function ChatsPageContent() {
             </div>
             
             {/* Conversations List with premium Active Chat styling */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem' }}>
+            <div className="chat-sidebar-scroll">
               {isLoading && messages.length === 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                   <Loader2 size={24} className="spin" style={{ color: '#6366f1' }} />
@@ -661,6 +646,9 @@ function ChatsPageContent() {
                           <img
                             src={chat.partnerAvatar}
                             alt={chat.partnerName}
+                            onError={(e) => {
+                              e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                            }}
                             style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }}
                           />
                         ) : (
@@ -716,21 +704,11 @@ function ChatsPageContent() {
           </div>
 
           {/* 2. CENTER SECTION: Chat Window & Responsive Mobile view (Expands to full remaining space) */}
-          <div 
-            className={`chats-conversation-area ${!mobileConversationOpen ? 'mobile-hidden' : ''} mobile-overlay-view`}
-            style={{ 
-              flex: 1, 
-              display: 'flex', 
-              flexDirection: 'column', 
-              height: '100%', 
-              backgroundColor: '#070708',
-              padding: '0.5rem'
-            }}
-          >
+          <div className={`chat-center ${mobileConversationOpen ? 'mobile-active' : 'mobile-hidden'}`}>
             {activePartnerId && activeChatInfo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#121214', borderRadius: '20px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+              <div className="chat-window">
                 {/* Chat Header */}
-                <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#121214' }}>
+                <div className="chat-window-header">
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                     <button 
                       onClick={() => setMobileConversationOpen(false)}
@@ -744,6 +722,9 @@ function ChatsPageContent() {
                         <img
                           src={activeChatInfo.partnerAvatar}
                           alt={activeChatInfo.partnerName}
+                          onError={(e) => {
+                            e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                          }}
                           style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
                         />
                       ) : (
@@ -850,7 +831,7 @@ function ChatsPageContent() {
 
                 {/* Inline Conversation Search */}
                 {chatSearchOpen && (
-                  <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border-color)', backgroundColor: '#16171b', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                  <div className="chat-toolbar" style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border-color)', backgroundColor: '#16171b', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     <div style={{ position: 'relative', flex: 1 }}>
                       <input 
                         type="text" 
@@ -880,7 +861,7 @@ function ChatsPageContent() {
                 )}
 
                 {/* AI Feature Panel */}
-                <div style={{ backgroundColor: 'rgba(99,102,241,0.04)', padding: '0.45rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
+                <div className="chat-toolbar" style={{ backgroundColor: 'rgba(99,102,241,0.04)', padding: '0.45rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                   <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#6366f1', fontWeight: 700, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
                     <Sparkle size={10} /> AI Agent:
                   </span>
@@ -907,7 +888,7 @@ function ChatsPageContent() {
 
                 {/* Failed Message Notice */}
                 {failedMessages.length > 0 && (
-                  <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div className="chat-toolbar" style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
                     {failedMessages.map((fm, idx) => (
                       <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ef4444' }}>
                         <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
@@ -927,7 +908,7 @@ function ChatsPageContent() {
                 {/* Message List */}
                 <div 
                   ref={messagesContainerRef}
-                  style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+                  className="chat-messages"
                 >
                   {filteredActiveMessages.length === 0 ? (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', gap: '0.75rem' }}>
@@ -958,12 +939,14 @@ function ChatsPageContent() {
                           )}
 
                           <div
+                            className="msg-row"
                             style={{
                               alignSelf: isMe ? 'flex-end' : 'flex-start',
                               maxWidth: '65%',
                               display: 'flex',
                               gap: '0.55rem',
-                              marginTop: isGrouped ? '2px' : '8px'
+                              marginTop: isGrouped ? '2px' : '8px',
+                              position: 'relative'
                             }}
                           >
                             {!isMe && !isGrouped && (
@@ -972,6 +955,9 @@ function ChatsPageContent() {
                                   <img
                                     src={activeChatInfo.partnerAvatar}
                                     alt="avatar"
+                                    onError={(e) => {
+                                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                                    }}
                                     style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
                                   />
                                 ) : (
@@ -1094,7 +1080,7 @@ function ChatsPageContent() {
                 )}
 
                 {/* Message Composer - Rebuilt as modern floating composer card */}
-                <div style={{ padding: '1rem 1.25rem', backgroundColor: '#121214', borderTop: '1px solid var(--border-color)' }}>
+                <div className="chat-composer">
                   {attachments.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
                       {attachments.map((att, i) => (
@@ -1111,7 +1097,7 @@ function ChatsPageContent() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', backgroundColor: 'var(--search-bg)', padding: '0.5rem 0.75rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                  <div className="chat-composer-bar">
                     <button 
                       type="button" 
                       onClick={() => fileInputRef.current?.click()}
@@ -1234,7 +1220,7 @@ function ChatsPageContent() {
                 </div>
               </div>
             ) : (
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', gap: '1rem', backgroundColor: '#070708' }}>
+              <div className="chat-empty-state">
                 <MessageCircle size={54} style={{ opacity: 0.2, color: '#6366f1' }} />
                 <h3 style={{ fontSize: '1.15rem', fontWeight: 600, fontFamily: 'Outfit', color: '#f8f9fa' }}>No Chat Selected</h3>
                 <p style={{ fontSize: '0.85rem' }}>Select a conversation from the list to start messaging.</p>
@@ -1244,22 +1230,8 @@ function ChatsPageContent() {
 
           {/* 3. RIGHT SIDEBAR: Shared Media explorer - Redesigned as proper Glassmorphism cards (20%-25% width) */}
           {activePartnerId && activeChatInfo && rightSidebarOpen && (
-            <div 
-              style={{ 
-                width: '23%', 
-                maxWidth: '320px',
-                minWidth: '260px',
-                flexShrink: 0,
-                borderLeft: '1px solid var(--border-color)', 
-                backgroundColor: '#121214', 
-                display: 'flex', 
-                flexDirection: 'column', 
-                height: '100%',
-                padding: '0.5rem'
-              }}
-              className="shared-media-sidebar"
-            >
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#1c1c1f', borderRadius: '20px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+            <div className="chat-right-sidebar">
+              <div className="chat-right-inner">
                 <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <h3 style={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa' }}>Shared Content</h3>
                   <button onClick={() => setRightSidebarOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -1315,7 +1287,7 @@ function ChatsPageContent() {
                 </div>
 
                 {/* Content Panel */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
+                <div className="chat-right-scroll">
                   {activeRightTab === 'media' && (
                     sharedImages.length === 0 ? (
                       <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
@@ -1414,8 +1386,6 @@ function ChatsPageContent() {
               </div>
             </div>
           )}
-          
-        </div>
       </div>
 
       {/* Lightbox */}
@@ -1473,72 +1443,7 @@ function ChatsPageContent() {
         </div>
       )}
 
-      {/* Responsive Overlay & Styling */}
-      <style jsx global>{`
-        .chats-sidebar-list::-webkit-scrollbar,
-        .chats-conversation-area::-webkit-scrollbar {
-          width: 6px;
-        }
-        .chats-sidebar-list::-webkit-scrollbar-thumb,
-        .chats-conversation-area::-webkit-scrollbar-thumb {
-          background-color: rgba(255, 255, 255, 0.05);
-          border-radius: 4px;
-        }
-        .message-actions-overlay {
-          display: none;
-          position: absolute;
-          top: -28px;
-          right: 8px;
-          z-index: 5;
-        }
-        div:hover > .message-actions-overlay {
-          display: flex !important;
-        }
-        .dot {
-          width: 5px;
-          height: 5px;
-          background-color: #6366f1;
-          border-radius: 50%;
-          display: inline-block;
-          animation: bounce 1.4s infinite ease-in-out both;
-        }
-        .dot1 { animation-delay: -0.32s; }
-        .dot2 { animation-delay: -0.16s; }
-        @keyframes bounce {
-          0%, 80%, 100% { transform: scale(0); }
-          40% { transform: scale(1.0); }
-        }
 
-        .conversation-card-item:hover {
-          background-color: var(--bg-hover) !important;
-          transform: translateY(-1px);
-          box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
-        }
-
-        @media (max-width: 768px) {
-          .mobile-hidden {
-            display: none !important;
-          }
-          .chats-sidebar-list {
-            width: 100% !important;
-            max-width: 100% !important;
-          }
-          .mobile-overlay-view {
-            width: 100% !important;
-            height: 100% !important;
-            position: fixed !important;
-            top: 0 !important;
-            left: 0 !important;
-            z-index: 500 !important;
-          }
-          .back-btn-mobile {
-            display: flex !important;
-          }
-          .shared-media-sidebar {
-            display: none !important;
-          }
-        }
-      `}</style>
     </div>
   );
 }

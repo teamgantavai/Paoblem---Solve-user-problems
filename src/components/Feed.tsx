@@ -463,15 +463,30 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     alt={post.profiles?.full_name || 'Anonymous'}
                     className="avatar"
                     onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+                    onError={(e) => {
+                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                    }}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="post-user-info">
                     <h4
-                      className="flex items-center gap-2"
-                      style={{ fontWeight: 600, cursor: 'pointer' }}
-                      onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+                      className="flex items-center gap-1.5 flex-wrap"
+                      style={{ fontWeight: 600, fontSize: '0.9rem' }}
                     >
-                      {post.profiles?.full_name || 'Anonymous'}
+                      <span 
+                        onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+                        style={{ cursor: 'pointer', color: 'var(--text-main)' }}
+                      >
+                        {post.profiles?.full_name || 'Anonymous'}
+                      </span>
+                      {post.profiles?.username && (
+                        <span 
+                          onClick={() => router.push(`/user/${post.profiles.username}`)}
+                          style={{ cursor: 'pointer', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500 }}
+                        >
+                          @{post.profiles.username}
+                        </span>
+                      )}
                       <span
                         style={{
                           fontSize: '0.65rem',
@@ -955,17 +970,29 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                     alt={authorName}
                     className="comment-avatar"
                     onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}
+                    onError={(e) => {
+                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+                    }}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="comment-content">
                     <div className="comment-author-time">
                       <span
                         className="comment-author"
-                        onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}
-                        style={{ cursor: 'pointer' }}
+                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}
                       >
-                        {authorName}
-                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', marginLeft: '0.4rem', fontWeight: 500 }}>
+                        <span onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}>
+                          {authorName}
+                        </span>
+                        {comment.profiles?.username && (
+                          <span 
+                            onClick={() => router.push(`/user/${comment.profiles.username}`)}
+                            style={{ color: 'var(--accent-blue)', fontSize: '0.75rem', fontWeight: 500 }}
+                          >
+                            @{comment.profiles.username}
+                          </span>
+                        )}
+                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '1px 5px', borderRadius: '8px', fontWeight: 500 }}>
                           {authorRole}
                         </span>
                       </span>
@@ -1063,6 +1090,9 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
         <img
           src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
           alt="You"
+          onError={(e) => {
+            e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
+          }}
           style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
         />
         <input
