@@ -649,13 +649,13 @@ function ChatsPageContent() {
 
   const activeChatInfo = activePartnerId ? chatGroups[activePartnerId] : null;
 
-  const latestReadMessageId = useMemo(() => {
+  const latestReadMessageId = (() => {
     for (let i = filteredActiveMessages.length - 1; i >= 0; i--) {
       const m = filteredActiveMessages[i];
       if (m.sender_id === session?.user?.id && m.read) return m.id;
     }
     return null;
-  }, [filteredActiveMessages, session?.user?.id]);
+  })();
 
   // Shared media panels
   const sharedImages = activeMessages.filter(m => m.type === 'IMAGE' || m.attachments?.some(a => a.file_type.includes('image')));
