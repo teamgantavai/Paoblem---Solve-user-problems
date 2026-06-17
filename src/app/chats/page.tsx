@@ -340,6 +340,11 @@ function ChatsPageContent() {
     messagesEndRef.current?.scrollIntoView({ behavior });
   };
 
+  // Auto-scroll to bottom when messages change or a new chat is opened
+  useEffect(() => {
+    scrollToBottom('auto');
+  }, [messages, localMessages, activeChatId]);
+
   // Set active partner ID
   useEffect(() => {
     if (targetUserId) {
