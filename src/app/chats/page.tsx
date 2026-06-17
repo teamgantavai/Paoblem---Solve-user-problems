@@ -820,10 +820,21 @@ function ChatsPageContent() {
                       </div>
                     </div>
                   </div>
-                  <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#333333', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '24px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
-                    <Phone size={16} />
-                    Call
-                  </button>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                    <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#333333', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '24px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
+                      <Phone size={16} />
+                      Call
+                    </button>
+                    {!rightSidebarOpen && (
+                      <button 
+                        onClick={() => setRightSidebarOpen(true)}
+                        style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#2a2a2a', border: 'none', width: '40px', height: '40px', borderRadius: '50%', color: '#f8f9fa', cursor: 'pointer', transition: 'background-color 0.2s' }}
+                        title="Open Directory"
+                      >
+                        <Info size={18} />
+                      </button>
+                    )}
+                  </div>
                 </div>
 
                 {/* Message List */}
