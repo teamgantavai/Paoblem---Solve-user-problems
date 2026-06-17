@@ -159,6 +159,15 @@ function ChatsPageContent() {
   const [addMemberLoading, setAddMemberLoading] = useState(false);
   const [addMemberError, setAddMemberError] = useState('');
 
+  // Chat management states
+  const [showChatMenu, setShowChatMenu] = useState(false);
+  const [showRenameModal, setShowRenameModal] = useState(false);
+  const [showConfirmClear, setShowConfirmClear] = useState(false);
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
+  const [newGroupName, setNewGroupName] = useState('');
+  const [isDeletingChat, setIsDeletingChat] = useState(false);
+  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
+
   // Attachment states
   const [attachments, setAttachments] = useState<any[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -577,6 +586,114 @@ function ChatsPageContent() {
       setLoadingSummary(false);
     }
   };
+
+  // --- Chat Management Handlers ---
+  const handleClearChat = async () => {
+    if (!activeChatId || !session?.access_token) return;
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          conversationId: activeChatId,
+          type: 'CHAT_CLEARED',
+          body: 'Cleared chat'
+        })
+      });
+      // Optimistically clear local UI
+      setLocalMessages(prev => prev.filter(m => (m.conversation_id || m.partner_id) !== activeChatId));
+      setShowConfirmClear(false);
+      setShowChatMenu(false);
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleDeleteChat = async (isCreator: boolean) => {
+    if (!activeChatId || !session?.access_token) return;
+    setIsDeletingChat(true);
+    try {
+      const action = isCreator ? 'delete' : 'leave';
+      const res = await fetch(`/api/conversations/${activeChatId}?action=${action}`, {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${session.access_token}`
+        }
+      });
+      if (res.ok) {
+        // Remove from UI
+        setLocalMessages(prev => prev.filter(m => (m.conversation_id || m.partner_id) !== activeChatId));
+        setActiveChatId(null);
+        setMobileConversationOpen(false);
+        setRightSidebarOpen(false);
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsDeletingChat(false);
+      setShowConfirmDelete(false);
+      setShowChatMenu(false);
+    }
+  };
+
+  const handleRenameGroup = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!activeChatId || !session?.access_token || !newGroupName.trim()) return;
+    try {
+      await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          conversationId: activeChatId,
+          type: 'GROUP_RENAME',
+          body: newGroupName.trim()
+        })
+      });
+      // Trigger a re-fetch of messages in the background to update the name
+      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      setShowRenameModal(false);
+      setShowChatMenu(false);
+      setNewGroupName('');
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const handleGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || !files[0] || !activeChatId || !session?.access_token) return;
+
+    const file = files[0];
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      try {
+        await fetch('/api/messages', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${session.access_token}`
+          },
+          body: JSON.stringify({
+            conversationId: activeChatId,
+            type: 'GROUP_AVATAR',
+            body: reader.result as string
+          })
+        });
+        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        setShowChatMenu(false);
+      } catch (err) {
+        console.error(err);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
 
   const handleStartNewChat = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -1339,9 +1456,29 @@ function ChatsPageContent() {
                   >
                     <X size={20} />
                   </button>
-                  <button style={{ background: '#ffffff', border: 'none', color: '#000000', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                    <MoreVertical size={18} strokeWidth={2.5} />
-                  </button>
+                  <div style={{ position: 'relative' }}>
+                    <button 
+                      onClick={() => setShowChatMenu(!showChatMenu)} 
+                      style={{ background: '#ffffff', border: 'none', color: '#000000', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <MoreVertical size={18} strokeWidth={2.5} />
+                    </button>
+                    {showChatMenu && (
+                      <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', backgroundColor: '#1a1a1a', border: '1px solid #333', borderRadius: '8px', overflow: 'hidden', zIndex: 50, width: '180px', boxShadow: '0 4px 6px rgba(0,0,0,0.3)' }}>
+                        <button onClick={() => setShowConfirmClear(true)} style={{ width: '100%', padding: '10px 15px', background: 'transparent', border: 'none', borderBottom: '1px solid #333', color: '#f8f9fa', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem' }}>Clear Chat</button>
+                        {activeChatInfo.isGroup && (
+                          <>
+                            <button onClick={() => setShowRenameModal(true)} style={{ width: '100%', padding: '10px 15px', background: 'transparent', border: 'none', borderBottom: '1px solid #333', color: '#f8f9fa', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem' }}>Rename Group</button>
+                            <button onClick={() => groupAvatarInputRef.current?.click()} style={{ width: '100%', padding: '10px 15px', background: 'transparent', border: 'none', borderBottom: '1px solid #333', color: '#f8f9fa', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem' }}>Set Picture</button>
+                            <input type="file" accept="image/*" ref={groupAvatarInputRef} style={{ display: 'none' }} onChange={handleGroupAvatarUpload} />
+                          </>
+                        )}
+                        <button onClick={() => setShowConfirmDelete(true)} style={{ width: '100%', padding: '10px 15px', background: 'transparent', border: 'none', color: '#ef4444', textAlign: 'left', cursor: 'pointer', fontSize: '0.85rem' }}>
+                           {activeChatInfo.isGroup ? 'Leave/Delete Group' : 'Delete Chat'}
+                        </button>
+                      </div>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1363,15 +1500,19 @@ function ChatsPageContent() {
                     </div>
 
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                      {activeChatInfo.members?.map((member: any) => (
-                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                          <img src={member.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.id}`} alt={member.full_name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
-                          <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.full_name}</span>
-                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                      {activeChatInfo.members?.map((member: any) => {
+                        const creatorId = activeMessages[activeMessages.length - 1]?.sender_id;
+                        const isCreator = member.id === creatorId;
+                        return (
+                          <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                            <img src={member.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.id}`} alt={member.full_name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                            <div style={{ display: 'flex', flexDirection: 'column' }}>
+                              <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.full_name} {isCreator && <span style={{fontSize:'0.7rem', backgroundColor: '#6366f1', color: 'white', padding: '2px 6px', borderRadius: '4px', marginLeft: '4px'}}>Admin</span>}</span>
+                              <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>{isCreator ? 'Creator' : 'Member'}</span>
+                            </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   </div>
                 )}
@@ -1735,6 +1876,62 @@ function ChatsPageContent() {
                 {addMemberLoading ? 'Adding...' : 'Add Member'}
               </button>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Chat Management Modals */}
+      {showRenameModal && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>Rename Group</h3>
+            <form onSubmit={handleRenameGroup} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <input 
+                type="text" 
+                value={newGroupName}
+                onChange={(e) => setNewGroupName(e.target.value)}
+                placeholder="Enter new group name"
+                autoFocus
+                style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+              />
+              <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+                <button type="button" onClick={() => setShowRenameModal(false)} style={{ background: 'transparent', color: '#a1a1aa', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+                <button type="submit" disabled={!newGroupName.trim()} style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: newGroupName.trim() ? 'pointer' : 'not-allowed', opacity: newGroupName.trim() ? 1 : 0.5 }}>Save</button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {showConfirmClear && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>Clear Chat</h3>
+            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Are you sure you want to clear all messages? This will only remove them for you.</p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button type="button" onClick={() => setShowConfirmClear(false)} style={{ background: 'transparent', color: '#a1a1aa', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button type="button" onClick={handleClearChat} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: 'pointer' }}>Clear</button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showConfirmDelete && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>{activeChatInfo?.isGroup ? 'Leave/Delete Group' : 'Delete Chat'}</h3>
+            <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>
+              {activeChatInfo?.isGroup 
+                ? (activeChatInfo.members?.some((m: any) => m.id === session?.user?.id && m.id === activeMessages[activeMessages.length - 1]?.sender_id) 
+                    ? 'As the creator, deleting this group will remove it for everyone. Proceed?' 
+                    : 'Are you sure you want to leave this group?')
+                : 'Are you sure you want to delete this chat?'
+              }
+            </p>
+            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
+              <button type="button" disabled={isDeletingChat} onClick={() => setShowConfirmDelete(false)} style={{ background: 'transparent', color: '#a1a1aa', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
+              <button type="button" disabled={isDeletingChat} onClick={() => handleDeleteChat(activeChatInfo?.members?.some((m: any) => m.id === session?.user?.id && m.id === activeMessages[activeMessages.length - 1]?.sender_id))} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: isDeletingChat ? 'not-allowed' : 'pointer' }}>{isDeletingChat ? 'Processing...' : 'Confirm'}</button>
+            </div>
           </div>
         </div>
       )}

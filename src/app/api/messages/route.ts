@@ -72,13 +72,44 @@ export async function GET(req: NextRequest) {
           }
         });
 
+        // Pre-process messages to find conversation metadata and filter out cleared chats
+        const convMetadata: Record<string, { name?: string, avatar?: string }> = {};
+        const clearedAtMap: Record<string, number> = {};
+        
+        (messagesData || []).forEach((m: any) => {
+          if (m.type === 'GROUP_RENAME' && !convMetadata[m.conversation_id]?.name) {
+            convMetadata[m.conversation_id] = { ...convMetadata[m.conversation_id], name: m.content };
+          }
+          if (m.type === 'GROUP_AVATAR' && !convMetadata[m.conversation_id]?.avatar) {
+            convMetadata[m.conversation_id] = { ...convMetadata[m.conversation_id], avatar: m.content };
+          }
+          if (m.type === 'CHAT_CLEARED' && m.sender_id === user.id && !clearedAtMap[m.conversation_id]) {
+            clearedAtMap[m.conversation_id] = new Date(m.created_at).getTime();
+          }
+        });
+
         // Format messages to preserve backward compatibility (mapping to partner_id, partner_name etc.)
-        const formattedMessages = (messagesData || []).map((m: any) => {
+        const formattedMessages = (messagesData || [])
+          .filter((m: any) => {
+            const clearedAt = clearedAtMap[m.conversation_id];
+            if (clearedAt && new Date(m.created_at).getTime() <= clearedAt) {
+              return false; // hide messages sent before or equal to the clear marker
+            }
+            return true;
+          })
+          .map((m: any) => {
           const convMembers = membersMap[m.conversation_id] || [];
           const partners = convMembers.filter(member => member.id !== user.id);
           const partner = partners[0] || convMembers[0] || {};
           const isGroup = convMembers.length > 2;
-          const partnerName = isGroup ? partners.map(p => p.full_name?.split(' ')[0] || 'User').join(', ') : (partner.full_name || 'Member');
+          
+          let partnerName = isGroup ? partners.map(p => p.full_name?.split(' ')[0] || 'User').join(', ') : (partner.full_name || 'Member');
+          let partnerAvatar = partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.id || m.sender_id}`;
+
+          if (isGroup) {
+            if (convMetadata[m.conversation_id]?.name) partnerName = convMetadata[m.conversation_id].name!;
+            if (convMetadata[m.conversation_id]?.avatar) partnerAvatar = convMetadata[m.conversation_id].avatar!;
+          }
           
           return {
             id: m.id,
@@ -87,7 +118,7 @@ export async function GET(req: NextRequest) {
             recipient_id: partner.id || m.sender_id,
             partner_id: partner.id || m.sender_id,
             partner_name: partnerName,
-            partner_avatar: partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.id || m.sender_id}`,
+            partner_avatar: partnerAvatar,
             partner_online: isGroup ? partners.some(p => p.online) : (partner.online || false),
             partner_last_seen: partner.last_seen || null,
             is_group: isGroup,
