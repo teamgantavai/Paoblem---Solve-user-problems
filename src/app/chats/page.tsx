@@ -268,7 +268,7 @@ function ChatsPageContent() {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${session.access_token}`
       },
-      body: JSON.stringify({ id: 'all', read: true })
+      body: JSON.stringify({ partnerId: activePartnerId, read: true })
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
       queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
@@ -623,10 +623,10 @@ function ChatsPageContent() {
   const sharedLinks = activeMessages.filter(m => m.type === 'LINK' || m.body.includes('http://') || m.body.includes('https://'));
 
   return (
-    <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
+    <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
       
-      <div style={{ display: 'flex', flex: 1, width: '100%', minHeight: 'calc(100vh - 70px)', overflow: 'hidden', backgroundColor: '#070708' }}>
+      <div style={{ display: 'flex', flex: 1, width: '100%', height: 'calc(100vh - 70px)', overflow: 'hidden', backgroundColor: '#070708', position: 'relative' }}>
           
           {/* 1. LEFT SIDEBAR: Redesigned with NO red or blue borders, uses 22%-25% width */}
           <div 
@@ -788,7 +788,7 @@ function ChatsPageContent() {
               backgroundColor: '#121214',
               borderLeft: '1px solid #1f1f22',
               borderRight: '1px solid #1f1f22',
-              overflowY: 'auto'
+              overflow: 'hidden'
             }}
           >
             {activePartnerId && activeChatInfo ? (
@@ -915,7 +915,13 @@ function ChatsPageContent() {
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: msg.body ? '0.4rem' : '0' }}>
                                     {msg.attachments.map((att, i) => (
                                       att.file_type?.includes('image') ? (
-                                        <img key={i} src={att.url} alt="attachment" style={{ maxWidth: '100%', borderRadius: '12px', maxHeight: '200px', objectFit: 'cover', border: `1px solid ${isMe ? '#5a5a5a' : '#e5e7eb'}` }} />
+                                        <img 
+                                          key={i} 
+                                          src={att.url} 
+                                          alt="attachment" 
+                                          onClick={() => setLightboxImage(att.url)}
+                                          style={{ maxWidth: '100%', borderRadius: '12px', maxHeight: '200px', objectFit: 'cover', border: `1px solid ${isMe ? '#5a5a5a' : '#e5e7eb'}`, cursor: 'pointer' }} 
+                                        />
                                       ) : (
                                         <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', backgroundColor: isMe ? '#5a5a5a' : '#f3f4f6', borderRadius: '8px', color: 'inherit', textDecoration: 'none', fontSize: '0.8rem' }}>
                                           <FileText size={14} />
@@ -979,7 +985,13 @@ function ChatsPageContent() {
                   </div>
                 )}
 
-                <div style={{ padding: '0rem 1.5rem 1.5rem', backgroundColor: 'transparent' }}>
+                <div style={{ 
+                  padding: '1rem 1.5rem 1.5rem', 
+                  backgroundColor: '#121214',
+                  boxShadow: '0 -40px 40px -10px rgba(18,18,20, 1)',
+                  position: 'relative',
+                  zIndex: 10
+                }}>
                   {attachments.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
                       {attachments.map((att, i) => (
@@ -1178,9 +1190,29 @@ function ChatsPageContent() {
       {lightboxImage && (
         <div 
           onClick={() => setLightboxImage(null)}
-          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+          style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}
         >
-          <img src={lightboxImage} alt="lightbox" style={{ maxWidth: '90%', maxHeight: '90%', borderRadius: '12px' }} />
+          <img src={lightboxImage} alt="lightbox" style={{ maxWidth: '90%', maxHeight: '85%', borderRadius: '12px', objectFit: 'contain' }} />
+          <a 
+            href={lightboxImage} 
+            download 
+            onClick={(e) => e.stopPropagation()}
+            style={{ 
+              display: 'flex', 
+              alignItems: 'center', 
+              gap: '0.5rem', 
+              padding: '0.75rem 1.5rem', 
+              backgroundColor: '#ffffff', 
+              color: '#000000', 
+              borderRadius: '24px', 
+              textDecoration: 'none',
+              fontWeight: 600,
+              fontSize: '0.9rem'
+            }}
+          >
+            <Download size={18} />
+            Save Image
+          </a>
         </div>
       )}
 
@@ -1327,8 +1359,19 @@ function ChatsPageContent() {
           .back-btn-mobile {
             display: flex !important;
           }
-          .shared-media-sidebar {
+          .right-sidebar {
             display: none !important;
+          }
+        }
+
+        @media (max-width: 1024px) {
+          .right-sidebar {
+            position: absolute !important;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 20;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
           }
         }
       `}</style>

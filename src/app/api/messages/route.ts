@@ -88,7 +88,7 @@ export async function GET(req: NextRequest) {
             partner_online: partner.online || false,
             partner_last_seen: partner.last_seen || null,
             body: m.content || '',
-            read: m.read_receipts?.some((r: any) => r.user_id === partner.id) || false,
+            read: m.read_receipts?.some((r: any) => r.user_id !== m.sender_id) || false,
             type: m.type || 'TEXT',
             attachments: m.attachments || [],
             created_at: m.created_at,
@@ -327,11 +327,24 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { id, read } = await req.json();
+    const { id, partnerId, read } = await req.json();
 
     // Try new read receipts update
     try {
-      if (id === 'all') {
+      if (partnerId) {
+        const { data: unreadMsgs } = await supabaseAdmin
+          .from('messages')
+          .select('id')
+          .eq('sender_id', partnerId);
+
+        if (unreadMsgs && unreadMsgs.length > 0) {
+          const receipts = unreadMsgs.map(m => ({
+            message_id: m.id,
+            user_id: user.id
+          }));
+          await supabaseAdmin.from('read_receipts').upsert(receipts);
+        }
+      } else if (id === 'all') {
         // Get all messages where user is recipient
         const { data: unreadMsgs } = await supabaseAdmin
           .from('messages')
@@ -354,7 +367,14 @@ export async function PUT(req: NextRequest) {
       // ignore, proceed to fallback
     }
 
-    if (id === 'all') {
+    if (partnerId) {
+      const { error } = await supabaseAdmin
+        .from('messages')
+        .update({ read: !!read })
+        .eq('sender_id', partnerId)
+        .eq('recipient_id', user.id);
+      if (error) throw error;
+    } else if (id === 'all') {
       const { error } = await supabaseAdmin
         .from('messages')
         .update({ read: !!read })

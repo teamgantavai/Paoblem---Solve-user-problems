@@ -1,6 +1,7 @@
 'use client';
 
-import React from 'react';
+import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { Hammer, X } from 'lucide-react';
 
 interface DevelopmentNoticeProps {
@@ -10,9 +11,15 @@ interface DevelopmentNoticeProps {
 }
 
 export default function DevelopmentNotice({ isOpen, onClose, featureName = 'This feature' }: DevelopmentNoticeProps) {
+  const [mounted, setMounted] = useState(false);
+  
+  React.useEffect(() => {
+    setMounted(true);
+  }, []);
+
   if (!isOpen) return null;
 
-  return (
+  const content = (
     <div className="modal-overlay" style={{ display: 'flex' }}>
       <div className="modal-panel" style={{ maxWidth: '400px', padding: '0' }}>
         <div className="modal-header" style={{ borderBottom: 'none', padding: '1.25rem 1.5rem 0.5rem' }}>
@@ -57,4 +64,10 @@ export default function DevelopmentNotice({ isOpen, onClose, featureName = 'This
       </div>
     </div>
   );
+
+  if (mounted && typeof document !== 'undefined') {
+    return createPortal(content, document.body);
+  }
+
+  return content;
 }

@@ -5,6 +5,7 @@ import Link from 'next/link';
 import Navbar from '@/components/Navbar';
 import SidebarLeft from '@/components/SidebarLeft';
 import SidebarRight from '@/components/SidebarRight';
+import ProfileMessageButton from '@/components/ProfileMessageButton';
 import { Post } from '@/lib/types';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -127,13 +128,16 @@ export default async function UserPage({ params }: UserPageProps) {
                 alt={name}
                 style={{ width: '72px', height: '72px', borderRadius: '50%', border: '2px solid var(--border-color)', objectFit: 'cover' }}
               />
-              <div>
-                <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  {name}
-                  <span style={{ fontSize: '0.7rem', fontWeight: 500, background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)' }}>
-                    {profile.role || 'Innovator'}
-                  </span>
-                </h1>
+              <div style={{ flex: 1 }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
+                  <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
+                    {name}
+                    <span style={{ fontSize: '0.7rem', fontWeight: 500, background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)' }}>
+                      {profile.role || 'Innovator'}
+                    </span>
+                  </h1>
+                  <ProfileMessageButton profileId={profile.id} />
+                </div>
                 <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
                   @{profile.username || username}
                 </p>

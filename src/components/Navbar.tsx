@@ -156,7 +156,7 @@ function NavbarInner() {
   };
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const unreadMsgCount = messages.filter(m => !m.read).length;
+  const unreadMsgCount = messages.filter(m => !m.read && m.sender_id !== session?.user?.id).length;
 
   const isHomeActive = pathname === '/' || pathname === '/home';
   const isSolutionsActive = pathname === '/solutions';

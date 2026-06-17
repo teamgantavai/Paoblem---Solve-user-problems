@@ -230,6 +230,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       if (!res.ok) throw new Error('Failed to load profile');
       return res.json() as Promise<{ profile: Profile; stats: ProfileStats }>;
     },
+    enabled: !!displayUserId,
   });
 
   // Fetch follow state
