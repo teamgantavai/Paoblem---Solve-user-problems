@@ -29,9 +29,9 @@ export default function AreaChart({
   const innerH = height - padding.top - padding.bottom;
 
   const { path, areaPath, points, maxVal } = useMemo(() => {
-    if (!data.length) return { path: '', areaPath: '', points: [] as { x: number; y: number }[], maxVal: 1 };
+    if (!data.length) return { path: '', areaPath: '', points: [] as Array<ChartPoint & { x: number; y: number }>, maxVal: 1 };
     const max = Math.max(...data.map(d => d.value), 1);
-    const pts = data.map((d, i) => {
+    const pts: Array<ChartPoint & { x: number; y: number }> = data.map((d, i) => {
       const x = padding.left + (i / Math.max(data.length - 1, 1)) * innerW;
       const y = padding.top + innerH - (d.value / max) * innerH;
       return { x, y, ...d };

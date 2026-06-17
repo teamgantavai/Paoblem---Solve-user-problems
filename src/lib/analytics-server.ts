@@ -75,14 +75,14 @@ export async function upsertDailyAggregation(
     .maybeSingle();
 
   if (existing) {
-    const updates: Partial<PostAnalyticsDaily> = {};
+    const updates: Partial<Record<keyof PostAnalyticsDaily, number>> = {};
     if (field && field !== 'views') {
       updates[field] = ((existing as PostAnalyticsDaily)[field] as number) + 1;
     }
     if (eventType === 'POST_VIEW') {
       updates.views = existing.views + 1;
     }
-    await supabase.from('post_analytics_daily').update(updates).eq('id', existing.id);
+    await supabase.from('post_analytics_daily').update(updates as Partial<PostAnalyticsDaily>).eq('id', existing.id);
   } else {
     const row: Record<string, unknown> = {
       post_id: postId,
