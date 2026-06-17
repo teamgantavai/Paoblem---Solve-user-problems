@@ -140,6 +140,11 @@ function NavbarInner() {
   });
 
   const handleLogout = async () => {
+    if (session?.user?.id) {
+      try {
+        await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
+      } catch (err) {}
+    }
     await supabase.auth.signOut();
     setDropdownOpen(false);
     setIsOpen(false);
