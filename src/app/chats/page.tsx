@@ -174,15 +174,34 @@ function ChatsPageContent() {
       updatePresence(document.visibilityState === 'visible');
     };
 
+    const setOfflineOnUnload = () => {
+      if (!session?.user?.id || !session?.access_token) return;
+      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}`;
+      fetch(url, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`,
+          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
+        },
+        body: JSON.stringify({ 
+          online: false, 
+          last_seen: new Date().toISOString() 
+        }),
+        keepalive: true
+      }).catch(() => {});
+    };
+
     window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', () => updatePresence(false));
+    window.addEventListener('beforeunload', setOfflineOnUnload);
 
     return () => {
       clearInterval(heartbeatInterval);
       window.removeEventListener('visibilitychange', handleVisibilityChange);
-      updatePresence(false);
+      window.removeEventListener('beforeunload', setOfflineOnUnload);
+      setOfflineOnUnload();
     };
-  }, [session?.user?.id]);
+  }, [session?.user?.id, session?.access_token]);
 
   // Fetch all messages
   const { data: messages = [], isLoading, refetch } = useQuery<DBMessage[]>({
