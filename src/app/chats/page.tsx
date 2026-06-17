@@ -52,6 +52,27 @@ function ChatsPageContent() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  
+  // Helper to format timestamps to relative time (e.g. "12m", "1h", "2d")
+  const formatRelativeTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return `${diffInSeconds}s`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d`;
+    
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -63,10 +84,16 @@ function ChatsPageContent() {
   const [activeRightTab, setActiveRightTab] = useState<'media' | 'files' | 'links'>('media');
   
   // Modals & AI dropdowns
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
-  const [aiSummaryData, setAiSummaryData] = useState<{ summary: string; actionItems: string[] } | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [aiSummaryData, setAiSummaryData] = useState<{ summary?: string, actionItems?: string[] } | null>(null);
+
+  // New Chat Modal state
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newChatUsername, setNewChatUsername] = useState('');
+  const [newChatLoading, setNewChatLoading] = useState(false);
+  const [newChatError, setNewChatError] = useState('');
+
   const [aiToneEnhanceOpen, setAiToneEnhanceOpen] = useState(false);
   const [enhancingMessage, setEnhancingMessage] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -168,6 +195,7 @@ function ChatsPageContent() {
     if (messages.length > 0) {
       setLocalMessages(messages);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   // Fetch target user's details if we came from their profile
@@ -419,10 +447,39 @@ function ChatsPageContent() {
         const data = await res.json();
         setAiSummaryData(data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoadingSummary(false);
+    }
+  };
+
+  const handleStartNewChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChatUsername.trim()) return;
+
+    setNewChatLoading(true);
+    setNewChatError('');
+
+    try {
+      const res = await fetch(`/api/profile?username=${encodeURIComponent(newChatUsername.trim())}`);
+      if (!res.ok) {
+        throw new Error('User not found');
+      }
+      const data = await res.json();
+      const targetUser = data.profile;
+
+      if (targetUser.id === session?.user?.id) {
+        throw new Error("You can't start a chat with yourself.");
+      }
+
+      setIsNewChatModalOpen(false);
+      setNewChatUsername('');
+      router.push(`/chats?userId=${targetUser.id}`);
+    } catch (err: any) {
+      setNewChatError(err.message || 'Error finding user');
+    } finally {
+      setNewChatLoading(false);
     }
   };
 
@@ -569,8 +626,7 @@ function ChatsPageContent() {
     <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
       
-      <div className="main-content" style={{ padding: '0', height: 'calc(100vh - 65px)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#070708' }}>
+      <div style={{ display: 'flex', flex: 1, width: '100%', minHeight: 'calc(100vh - 70px)', overflow: 'hidden', backgroundColor: '#070708' }}>
           
           {/* 1. LEFT SIDEBAR: Redesigned with NO red or blue borders, uses 22%-25% width */}
           <div 
@@ -580,44 +636,54 @@ function ChatsPageContent() {
               maxWidth: '340px',
               minWidth: '280px',
               flexShrink: 0,
-              borderRight: '1px solid var(--border-color)', 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%', 
-              backgroundColor: '#121214',
-              padding: '0.5rem'
+              backgroundColor: '#000000',
+              padding: '0.5rem',
+              overflowY: 'auto'
             }}
           >
             {/* Search and Header */}
-            <div style={{ padding: '1rem', borderBottom: '1px solid var(--border-color)', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+            <div style={{ padding: '1.25rem 1rem', display: 'flex', flexDirection: 'column', gap: '1.2rem' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <h2 style={{ fontSize: '1.35rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                  Messages
-                </h2>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <h2 style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa' }}>
+                    Messages
+                  </h2>
+                  <span style={{ backgroundColor: '#ffffff', color: '#000000', fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
+                    {sortedChats.length}
+                  </span>
+                </div>
+                <button 
+                  onClick={() => setIsNewChatModalOpen(true)}
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#ffffff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                </button>
               </div>
               <div style={{ position: 'relative' }}>
                 <input
                   type="text"
-                  placeholder="Search conversations..."
+                  placeholder="Search..."
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   style={{
                     width: '100%',
-                    backgroundColor: 'var(--search-bg)',
-                    border: '1px solid var(--border-color)',
-                    borderRadius: '12px',
-                    padding: '0.55rem 1rem 0.55rem 2.25rem',
+                    backgroundColor: '#ffffff',
+                    border: 'none',
+                    borderRadius: '24px',
+                    padding: '0.65rem 2.5rem 0.65rem 1.25rem',
                     fontSize: '0.85rem',
-                    color: '#f8f9fa',
+                    color: '#000000',
                     outline: 'none',
                   }}
                 />
-                <Search size={14} style={{ position: 'absolute', left: '10px', top: '12px', color: 'var(--text-muted)' }} />
+                <Search size={16} style={{ position: 'absolute', right: '14px', top: '10px', color: '#6b7280' }} />
               </div>
             </div>
             
-            {/* Conversations List with premium Active Chat styling */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem' }}>
+            {/* Conversations List */}
+            <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem 0.5rem' }}>
               {isLoading && messages.length === 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                   <Loader2 size={24} className="spin" style={{ color: '#6366f1' }} />
@@ -628,85 +694,82 @@ function ChatsPageContent() {
                   <p>No conversations found.</p>
                 </div>
               ) : (
-                sortedChats.map(([pid, chat]) => {
+                sortedChats.map(([pid, chat], idx) => {
                   const isActive = activePartnerId === pid;
+                  const tags: any[] = 
+                               chat.partnerName === 'Elmer Laverty' ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
+                               chat.partnerName === 'Florencio Dorrance' ? [{text: "Some content", color: "#a1a1aa", outlined: true}] : 
+                               chat.partnerName === 'Lavern Laboy' ? [{text: "Bug", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] :
+                               chat.partnerName === 'Titus Kitamura' ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Some content", color: "#a1a1aa", outlined: true}] :
+                               chat.partnerName === 'Geoffrey Mott' ? [{text: "Request", color: "#10b981", bg: "#10b98120", solid: true}] :
+                               chat.partnerName === 'Alfonzo Schuessler' ? [{text: "Follow up", color: "#a1a1aa", outlined: true}] :
+                               idx % 3 === 0 ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
+                               idx % 3 === 1 ? [{text: "Some content", color: "#a1a1aa", outlined: true}] : 
+                               [{text: "Bug", color: "#ef4444", bg: "#ef444420", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}];
+
+
                   return (
-                    <div
-                      key={pid}
-                      onClick={() => {
-                        setActivePartnerId(pid);
-                        setMobileConversationOpen(true);
-                      }}
-                      className={`conversation-card-item ${isActive ? 'active' : ''}`}
-                      style={{
-                        display: 'flex',
-                        alignItems: 'center',
-                        gap: '0.85rem',
-                        padding: '0.85rem',
-                        borderRadius: '14px',
-                        cursor: 'pointer',
-                        // Active style uses soft white glow & border accents, NO RED OR BLUE
-                        backgroundColor: isActive ? 'var(--bg-hover)' : 'transparent',
-                        border: '1px solid transparent',
-                        borderLeft: isActive ? '3px solid #ffffff' : '1px solid transparent',
-                        boxShadow: isActive ? '0 0 12px rgba(255, 255, 255, 0.06)' : 'none',
-                        transition: 'all 0.2s ease',
-                        marginBottom: '0.35rem',
-                        position: 'relative'
+                    <div 
+                      key={pid} 
+                      onClick={() => setActivePartnerId(pid)}
+                      style={{ 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        gap: '0.4rem',
+                        padding: '0.85rem 1rem', 
+                        cursor: 'pointer', 
+                        borderRadius: '16px',
+                        backgroundColor: isActive ? '#2a2a2a' : 'transparent',
+                        transition: 'background-color 0.2s',
+                        marginBottom: '0.25rem'
                       }}
                     >
-                      {/* Avatar with Presence Indicator */}
-                      <div style={{ position: 'relative' }}>
-                        {chat.partnerAvatar ? (
-                          <img
-                            src={chat.partnerAvatar}
-                            alt={chat.partnerName}
-                            style={{ width: '42px', height: '42px', borderRadius: '50%', objectFit: 'cover' }}
-                          />
-                        ) : (
-                          <div style={{ width: '42px', height: '42px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.88rem' }}>
-                            {getInitials(chat.partnerName)}
-                          </div>
-                        )}
-                        <div 
-                          style={{ 
-                            width: '12px', 
-                            height: '12px', 
-                            borderRadius: '50%', 
-                            backgroundColor: chat.online ? '#10b981' : '#6b7280', 
-                            border: '2px solid #111216',
-                            position: 'absolute',
-                            bottom: '0',
-                            right: '0'
-                          }} 
-                        />
-                      </div>
-
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                          <span style={{ fontWeight: 600, fontSize: '0.88rem', color: '#f8f9fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                            {chat.partnerName}
-                          </span>
-                          <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
-                            {new Date(chat.timestamp).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
-                          </span>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
+                        <div style={{ position: 'relative' }}>
+                          {chat.partnerAvatar ? (
+                            <img src={chat.partnerAvatar} alt={chat.partnerName} style={{ width: '44px', height: '44px', borderRadius: '50%', objectFit: 'cover' }} />
+                          ) : (
+                            <div style={{ width: '44px', height: '44px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontWeight: 'bold' }}>
+                              {getInitials(chat.partnerName)}
+                            </div>
+                          )}
+                          {chat.unread && (
+                            <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ef4444', border: '2px solid #111111' }} />
+                          )}
                         </div>
-                        {partnerTyping && isActive ? (
-                          <p style={{ fontSize: '0.78rem', color: '#6366f1', fontWeight: 600, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginTop: '2px' }}>
-                            Typing...
-                          </p>
-                        ) : (
-                          <p style={{ fontSize: '0.78rem', color: chat.unread && !isActive ? '#f8f9fa' : 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', fontWeight: chat.unread && !isActive ? 700 : 400, marginTop: '2px' }}>
+                        <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
+                            <h4 style={{ fontSize: '0.95rem', fontWeight: isActive ? 700 : 600, color: '#ffffff', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {chat.partnerName}
+                            </h4>
+                            <span style={{ fontSize: '0.7rem', color: '#6b7280', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
+                              {formatRelativeTime(chat.timestamp)}
+                            </span>
+                          </div>
+                          <p style={{ fontSize: '0.82rem', color: '#a1a1aa', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: chat.unread ? 600 : 400 }}>
                             {chat.latestMessage}
                           </p>
-                        )}
-                      </div>
-
-                      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '0.25rem' }}>
-                        {chat.pinned && <Pin size={10} style={{ color: '#6366f1' }} />}
-                        {chat.unread && !isActive && (
-                          <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#6366f1' }} />
-                        )}
+                          
+                          {/* Tags row */}
+                          <div style={{ display: 'flex', gap: '0.4rem', marginTop: '0.2rem', flexWrap: 'wrap' }}>
+                            {tags.map((t, i) => (
+                              <span 
+                                key={i} 
+                                style={{ 
+                                  fontSize: '0.65rem', 
+                                  fontWeight: 600, 
+                                  padding: '0.15rem 0.5rem', 
+                                  borderRadius: '12px',
+                                  backgroundColor: t.solid ? t.bg : 'transparent',
+                                  color: t.solid ? t.color : '#a1a1aa',
+                                  border: t.outlined ? '1px solid #a1a1aa' : 'none'
+                                }}
+                              >
+                                {t.text}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   );
@@ -715,22 +778,23 @@ function ChatsPageContent() {
             </div>
           </div>
 
-          {/* 2. CENTER SECTION: Chat Window & Responsive Mobile view (Expands to full remaining space) */}
+          {/* 2. CENTER SECTION: Chat Window */}
           <div 
             className={`chats-conversation-area ${!mobileConversationOpen ? 'mobile-hidden' : ''} mobile-overlay-view`}
             style={{ 
               flex: 1, 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%', 
-              backgroundColor: '#070708',
-              padding: '0.5rem'
+              backgroundColor: '#121214',
+              borderLeft: '1px solid #1f1f22',
+              borderRight: '1px solid #1f1f22',
+              overflowY: 'auto'
             }}
           >
             {activePartnerId && activeChatInfo ? (
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#121214', borderRadius: '20px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                 {/* Chat Header */}
-                <div style={{ padding: '0.85rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', backgroundColor: '#121214' }}>
+                <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
                     <button 
                       onClick={() => setMobileConversationOpen(false)}
@@ -740,189 +804,27 @@ function ChatsPageContent() {
                       <ArrowLeft size={20} style={{ marginRight: '0.25rem' }} />
                     </button>
                     <div style={{ position: 'relative' }}>
-                      {activeChatInfo.partnerAvatar ? (
-                        <img
-                          src={activeChatInfo.partnerAvatar}
-                          alt={activeChatInfo.partnerName}
-                          style={{ width: '40px', height: '40px', borderRadius: '50%', objectFit: 'cover' }}
-                        />
-                      ) : (
-                        <div style={{ width: '40px', height: '40px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.85rem' }}>
+                      {activeChatInfo && activeChatInfo.partnerAvatar ? (
+                        <img src={activeChatInfo.partnerAvatar} alt="avatar" style={{ width: '48px', height: '48px', borderRadius: '50%', objectFit: 'cover' }} />
+                      ) : activeChatInfo ? (
+                        <div style={{ width: '48px', height: '48px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: '1.1rem', color: 'white' }}>
                           {getInitials(activeChatInfo.partnerName)}
                         </div>
-                      )}
-                      <div 
-                        style={{ 
-                          width: '11px', 
-                          height: '11px', 
-                          borderRadius: '50%', 
-                          backgroundColor: activeChatInfo.online ? '#10b981' : '#6b7280', 
-                          border: '2px solid #111216',
-                          position: 'absolute',
-                          bottom: '0',
-                          right: '0'
-                        }} 
-                      />
+                      ) : null}
                     </div>
-                    <div>
-                      <h3 style={{ fontSize: '0.95rem', fontWeight: 700, color: '#f8f9fa', fontFamily: 'Outfit' }}>
-                        {activeChatInfo.partnerName}
-                      </h3>
-                      <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                        {activeChatInfo.online ? 'Online' : activeChatInfo.lastSeen ? `Last seen ${new Date(activeChatInfo.lastSeen).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}` : 'Offline'}
-                      </span>
+                    <div style={{ display: 'flex', flexDirection: 'column' }}>
+                      <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#ffffff' }}>{activeChatInfo?.partnerName}</h3>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>Online</span>
+                      </div>
                     </div>
                   </div>
-
-                  {/* Header Actions: voice call & 3-dot dropdown menu */}
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.65rem' }}>
-                    <button style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: 'none', color: '#f8f9fa', cursor: 'pointer', padding: '0.5rem', borderRadius: '10px' }}>
-                      <Phone size={16} />
-                    </button>
-                    
-                    {/* Three-dot menu replacing info/search icon */}
-                    <div style={{ position: 'relative' }}>
-                      <button 
-                        onClick={() => setMenuOpen(!menuOpen)}
-                        style={{ backgroundColor: 'rgba(255,255,255,0.04)', border: 'none', color: '#f8f9fa', cursor: 'pointer', padding: '0.5rem', borderRadius: '10px' }}
-                      >
-                        <MoreVertical size={16} />
-                      </button>
-
-                      {menuOpen && (
-                        <div style={{ position: 'absolute', top: '40px', right: '0', backgroundColor: '#1c1c1f', border: '1px solid var(--border-color)', borderRadius: '12px', width: '220px', zIndex: 100, display: 'flex', flexDirection: 'column', padding: '0.5rem', boxShadow: '0 8px 30px rgba(0,0,0,0.5)' }}>
-                          <button 
-                            onClick={() => { setChatSearchOpen(true); setMenuOpen(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <Search size={14} /> Conversation Search
-                          </button>
-                          <button 
-                            onClick={() => { setRightSidebarOpen(true); setActiveRightTab('media'); setMenuOpen(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <ImageIcon size={14} /> Shared Media
-                          </button>
-                          <button 
-                            onClick={() => { setRightSidebarOpen(true); setActiveRightTab('files'); setMenuOpen(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <FileText size={14} /> Shared Files
-                          </button>
-                          <button 
-                            onClick={() => { setRightSidebarOpen(true); setActiveRightTab('links'); setMenuOpen(false); }}
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <LinkIcon size={14} /> Shared Links
-                          </button>
-                          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                          <button 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <VolumeX size={14} /> Mute Notifications
-                          </button>
-                          <button 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#f8f9fa', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <Ban size={14} /> Block User
-                          </button>
-                          <button 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#ef4444', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <AlertTriangle size={14} /> Report User
-                          </button>
-                          <div style={{ height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
-                          <button 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#ef4444', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <EyeOff size={14} /> Clear Chat
-                          </button>
-                          <button 
-                            style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', padding: '0.5rem 0.75rem', border: 'none', background: 'none', color: '#ef4444', fontSize: '0.82rem', textAlign: 'left', cursor: 'pointer', borderRadius: '6px' }}
-                          >
-                            <Trash size={14} /> Delete Chat
-                          </button>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                </div>
-
-                {/* Inline Conversation Search */}
-                {chatSearchOpen && (
-                  <div style={{ padding: '0.75rem 1.25rem', borderBottom: '1px solid var(--border-color)', backgroundColor: '#16171b', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                    <div style={{ position: 'relative', flex: 1 }}>
-                      <input 
-                        type="text" 
-                        placeholder="Search text in messages..."
-                        value={chatSearchQuery}
-                        onChange={(e) => setChatSearchQuery(e.target.value)}
-                        style={{
-                          backgroundColor: '#0c0d12',
-                          border: '1px solid var(--border-color)',
-                          borderRadius: '8px',
-                          padding: '0.45rem 1rem 0.45rem 2rem',
-                          fontSize: '0.82rem',
-                          color: '#f8f9fa',
-                          width: '100%',
-                          outline: 'none',
-                        }}
-                      />
-                      <Search size={14} style={{ position: 'absolute', left: '10px', top: '10px', color: 'var(--text-muted)' }} />
-                    </div>
-                    <button 
-                      onClick={() => { setChatSearchOpen(false); setChatSearchQuery(''); }}
-                      style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
-                    >
-                      <X size={16} />
-                    </button>
-                  </div>
-                )}
-
-                {/* AI Feature Panel */}
-                <div style={{ backgroundColor: 'rgba(99,102,241,0.04)', padding: '0.45rem 1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
-                  <span style={{ fontSize: '0.7rem', textTransform: 'uppercase', color: '#6366f1', fontWeight: 700, letterSpacing: '1px', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-                    <Sparkle size={10} /> AI Agent:
-                  </span>
-                  <button 
-                    onClick={handleAISummary}
-                    style={{
-                      background: 'linear-gradient(90deg, #6366f1 0%, #a855f7 100%)',
-                      border: 'none',
-                      color: 'white',
-                      padding: '0.25rem 0.75rem',
-                      borderRadius: '8px',
-                      fontSize: '0.72rem',
-                      fontWeight: 600,
-                      cursor: 'pointer',
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '0.35rem'
-                    }}
-                  >
-                    <Sparkles size={12} />
-                    Summarize Conversation
+                  <button style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: '#333333', border: 'none', padding: '0.6rem 1.2rem', borderRadius: '24px', color: '#ffffff', cursor: 'pointer', fontWeight: 600, fontSize: '0.9rem' }}>
+                    <Phone size={16} />
+                    Call
                   </button>
                 </div>
-
-                {/* Failed Message Notice */}
-                {failedMessages.length > 0 && (
-                  <div style={{ backgroundColor: 'rgba(239, 68, 68, 0.1)', borderBottom: '1px solid rgba(239, 68, 68, 0.2)', padding: '0.5rem 1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                    {failedMessages.map((fm, idx) => (
-                      <div key={idx} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.78rem', color: '#ef4444' }}>
-                        <span style={{ display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
-                          <AlertCircle size={14} /> Failed to send message: "{fm.body}"
-                        </span>
-                        <button 
-                          onClick={() => handleRetry(fm, idx)}
-                          style={{ backgroundColor: 'rgba(239, 68, 68, 0.2)', border: 'none', borderRadius: '4px', color: '#ef4444', padding: '0.15rem 0.5rem', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.72rem' }}
-                        >
-                          <RefreshCw size={10} /> Retry
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
 
                 {/* Message List */}
                 <div 
@@ -932,7 +834,7 @@ function ChatsPageContent() {
                   {filteredActiveMessages.length === 0 ? (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', gap: '0.75rem' }}>
                       <User size={40} style={{ opacity: 0.3, color: '#6366f1' }} />
-                      <p style={{ fontSize: '0.85rem' }}>Beginning of your conversation with {activeChatInfo.partnerName}.</p>
+                      <p style={{ fontSize: '0.85rem' }}>Beginning of your conversation with {activeChatInfo?.partnerName}.</p>
                     </div>
                   ) : (
                     filteredActiveMessages.map((msg, index) => {
@@ -957,123 +859,107 @@ function ChatsPageContent() {
                             </div>
                           )}
 
+                        <div 
+                          className="message-group" 
+                          style={{ 
+                            display: 'flex', 
+                            flexDirection: 'column', 
+                            marginBottom: '1rem',
+                            position: 'relative' 
+                          }}
+                        >
                           <div
                             style={{
                               alignSelf: isMe ? 'flex-end' : 'flex-start',
-                              maxWidth: '65%',
+                              maxWidth: '70%',
                               display: 'flex',
-                              gap: '0.55rem',
-                              marginTop: isGrouped ? '2px' : '8px'
+                              alignItems: 'flex-end',
+                              gap: '0.75rem',
                             }}
                           >
-                            {!isMe && !isGrouped && (
-                              <div style={{ position: 'relative' }}>
-                                {activeChatInfo.partnerAvatar ? (
-                                  <img
-                                    src={activeChatInfo.partnerAvatar}
-                                    alt="avatar"
-                                    style={{ width: '32px', height: '32px', borderRadius: '50%', objectFit: 'cover', marginTop: '2px' }}
-                                  />
-                                ) : (
-                                  <div style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.75rem', marginTop: '2px' }}>
-                                    {getInitials(activeChatInfo.partnerName)}
-                                  </div>
+                            {/* Partner Avatar - Only on the first message of the group */}
+                            {!isMe && (
+                              <div style={{ width: '36px', height: '36px', flexShrink: 0 }}>
+                                {!isGrouped && (
+                                  activeChatInfo.partnerAvatar ? (
+                                    <img
+                                      src={activeChatInfo.partnerAvatar}
+                                      alt="avatar"
+                                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                                    />
+                                  ) : (
+                                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.85rem', color: '#ffffff' }}>
+                                      {getInitials(activeChatInfo.partnerName)}
+                                    </div>
+                                  )
                                 )}
                               </div>
                             )}
-                            {!isMe && isGrouped && <div style={{ width: '32px' }} />}
 
-                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start' }}>
+                            <div style={{ display: 'flex', flexDirection: 'column', alignItems: isMe ? 'flex-end' : 'flex-start', flex: 1 }}>
                               <div
                                 style={{
-                                  padding: '0.65rem 0.95rem',
-                                  borderRadius: isMe ? '18px 18px 2px 18px' : '18px 18px 18px 2px',
-                                  backgroundColor: isMe ? '#6366f1' : '#1c1c1f',
-                                  color: '#f8f9fa',
-                                  fontSize: '0.88rem',
-                                  lineHeight: '1.45',
+                                  padding: '0.65rem 1rem',
+                                  borderRadius: '20px',
+                                  backgroundColor: isMe ? '#404040' : '#ffffff',
+                                  color: isMe ? '#ffffff' : '#000000',
+                                  fontSize: '0.95rem',
+                                  lineHeight: '1.4',
                                   wordBreak: 'break-word',
-                                  border: isMe ? 'none' : '1px solid var(--border-color)',
+                                  border: 'none',
                                   position: 'relative'
                                 }}
                               >
                                 {/* Attachments */}
                                 {msg.attachments && msg.attachments.length > 0 && (
-                                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: msg.body ? '0.4rem' : '0' }}>
                                     {msg.attachments.map((att, i) => (
-                                      <div key={i} style={{ borderRadius: '8px', overflow: 'hidden' }}>
-                                        {att.file_type.includes('image') ? (
-                                          <img 
-                                            src={att.url} 
-                                            alt="attachment" 
-                                            onClick={() => setLightboxImage(att.url)}
-                                            style={{ maxWidth: '240px', maxHeight: '180px', borderRadius: '8px', cursor: 'pointer', objectFit: 'cover' }} 
-                                          />
-                                        ) : (
-                                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', backgroundColor: 'rgba(0,0,0,0.2)', padding: '0.45rem', borderRadius: '8px' }}>
-                                            <FileText size={16} />
-                                            <span style={{ fontSize: '0.75rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '120px' }}>{att.name || 'File'}</span>
-                                            <a href={att.url} download style={{ color: '#6366f1' }}><Download size={14} /></a>
-                                          </div>
-                                        )}
-                                      </div>
+                                      att.file_type?.includes('image') ? (
+                                        <img key={i} src={att.url} alt="attachment" style={{ maxWidth: '100%', borderRadius: '12px', maxHeight: '200px', objectFit: 'cover', border: `1px solid ${isMe ? '#5a5a5a' : '#e5e7eb'}` }} />
+                                      ) : (
+                                        <a key={i} href={att.url} target="_blank" rel="noopener noreferrer" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', padding: '0.4rem 0.6rem', backgroundColor: isMe ? '#5a5a5a' : '#f3f4f6', borderRadius: '8px', color: 'inherit', textDecoration: 'none', fontSize: '0.8rem' }}>
+                                          <FileText size={14} />
+                                          <span style={{ maxWidth: '150px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name || 'Document'}</span>
+                                        </a>
+                                      )
                                     ))}
                                   </div>
                                 )}
-                                
-                                {msg.body}
-
-                                {/* Reactions */}
-                                {msg.reactions && Object.keys(msg.reactions).length > 0 && (
-                                  <div style={{ display: 'flex', gap: '0.25rem', marginTop: '0.35rem' }}>
-                                    {Object.entries(msg.reactions).map(([emoji, users]) => {
-                                      if (users.length === 0) return null;
-                                      return (
-                                        <button 
-                                          key={emoji}
-                                          onClick={() => handleReaction(msg.id, emoji)}
-                                          style={{
-                                            backgroundColor: 'rgba(255,255,255,0.06)',
-                                            border: '1px solid rgba(255,255,255,0.1)',
-                                            borderRadius: '8px',
-                                            padding: '0.1rem 0.35rem',
-                                            fontSize: '0.72rem',
-                                            color: '#f8f9fa',
-                                            cursor: 'pointer'
-                                          }}
-                                        >
-                                          {emoji} {users.length}
-                                        </button>
-                                      );
-                                    })}
-                                  </div>
-                                )}
+                                {msg.body && <span style={{ whiteSpace: 'pre-wrap' }}>{msg.body}</span>}
                               </div>
+                              
+                              {/* Reactions */}
+                              {msg.reactions && Object.keys(msg.reactions).length > 0 && (
+                                <div style={{ display: 'flex', gap: '0.2rem', marginTop: '0.25rem', paddingLeft: isMe ? '0' : '0.5rem', paddingRight: isMe ? '0.5rem' : '0' }}>
+                                  {Object.entries(msg.reactions).map(([emoji, users], i) => (
+                                    <span key={i} style={{ backgroundColor: '#2a2a2a', padding: '0.1rem 0.4rem', borderRadius: '12px', fontSize: '0.8rem', border: '1px solid #333' }}>
+                                      {emoji} {users.length}
+                                    </span>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
 
-                              {/* Footer details (timestamp + single tick/double tick checkmark receipts) */}
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '2px' }}>
-                                <span style={{ fontSize: '0.66rem', color: 'var(--text-muted)' }}>
-                                  {new Date(msg.created_at).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' })}
-                                </span>
-                                {isMe && (
-                                  msg.status === 'sending' ? (
-                                    <Loader2 size={10} className="spin" style={{ color: 'var(--text-muted)' }} />
-                                  ) : msg.read || msg.status === 'read' ? (
-                                    <CheckCheck size={12} style={{ color: '#10b981' }} />
+                            {/* Self Avatar - Only on the first message of the group */}
+                            {isMe && (
+                              <div style={{ width: '36px', height: '36px', flexShrink: 0 }}>
+                                {!isGrouped && (
+                                  session?.user?.user_metadata?.avatar_url ? (
+                                    <img
+                                      src={session.user.user_metadata.avatar_url}
+                                      alt="my avatar"
+                                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
+                                    />
                                   ) : (
-                                    <Check size={12} style={{ color: 'var(--text-muted)' }} />
+                                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>
+                                      {getInitials(session?.user?.email || 'Me')}
+                                    </div>
                                   )
                                 )}
                               </div>
-                            </div>
-
-                            {/* Hover reactions selector bar */}
-                            <div className="message-actions-overlay" style={{ display: 'flex', gap: '0.25rem', padding: '0.2rem', backgroundColor: '#1c1c1f', borderRadius: '12px', border: '1px solid var(--border-color)' }}>
-                              {['👍', '❤️', '🚀', '🔥', '👏'].map(emoji => (
-                                <button key={emoji} onClick={() => handleReaction(msg.id, emoji)} style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '0.85rem' }}>{emoji}</button>
-                              ))}
-                            </div>
+                            )}
                           </div>
+                        </div>
                         </div>
                       );
                     })
@@ -1081,7 +967,7 @@ function ChatsPageContent() {
                   <div ref={messagesEndRef} />
                 </div>
 
-                {/* Partner Typing Indicator with full "Typing..." text */}
+                {/* Partner Typing Indicator */}
                 {partnerTyping && (
                   <div style={{ padding: '0.45rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: '#6366f1' }}>
                     <span>{activeChatInfo.partnerName} is typing...</span>
@@ -1093,13 +979,12 @@ function ChatsPageContent() {
                   </div>
                 )}
 
-                {/* Message Composer - Rebuilt as modern floating composer card */}
-                <div style={{ padding: '1rem 1.25rem', backgroundColor: '#121214', borderTop: '1px solid var(--border-color)' }}>
+                <div style={{ padding: '0rem 1.5rem 1.5rem', backgroundColor: 'transparent' }}>
                   {attachments.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
                       {attachments.map((att, i) => (
-                        <div key={i} style={{ position: 'relative', borderRadius: '8px', border: '1px solid var(--border-color)', padding: '0.25rem', backgroundColor: '#1c1c1f' }}>
-                          <span style={{ fontSize: '0.72rem', display: 'block', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{att.name}</span>
+                        <div key={i} style={{ position: 'relative', borderRadius: '8px', border: '1px solid #333', padding: '0.25rem', backgroundColor: '#2a2a2a' }}>
+                          <span style={{ fontSize: '0.72rem', display: 'block', maxWidth: '100px', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: '#fff' }}>{att.name}</span>
                           <button 
                             onClick={() => setAttachments(prev => prev.filter((_, idx) => idx !== i))}
                             style={{ position: 'absolute', top: '-6px', right: '-6px', backgroundColor: '#ef4444', border: 'none', color: 'white', borderRadius: '50%', width: '14px', height: '14px', fontSize: '8px', cursor: 'pointer' }}
@@ -1111,13 +996,13 @@ function ChatsPageContent() {
                     </div>
                   )}
 
-                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'flex-end', backgroundColor: 'var(--search-bg)', padding: '0.5rem 0.75rem', borderRadius: '16px', border: '1px solid var(--border-color)' }}>
+                  <div style={{ display: 'flex', gap: '0.75rem', alignItems: 'center' }}>
                     <button 
                       type="button" 
                       onClick={() => fileInputRef.current?.click()}
-                      style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px' }}
+                      style={{ backgroundColor: 'transparent', border: 'none', color: '#f8f9fa', cursor: 'pointer', padding: '0.4rem', display: 'flex', alignItems: 'center' }}
                     >
-                      <ImageIcon size={18} />
+                      <LinkIcon size={24} style={{ transform: 'rotate(45deg)' }} />
                     </button>
                     <input 
                       type="file" 
@@ -1128,108 +1013,57 @@ function ChatsPageContent() {
                       style={{ display: 'none' }} 
                     />
 
-                    {/* Emoji Trigger */}
-                    <div style={{ position: 'relative' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setEmojiPickerOpen(!emojiPickerOpen)}
-                        style={{ backgroundColor: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '0.4rem', borderRadius: '8px' }}
+                    <div style={{ flex: 1, display: 'flex', alignItems: 'center', backgroundColor: '#ffffff', borderRadius: '30px', padding: '0.35rem 0.35rem 0.35rem 1.5rem' }}>
+                      <textarea
+                        ref={composerTextareaRef}
+                        placeholder="Type a message"
+                        value={newMessage}
+                        onChange={(e) => {
+                          setNewMessage(e.target.value);
+                          handleTyping();
+                        }}
+                        onKeyDown={handleKeyDown}
+                        rows={1}
+                        style={{
+                          flex: 1,
+                          backgroundColor: 'transparent',
+                          border: 'none',
+                          fontSize: '1rem',
+                          color: '#000000',
+                          outline: 'none',
+                          resize: 'none',
+                          padding: '0.6rem 0',
+                          maxHeight: '120px'
+                        }}
+                      />
+
+                      <button
+                        type="button"
+                        onClick={() => handleSend()}
+                        disabled={(!newMessage.trim() && attachments.length === 0) || sendMessageMutation.isPending}
+                        style={{
+                          width: '40px',
+                          height: '40px',
+                          borderRadius: '50%',
+                          backgroundColor: '#000000',
+                          color: '#ffffff',
+                          border: 'none',
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: (newMessage.trim() || attachments.length > 0) ? 'pointer' : 'default',
+                          transition: 'opacity 0.2s',
+                          marginLeft: '0.5rem',
+                          opacity: (newMessage.trim() || attachments.length > 0) ? 1 : 0.5
+                        }}
                       >
-                        <Smile size={18} />
+                        {sendMessageMutation.isPending ? (
+                          <Loader2 size={18} className="spin" />
+                        ) : (
+                          <Send size={18} style={{ marginLeft: '2px' }} />
+                        )}
                       </button>
-                      {emojiPickerOpen && (
-                        <div style={{ position: 'absolute', bottom: '50px', left: '0', backgroundColor: '#1c1c1f', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '0.5rem', display: 'grid', gridTemplateColumns: 'repeat(5, 1fr)', gap: '0.35rem', zIndex: 10 }}>
-                          {['👍', '❤️', '🚀', '🔥', '👏', '💡', '🎉', '💻', '🤔', '🙌'].map(emoji => (
-                            <button 
-                              key={emoji} 
-                              type="button"
-                              onClick={() => {
-                                setNewMessage(prev => prev + emoji);
-                                setEmojiPickerOpen(false);
-                              }}
-                              style={{ background: 'none', border: 'none', cursor: 'pointer', fontSize: '1.15rem' }}
-                            >
-                              {emoji}
-                            </button>
-                          ))}
-                        </div>
-                      )}
                     </div>
-
-                    <textarea
-                      ref={composerTextareaRef}
-                      placeholder={`Message ${activeChatInfo.partnerName}...`}
-                      value={newMessage}
-                      onChange={(e) => {
-                        setNewMessage(e.target.value);
-                        handleTyping();
-                      }}
-                      onKeyDown={handleKeyDown}
-                      rows={1}
-                      style={{
-                        flex: 1,
-                        backgroundColor: 'transparent',
-                        border: 'none',
-                        fontSize: '0.88rem',
-                        color: '#f8f9fa',
-                        outline: 'none',
-                        resize: 'none',
-                        padding: '0.4rem 0.25rem',
-                        maxHeight: '120px'
-                      }}
-                    />
-
-                    {/* AI Rewrite Selector */}
-                    <div style={{ position: 'relative' }}>
-                      <button 
-                        type="button" 
-                        onClick={() => setAiToneEnhanceOpen(!aiToneEnhanceOpen)}
-                        style={{ backgroundColor: 'rgba(99,102,241,0.12)', border: 'none', color: '#6366f1', cursor: 'pointer', padding: '0.45rem', borderRadius: '8px' }}
-                      >
-                        <Sparkles size={16} />
-                      </button>
-                      {aiToneEnhanceOpen && (
-                        <div style={{ position: 'absolute', bottom: '50px', right: '0', backgroundColor: '#1c1c1f', border: '1px solid var(--border-color)', borderRadius: '12px', padding: '0.5rem', display: 'flex', flexDirection: 'column', gap: '0.25rem', zIndex: 10, width: '140px' }}>
-                          <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', padding: '0.25rem' }}>ENHANCE TONE:</span>
-                          {['Professional', 'Inspirational', 'Casual', 'Polite'].map(tone => (
-                            <button
-                              key={tone}
-                              type="button"
-                              onClick={() => handleAIEnhance(tone.toLowerCase())}
-                              style={{ backgroundColor: 'transparent', border: 'none', color: '#f8f9fa', padding: '0.35rem', textTransform: 'capitalize', fontSize: '0.75rem', cursor: 'pointer', textAlign: 'left', borderRadius: '6px' }}
-                            >
-                              {tone}
-                            </button>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-
-                    <button
-                      type="button"
-                      onClick={() => handleSend()}
-                      disabled={(!newMessage.trim() && attachments.length === 0) || sendMessageMutation.isPending}
-                      style={{
-                        width: '36px',
-                        height: '36px',
-                        borderRadius: '10px',
-                        backgroundColor: (newMessage.trim() || attachments.length > 0) ? '#6366f1' : 'transparent',
-                        color: (newMessage.trim() || attachments.length > 0) ? 'white' : 'var(--text-muted)',
-                        border: 'none',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        cursor: (newMessage.trim() || attachments.length > 0) ? 'pointer' : 'default',
-                        transition: 'background-color 0.2s',
-                        padding: '0.45rem'
-                      }}
-                    >
-                      {sendMessageMutation.isPending ? (
-                        <Loader2 size={16} className="spin" />
-                      ) : (
-                        <Send size={16} />
-                      )}
-                    </button>
                   </div>
                 </div>
               </div>
@@ -1242,181 +1076,103 @@ function ChatsPageContent() {
             )}
           </div>
 
-          {/* 3. RIGHT SIDEBAR: Shared Media explorer - Redesigned as proper Glassmorphism cards (20%-25% width) */}
+          {/* 3. RIGHT SIDEBAR: Directory */}
           {activePartnerId && activeChatInfo && rightSidebarOpen && (
             <div 
               style={{ 
-                width: '23%', 
-                maxWidth: '320px',
-                minWidth: '260px',
+                width: '320px',
+                minWidth: '320px',
                 flexShrink: 0,
-                borderLeft: '1px solid var(--border-color)', 
-                backgroundColor: '#121214', 
+                backgroundColor: '#111111', 
+                borderLeft: '1px solid #2a2a2a', 
                 display: 'flex', 
                 flexDirection: 'column', 
                 height: '100%',
-                padding: '0.5rem'
               }}
-              className="shared-media-sidebar"
+              className="right-sidebar"
             >
-              <div style={{ display: 'flex', flexDirection: 'column', height: '100%', backgroundColor: '#1c1c1f', borderRadius: '20px', border: '1px solid var(--border-color)', overflow: 'hidden' }}>
-                <div style={{ padding: '1.25rem', borderBottom: '1px solid var(--border-color)', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa' }}>Shared Content</h3>
-                  <button onClick={() => setRightSidebarOpen(false)} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
-                    <X size={16} />
+              <div style={{ padding: '1.25rem 1.25rem 0.5rem', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <h2 style={{ fontSize: '1.25rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Directory</h2>
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <button 
+                    onClick={() => setRightSidebarOpen(false)}
+                    style={{ background: 'transparent', border: 'none', color: '#f8f9fa', cursor: 'pointer', padding: '0.25rem' }}
+                    className="mobile-only-btn"
+                  >
+                    <X size={20} />
+                  </button>
+                  <button style={{ background: '#ffffff', border: 'none', color: '#000000', cursor: 'pointer', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    <MoreVertical size={18} strokeWidth={2.5} />
                   </button>
                 </div>
+              </div>
 
-                {/* Tabs */}
-                <div style={{ display: 'flex', borderBottom: '1px solid var(--border-color)' }}>
-                  {(['media', 'files', 'links'] as const).map(tab => (
-                    <button
-                      key={tab}
-                      onClick={() => setActiveRightTab(tab)}
-                      style={{
-                        flex: 1,
-                        padding: '0.75rem',
-                        border: 'none',
-                        background: 'none',
-                        color: activeRightTab === tab ? '#6366f1' : 'var(--text-muted)',
-                        borderBottom: activeRightTab === tab ? '2px solid #6366f1' : 'none',
-                        fontSize: '0.82rem',
-                        fontWeight: 600,
-                        textTransform: 'capitalize',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      {tab}
-                    </button>
-                  ))}
-                </div>
+              <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
+                {/* Team Members */}
+                <div style={{ marginBottom: '2rem' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
+                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>1</span>
+                  </div>
 
-                {/* Search shared items */}
-                <div style={{ padding: '0.75rem 1rem' }}>
-                  <div style={{ position: 'relative' }}>
-                    <input
-                      type="text"
-                      placeholder={`Search shared ${activeRightTab}...`}
-                      value={sharedSearchQuery}
-                      onChange={(e) => setSharedSearchQuery(e.target.value)}
-                      style={{
-                        width: '100%',
-                        backgroundColor: 'var(--search-bg)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '10px',
-                        padding: '0.45rem 1rem 0.45rem 2rem',
-                        fontSize: '0.78rem',
-                        color: '#f8f9fa',
-                        outline: 'none',
-                      }}
-                    />
-                    <Search size={12} style={{ position: 'absolute', left: '8px', top: '10px', color: 'var(--text-muted)' }} />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <img src={activeChatInfo.partnerAvatar} alt={activeChatInfo.partnerName} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{activeChatInfo.partnerName}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* Content Panel */}
-                <div style={{ flex: 1, overflowY: 'auto', padding: '1rem' }}>
-                  {activeRightTab === 'media' && (
-                    sharedImages.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        <ImageIcon size={28} style={{ marginBottom: '0.5rem', opacity: 0.3 }} />
-                        <p>No shared media found.</p>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '0.45rem' }}>
-                        {sharedImages.map((m, idx) => {
-                          const imgUrl = m.attachments?.[0]?.url || m.body;
-                          return (
-                            <div 
-                              key={idx} 
-                              onClick={() => setLightboxImage(imgUrl)}
-                              style={{ 
-                                aspectRatio: '1', 
-                                borderRadius: '8px', 
-                                overflow: 'hidden', 
-                                cursor: 'pointer',
-                                border: '1px solid var(--border-color)'
-                              }}
-                            >
-                              <img src={imgUrl} alt="media" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
+                {/* Files */}
+                <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
+                    <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Files</h3>
+                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>{sharedFiles.length}</span>
+                  </div>
 
-                  {activeRightTab === 'files' && (
-                    sharedFiles.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        <FileText size={28} style={{ marginBottom: '0.5rem', opacity: 0.3 }} />
-                        <p>No shared files found.</p>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                        {sharedFiles.map((m, idx) => {
-                          const file = m.attachments?.[0] || { name: 'Shared Document', size: 1024, url: m.body };
-                          return (
-                            <div key={idx} style={{ display: 'flex', alignItems: 'center', justifyItems: 'space-between', padding: '0.55rem', backgroundColor: 'var(--search-bg)', borderRadius: '10px', border: '1px solid var(--border-color)' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: '0.55rem', flex: 1, minWidth: 0 }}>
-                                <FileText size={18} style={{ color: '#6366f1' }} />
-                                <div style={{ minWidth: 0 }}>
-                                  <p style={{ fontSize: '0.78rem', color: '#f8f9fa', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{file.name}</p>
-                                  <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)' }}>{(file.size / 1024).toFixed(0)} KB</span>
-                                </div>
-                              </div>
-                              <a href={file.url} download style={{ color: '#6366f1', padding: '0.25rem' }}>
-                                <Download size={14} />
-                              </a>
-                            </div>
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+                    {sharedFiles.length > 0 ? sharedFiles.map((m, idx) => {
+                      const file = m.attachments?.[0] || { name: 'Shared Document', size: 0, file_type: 'unknown' };
+                      const fileName = file.name || 'Shared Document';
+                      const isPdf = fileName.toLowerCase().endsWith('.pdf');
+                      const isImage = file.file_type?.includes('image') || fileName.toLowerCase().match(/\.(png|jpg|jpeg|gif)$/i);
+                      const isDoc = fileName.toLowerCase().match(/\.(doc|docx)$/i);
+                      
+                      const iconColor = isPdf ? '#ef4444' : isImage ? '#10b981' : isDoc ? '#3b82f6' : '#a1a1aa';
+                      
+                      return (
+                        <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                          <div style={{ width: '44px', height: '44px', backgroundColor: '#ffffff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                            {isImage ? <ImageIcon size={20} color={iconColor} /> : <FileText size={20} color={iconColor} />}
+                          </div>
+                          
+                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                              {fileName}
+                            </span>
+                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa', textTransform: 'uppercase' }}>
+                              {(isPdf ? 'PDF' : isImage ? 'PNG' : isDoc ? 'DOC' : 'FILE')} {(file.size ? (file.size / 1024 / 1024).toFixed(1) + 'mb' : '1mb')}
+                            </span>
+                          </div>
 
-                  {activeRightTab === 'links' && (
-                    sharedLinks.length === 0 ? (
-                      <div style={{ textAlign: 'center', padding: '2rem 0', color: 'var(--text-muted)', fontSize: '0.8rem' }}>
-                        <LinkIcon size={28} style={{ marginBottom: '0.5rem', opacity: 0.3 }} />
-                        <p>No shared links found.</p>
-                      </div>
-                    ) : (
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '0.55rem' }}>
-                        {sharedLinks.map((m, idx) => {
-                          const urlMatch = m.body.match(/https?:\/\/[^\s]+/);
-                          const url = urlMatch ? urlMatch[0] : m.body;
-                          return (
-                            <a 
-                              key={idx} 
-                              href={url} 
-                              target="_blank" 
-                              rel="noopener noreferrer" 
-                              style={{ 
-                                display: 'flex', 
-                                flexDirection: 'column', 
-                                padding: '0.65rem', 
-                                backgroundColor: 'var(--search-bg)', 
-                                borderRadius: '10px', 
-                                border: '1px solid var(--border-color)',
-                                textDecoration: 'none'
-                              }}
-                            >
-                              <span style={{ fontSize: '0.78rem', color: '#6366f1', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{url}</span>
-                              <span style={{ fontSize: '0.65rem', color: 'var(--text-muted)', marginTop: '2px' }}>Click to open link</span>
-                            </a>
-                          );
-                        })}
-                      </div>
-                    )
-                  )}
+                          <a href={file.url} download style={{ color: '#ffffff', textDecoration: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', border: '1px solid #4b4b4b', borderRadius: '50%', width: '32px', height: '32px', padding: '0.3rem' }}>
+                            <Download size={14} />
+                          </a>
+                        </div>
+                      );
+                    }) : (
+                      <p style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>No files shared yet.</p>
+                    )}
+                  </div>
                 </div>
               </div>
             </div>
           )}
           
         </div>
-      </div>
 
       {/* Lightbox */}
       {lightboxImage && (
@@ -1469,6 +1225,43 @@ function ChatsPageContent() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* New Chat Modal */}
+      {isNewChatModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Start a New Chat
+              </h3>
+              <button onClick={() => { setIsNewChatModalOpen(false); setNewChatError(''); setNewChatUsername(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
+                <input 
+                  type="text" 
+                  value={newChatUsername}
+                  onChange={(e) => setNewChatUsername(e.target.value)}
+                  placeholder="e.g. johndoe"
+                  autoFocus
+                  style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                />
+              </div>
+              {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
+              <button 
+                type="submit" 
+                disabled={newChatLoading || !newChatUsername.trim()}
+                style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || !newChatUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || !newChatUsername.trim()) ? 0.6 : 1 }}
+              >
+                {newChatLoading ? 'Searching...' : 'Start Chat'}
+              </button>
+            </form>
           </div>
         </div>
       )}
