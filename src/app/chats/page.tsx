@@ -388,13 +388,15 @@ function ChatsPageContent() {
     },
     onMutate: async (newMsg) => {
       const tempId = Math.random().toString();
+      const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
       const optimisticMsg: DBMessage = {
         id: tempId,
+        conversation_id: isConversationId ? (activeChatId || '') : '',
         sender_id: session.user.id,
         recipient_id: newMsg.partnerId,
         partner_id: newMsg.partnerId,
         partner_name: activeChatInfo?.partnerName || 'Member',
-        partner_avatar: activeChatInfo?.partnerAvatar || '',
+        partner_avatar: activeChatInfo?.partnerAvatar || `https://api.dicebear.com/7.x/bottts/svg?seed=${newMsg.partnerId}`,
         body: newMsg.body,
         read: false,
         type: newMsg.type || 'TEXT',
@@ -505,15 +507,79 @@ function ChatsPageContent() {
     setNewChatError('');
 
     try {
+      const { data, error } = await supabase.from('profiles').select('*').eq('username', newChatUsername.trim().toLowerCase()).single();
+      if (error || !data) {
+        setNewChatError('User not found. Please check the username.');
+        return;
       }
-
       setIsNewChatModalOpen(false);
       setNewChatUsername('');
-      router.push(`/chats?userId=${targetUser.id}`);
+      setActiveChatId(data.id);
     } catch (err: any) {
-      setNewChatError(err.message || 'Error finding user');
+      setNewChatError('An error occurred. Please try again.');
     } finally {
       setNewChatLoading(false);
+    }
+  };
+
+  const handleAddMember = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addMemberUsername.trim() || !activeChatId || !session) return;
+    setAddMemberLoading(true);
+    setAddMemberError('');
+
+    try {
+      // Find user
+      const { data: userToAdd, error: userErr } = await supabase
+        .from('profiles')
+        .select('*')
+        .eq('username', addMemberUsername.trim().toLowerCase())
+        .single();
+        
+      if (userErr || !userToAdd) {
+        setAddMemberError('User not found. Please check the username.');
+        setAddMemberLoading(false);
+        return;
+      }
+
+      // Find members of current chat
+      const activeMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId);
+      const currentMembersIds = activeChatInfo?.members?.map(m => m.id) || [];
+      if (currentMembersIds.length === 0 && activeChatInfo) {
+         currentMembersIds.push(activeChatId); // In case it's a new unsaved chat
+      }
+
+      if (currentMembersIds.includes(userToAdd.id)) {
+        setAddMemberError('User is already in this chat.');
+        setAddMemberLoading(false);
+        return;
+      }
+
+      const participantIds = [...currentMembersIds, userToAdd.id];
+      // Create a dummy message to force the creation of the group chat via POST api/messages
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ 
+          participantIds,
+          body: `Added ${userToAdd.full_name} to the conversation.`,
+          type: 'SYSTEM'
+        })
+      });
+
+      if (!res.ok) throw new Error('Failed to create group chat');
+      const data = await res.json();
+      
+      setIsAddMemberModalOpen(false);
+      setAddMemberUsername('');
+      setActiveChatId(data.message.conversation_id);
+      
+      // Invalidate to fetch new group
+      queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
+    } catch (err: any) {
+      setAddMemberError('An error occurred. Please try again.');
+    } finally {
+      setAddMemberLoading(false);
     }
   };
 
