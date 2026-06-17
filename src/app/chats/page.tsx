@@ -290,15 +290,35 @@ function ChatsPageContent() {
     enabled: !!targetUserId,
   });
 
+  // Request Notification permission
+  useEffect(() => {
+    if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+  }, []);
+
   // Real-time WebSockets subscription
   useEffect(() => {
     if (!session?.user?.id) return;
 
     const channel = supabase
       .channel('realtime-chat-messages')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
         refetch();
         queryClient.invalidateQueries({ queryKey: ['messages', session?.access_token] });
+
+        if (payload.eventType === 'INSERT') {
+          const newMsg = payload.new as any;
+          if (newMsg.sender_id !== session?.user?.id) {
+            // Trigger browser notification
+            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+              new Notification('New Message', {
+                body: newMsg.body || 'You received a new message.',
+                icon: '/favicon.ico'
+              });
+            }
+          }
+        }
       })
       .subscribe();
 
@@ -1012,7 +1032,7 @@ function ChatsPageContent() {
                 {/* Message List */}
                 <div 
                   ref={messagesContainerRef}
-                  style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.85rem' }}
+                  style={{ flex: 1, overflowY: 'auto', padding: '1.25rem', display: 'flex', flexDirection: 'column' }}
                 >
                   {filteredActiveMessages.length === 0 ? (
                     <div style={{ flex: 1, display: 'flex', flexDirection: 'column', justifyContent: 'center', alignItems: 'center', color: 'var(--text-muted)', gap: '0.75rem' }}>
@@ -1047,7 +1067,7 @@ function ChatsPageContent() {
                           style={{ 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            marginBottom: '1rem',
+                            marginTop: isGrouped && !showDateSeparator ? '2px' : '0.75rem',
                             position: 'relative' 
                           }}
                         >
