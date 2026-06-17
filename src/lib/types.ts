@@ -109,3 +109,231 @@ export interface Message {
   created_at: string;
 }
 
+// Analytics Types
+
+export type PostEventType =
+  | 'POST_VIEW'
+  | 'POST_OPEN'
+  | 'POST_UPVOTE'
+  | 'POST_DOWNVOTE'
+  | 'POST_COMMENT'
+  | 'POST_SHARE'
+  | 'POST_SAVE'
+  | 'FOLLOW_FROM_POST';
+
+export interface PostEvent {
+  id: string;
+  post_id: string;
+  user_id: string | null;
+  event_type: PostEventType;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+export interface PostAnalyticsDaily {
+  id: string;
+  post_id: string;
+  date: string;
+  views: number;
+  unique_views: number;
+  opens: number;
+  upvotes: number;
+  downvotes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+  follows_gained: number;
+}
+
+export interface AnalyticsMetric {
+  value: number;
+  delta: number;
+  sparkline: number[];
+}
+
+export interface AnalyticsOverview {
+  totalViews: AnalyticsMetric;
+  uniqueViews: AnalyticsMetric;
+  upvotes: AnalyticsMetric;
+  downvotes: AnalyticsMetric;
+  comments: AnalyticsMetric;
+  shares: AnalyticsMetric;
+  saves: AnalyticsMetric;
+  followersGained: AnalyticsMetric;
+  engagementRate: AnalyticsMetric;
+  rankingScore: AnalyticsMetric;
+  isDemo: boolean;
+}
+
+export interface AnalyticsTimeSeries {
+  label: string;
+  date: string;
+  views: number;
+  uniqueViews: number;
+  upvotes: number;
+  comments: number;
+  shares: number;
+  saves: number;
+}
+
+export interface TrafficSource {
+  source: string;
+  count: number;
+  percentage: number;
+}
+
+export interface AudienceInsight {
+  countries: { name: string; count: number }[];
+  cities: { name: string; count: number }[];
+  devices: { name: string; count: number; percentage: number }[];
+  browsers: { name: string; count: number }[];
+  visitorTypes: { name: string; count: number; percentage: number }[];
+}
+
+export interface FunnelStage {
+  stage: string;
+  count: number;
+  percentage: number;
+  conversionFromPrevious: number | null;
+}
+
+export interface EngagementBreakdown {
+  upvoteRate: number;
+  commentRate: number;
+  shareRate: number;
+  saveRate: number;
+  avgReadTimeSeconds: number;
+  scrollDepthPercent: number;
+}
+
+export interface TopPerformingPost {
+  id: string;
+  title: string;
+  metric: number;
+  metricLabel: string;
+  trend: number;
+  slug: string | null;
+}
+
+export interface PostComparisonRow {
+  postId: string;
+  title: string;
+  views: number;
+  engagementRate: number;
+  comments: number;
+  shares: number;
+  growthRate: number;
+}
+
+export interface AIInsight {
+  bestTimeToPost: string;
+  performanceReason: string;
+  suggestions: string[];
+  predictedViewsNext7Days: number[];
+}
+
+export interface AnalyticsPostResponse {
+  overview: AnalyticsOverview;
+  timeSeries: AnalyticsTimeSeries[];
+  engagementTrend: AnalyticsTimeSeries[];
+  trafficSources: TrafficSource[];
+  audience: AudienceInsight;
+  funnel: FunnelStage[];
+  engagement: EngagementBreakdown;
+  heatmap: number[][];
+  aiInsights: AIInsight;
+  isDemo: boolean;
+}
+
+export interface AnalyticsOverviewResponse {
+  overview: AnalyticsOverview;
+  timeSeries: AnalyticsTimeSeries[];
+  topPosts: TopPerformingPost[];
+  posts: { id: string; title: string; slug: string | null }[];
+  isDemo: boolean;
+}
+
+export interface AnalyticsCompareResponse {
+  posts: PostComparisonRow[];
+  isDemo: boolean;
+}
+
+export interface TrackEventPayload {
+  post_id: string;
+  event_type: PostEventType;
+  metadata?: Record<string, unknown>;
+}
+
+// Simplified Analytics UI Types
+
+export interface AnalyticsTotals {
+  views: number;
+  votes: number;
+  comments: number;
+  followsGained: number;
+}
+
+export interface PostGridItem {
+  id: string;
+  title: string;
+  slug: string | null;
+  type: 'problem' | 'idea';
+  image_url: string | null;
+  created_at: string;
+  views: number;
+  votes: number;
+  upvotes?: number;
+  downvotes?: number;
+  comments: number;
+  followsGained: number;
+}
+
+export interface AnalyticsGridResponse {
+  totals: AnalyticsTotals;
+  posts: PostGridItem[];
+  isDemo: boolean;
+}
+
+export interface PostVoter {
+  user_id: string;
+  vote_type: 'up' | 'down';
+  created_at: string;
+  full_name: string;
+  avatar_url: string | null;
+  username: string | null;
+}
+
+export interface DemographicItem {
+  name: string;
+  count: number;
+}
+
+export interface UserDemographics {
+  devices: DemographicItem[];
+  browsers: DemographicItem[];
+  countries: DemographicItem[];
+}
+
+export interface PostAnalyticsDetailResponse {
+  post: {
+    id: string;
+    title: string;
+    slug: string | null;
+    body: string;
+    type: 'problem' | 'idea';
+    image_url: string | null;
+    created_at: string;
+  };
+  stats: {
+    views: number;
+    impressions: number;
+    upvotes: number;
+    downvotes: number;
+    comments: number;
+    followsGained: number;
+  };
+  voters: PostVoter[];
+  demographics: UserDemographics;
+  isDemo: boolean;
+}
+

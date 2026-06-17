@@ -140,6 +140,11 @@ function NavbarInner() {
   });
 
   const handleLogout = async () => {
+    if (session?.user?.id) {
+      try {
+        await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
+      } catch (err) {}
+    }
     await supabase.auth.signOut();
     setDropdownOpen(false);
     setIsOpen(false);
@@ -156,7 +161,7 @@ function NavbarInner() {
   };
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const unreadMsgCount = messages.filter(m => !m.read).length;
+  const unreadMsgCount = messages.filter(m => !m.read && m.sender_id !== session?.user?.id).length;
 
   const isHomeActive = pathname === '/' || pathname === '/home';
   const isSolutionsActive = pathname === '/solutions';

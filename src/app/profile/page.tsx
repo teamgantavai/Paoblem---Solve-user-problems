@@ -6,7 +6,7 @@ import {
   MapPin, Pencil, MoreVertical, ChevronDown, ChevronUp,
   Check, Camera, MessageCircle, Phone, Loader2, ExternalLink,
   AlertTriangle, Lightbulb, Bookmark, Share2, User, UserPlus, UserMinus, LogOut, Settings,
-  Sun, Moon
+  Sun, Moon, BarChart2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
@@ -230,6 +230,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       if (!res.ok) throw new Error('Failed to load profile');
       return res.json() as Promise<{ profile: Profile; stats: ProfileStats }>;
     },
+    enabled: !!displayUserId,
   });
 
   // Fetch follow state
@@ -357,6 +358,11 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   });
 
   const handleLogout = async () => {
+    if (session?.user?.id) {
+      try {
+        await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
+      } catch (err) {}
+    }
     await supabase.auth.signOut();
     router.push('/');
     window.location.reload();
@@ -634,6 +640,13 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
 
           {isOwnProfile && (
             <>
+              <button
+                className="profile-nav-link"
+                onClick={() => router.push('/analytics')}
+              >
+                <BarChart2 size={16} />
+                <span>Analytics</span>
+              </button>
               <button
                 className={`profile-nav-link ${activeTab === 'saved' ? 'active' : ''}`}
                 onClick={() => setActiveTab('saved')}

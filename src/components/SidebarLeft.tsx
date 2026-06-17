@@ -127,7 +127,13 @@ function SidebarLeftInner() {
           <TrendingUp size={20} />
           <span>Trending Problems</span>
         </div>
-        <div className="menu-item" style={{ cursor: 'pointer' }} onClick={() => triggerNotice('Analytics')}>
+        <div className="menu-item" style={{ cursor: 'pointer' }} onClick={() => {
+          if (!session) {
+            setIsAuthOpen(true);
+          } else {
+            router.push('/analytics');
+          }
+        }}>
           <BarChart2 size={20} />
           <span>Analytics</span>
         </div>

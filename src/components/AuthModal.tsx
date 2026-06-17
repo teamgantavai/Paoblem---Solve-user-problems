@@ -60,6 +60,9 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     }
   }, [isOpen, initialStep]);
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   if (!isOpen) return null;
 
   // ─── Step 1: Submit email ───
@@ -369,7 +372,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     </button>
   );
 
-  return (
+  const content = (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4" style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000, padding: '1rem' }}>
       <div className="absolute inset-0 bg-neutral-900/50 backdrop-blur-sm" onClick={handleClose} style={{ position: 'absolute', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' }}></div>
       <div className="bg-white border border-neutral-200 rounded-3xl p-6 sm:p-8 shadow-2xl max-w-[420px] w-full z-10 animate-fade-in relative text-left" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '24px', padding: '2rem', maxWidth: '420px', width: '100%', zIndex: 10, position: 'relative', textAlign: 'left', color: 'var(--text-main)' }}>
@@ -928,4 +931,10 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       </div>
     </div>
   );
+
+  if (mounted && typeof document !== 'undefined') {
+    const { createPortal } = require('react-dom');
+    return createPortal(content, document.body);
+  }
+  return content;
 }

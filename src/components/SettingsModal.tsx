@@ -131,9 +131,12 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
     }
   };
 
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => { setMounted(true); }, []);
+
   if (!isOpen) return null;
 
-  return (
+  const content = (
     <div className="modal-overlay" onClick={onClose}>
       <div
         className="modal-panel"
@@ -142,31 +145,28 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       >
         {/* Header */}
         <div className="modal-header">
-          <h3 style={{ fontSize: '1.05rem', fontWeight: 700, letterSpacing: '-0.02em' }}>
-            Settings
-          </h3>
-          <button className="modal-close-btn" onClick={onClose} aria-label="Close settings">
+          <h3 className="modal-title">Settings</h3>
+          <button onClick={onClose} className="modal-close-btn" aria-label="Close settings">
             <X size={18} />
           </button>
         </div>
 
         {/* Body */}
-        <div style={{ padding: '1.5rem' }}>
-
-          {/* Appearance Section */}
-          <p style={{
-            fontSize: '0.65rem',
-            fontWeight: 700,
+        <div className="modal-body" style={{ padding: '1.25rem 1.5rem 1.5rem' }}>
+          <h4 style={{ 
+            fontSize: '0.82rem', 
+            textTransform: 'uppercase', 
+            letterSpacing: '0.05em', 
             color: 'var(--text-muted)',
-            textTransform: 'uppercase',
-            letterSpacing: '0.08em',
-            marginBottom: '0.9rem'
+            fontWeight: 700,
+            marginBottom: '0.85rem'
           }}>
             Appearance
-          </p>
+          </h4>
 
+          {/* Theme Selector */}
           <div style={{ display: 'flex', gap: '0.75rem' }}>
-            {/* Dark Mode Option */}
+            {/* Dark Theme Option */}
             <button
               onClick={() => applyTheme('dark')}
               style={{
@@ -174,66 +174,59 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '0.6rem',
-                padding: '1rem 0.75rem',
-                borderRadius: '14px',
-                border: theme === 'dark'
-                  ? '2px solid var(--accent-blue)'
-                  : '1.5px solid var(--border-color)',
-                background: theme === 'dark'
-                  ? 'rgba(0, 132, 255, 0.06)'
-                  : 'var(--bg-hover)',
+                gap: '0.85rem',
+                padding: '1.25rem 1rem',
+                backgroundColor: 'var(--search-bg)',
+                border: `2px solid ${theme === 'dark' ? 'var(--accent-blue)' : 'var(--border-color)'}`,
+                borderRadius: '16px',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.2s',
                 position: 'relative',
               }}
             >
               {theme === 'dark' && (
-                <span style={{
+                <div style={{
                   position: 'absolute',
-                  top: '8px',
-                  right: '8px',
-                  width: '18px',
-                  height: '18px',
+                  top: '0.5rem',
+                  right: '0.5rem',
+                  backgroundColor: 'var(--accent-blue)',
+                  color: 'white',
                   borderRadius: '50%',
-                  background: 'var(--accent-blue)',
+                  width: '20px',
+                  height: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                  <Check size={10} color="white" strokeWidth={3} />
-                </span>
-              )}
-              {/* Dark mode preview */}
-              <div style={{
-                width: '100%',
-                height: '56px',
-                borderRadius: '8px',
-                background: '#0a0a0c',
-                border: '1px solid #2a2a2e',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div style={{ height: '10px', background: '#111113', borderBottom: '1px solid #1e1e21' }} />
-                <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ height: '5px', width: '60%', background: '#2a2a2e', borderRadius: '3px' }} />
-                  <div style={{ height: '4px', width: '80%', background: '#1e1e21', borderRadius: '3px' }} />
-                  <div style={{ height: '4px', width: '40%', background: '#1e1e21', borderRadius: '3px' }} />
+                  <Check size={12} strokeWidth={3} />
                 </div>
+              )}
+              
+              <div style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '50%', 
+                backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: 'var(--accent-blue)'
+              }}>
+                <Moon size={22} fill="currentColor" opacity={0.2} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Moon size={13} style={{ color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-muted)' }} />
-                <span style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-muted)'
+                <span style={{ 
+                  fontSize: '0.78rem', 
+                  fontWeight: 600, 
+                  color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-muted)' 
                 }}>
                   Dark
                 </span>
               </div>
             </button>
 
-            {/* Light Mode Option */}
+            {/* Light Theme Option */}
             <button
               onClick={() => applyTheme('light')}
               style={{
@@ -241,59 +234,52 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 display: 'flex',
                 flexDirection: 'column',
                 alignItems: 'center',
-                gap: '0.6rem',
-                padding: '1rem 0.75rem',
-                borderRadius: '14px',
-                border: theme === 'light'
-                  ? '2px solid var(--accent-blue)'
-                  : '1.5px solid var(--border-color)',
-                background: theme === 'light'
-                  ? 'rgba(0, 132, 255, 0.06)'
-                  : 'var(--bg-hover)',
+                gap: '0.85rem',
+                padding: '1.25rem 1rem',
+                backgroundColor: '#ffffff',
+                border: `2px solid ${theme === 'light' ? 'var(--accent-blue)' : 'var(--border-color)'}`,
+                borderRadius: '16px',
                 cursor: 'pointer',
-                transition: 'all 0.2s ease',
+                transition: 'all 0.2s',
                 position: 'relative',
               }}
             >
               {theme === 'light' && (
-                <span style={{
+                <div style={{
                   position: 'absolute',
-                  top: '8px',
-                  right: '8px',
-                  width: '18px',
-                  height: '18px',
+                  top: '0.5rem',
+                  right: '0.5rem',
+                  backgroundColor: 'var(--accent-blue)',
+                  color: 'white',
                   borderRadius: '50%',
-                  background: 'var(--accent-blue)',
+                  width: '20px',
+                  height: '20px',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'center',
                 }}>
-                  <Check size={10} color="white" strokeWidth={3} />
-                </span>
-              )}
-              {/* Light mode preview */}
-              <div style={{
-                width: '100%',
-                height: '56px',
-                borderRadius: '8px',
-                background: '#f8f9fa',
-                border: '1px solid #e5e7eb',
-                position: 'relative',
-                overflow: 'hidden',
-              }}>
-                <div style={{ height: '10px', background: '#ffffff', borderBottom: '1px solid #e5e7eb' }} />
-                <div style={{ padding: '6px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                  <div style={{ height: '5px', width: '60%', background: '#d1d5db', borderRadius: '3px' }} />
-                  <div style={{ height: '4px', width: '80%', background: '#e5e7eb', borderRadius: '3px' }} />
-                  <div style={{ height: '4px', width: '40%', background: '#e5e7eb', borderRadius: '3px' }} />
+                  <Check size={12} strokeWidth={3} />
                 </div>
+              )}
+              
+              <div style={{ 
+                width: '48px', 
+                height: '48px', 
+                borderRadius: '50%', 
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                color: '#f59e0b'
+              }}>
+                <Sun size={24} />
               </div>
               <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                 <Sun size={13} style={{ color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-muted)' }} />
-                <span style={{
-                  fontSize: '0.78rem',
-                  fontWeight: 600,
-                  color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-muted)'
+                <span style={{ 
+                  fontSize: '0.78rem', 
+                  fontWeight: 600, 
+                  color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-muted)' 
                 }}>
                   Light
                 </span>
@@ -376,9 +362,9 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
           </div>
 
           {/* Version info */}
-          <div style={{
-            marginTop: '1.75rem',
-            paddingTop: '1.25rem',
+          <div style={{ 
+            marginTop: '1.75rem', 
+            paddingTop: '1.25rem', 
             borderTop: '1px solid var(--border-color)',
             display: 'flex',
             justifyContent: 'space-between',
@@ -391,4 +377,10 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
       </div>
     </div>
   );
+
+  if (mounted && typeof document !== 'undefined') {
+    const { createPortal } = require('react-dom');
+    return createPortal(content, document.body);
+  }
+  return content;
 }

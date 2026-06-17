@@ -16,10 +16,12 @@ import {
   Share2,
   Copy,
   Loader2,
-  Edit2
+  Edit2,
+  BarChart2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Post, Comment } from '@/lib/types';
+import { trackEvent } from '@/lib/analytics-track';
 import AuthModal from './AuthModal';
 import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
@@ -59,6 +61,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [activeShareMenu, setActiveShareMenu] = useState(false);
   const [showSubShare, setShowSubShare] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const postRef = useRef<HTMLElement>(null);
+  const viewTrackedRef = useRef(false);
 
   // Edit Comment State
   const [editCommentId, setEditCommentId] = useState<string | null>(null);
@@ -95,6 +99,30 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
 
     return () => subscription.unsubscribe();
   }, []);
+
+  // Track post open on detail page load
+  useEffect(() => {
+    trackEvent(post.id, 'POST_OPEN', session?.access_token);
+  }, [post.id, session?.access_token]);
+
+  // Track post view when visible in viewport
+  useEffect(() => {
+    if (!postRef.current || viewTrackedRef.current) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => {
+        if (entry.isIntersecting && !viewTrackedRef.current) {
+          viewTrackedRef.current = true;
+          trackEvent(post.id, 'POST_VIEW', session?.access_token);
+          observer.disconnect();
+        }
+      },
+      { threshold: 0.5 }
+    );
+
+    observer.observe(postRef.current);
+    return () => observer.disconnect();
+  }, [post.id, session?.access_token]);
 
   // Highlight and scroll to comment
   useEffect(() => {
@@ -164,6 +192,9 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     }
     setSavedIds(nextSaved);
     localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
+    if (!savedIds.includes(post.id)) {
+      trackEvent(post.id, 'POST_SAVE', session?.access_token);
+    }
   };
 
   const handleVote = async (voteType: 'up' | 'down') => {
@@ -232,6 +263,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         body: JSON.stringify({ post_id: post.id, vote_type: voteType }),
       });
       if (!res.ok) throw new Error('Vote failed');
+      trackEvent(post.id, voteType === 'up' ? 'POST_UPVOTE' : 'POST_DOWNVOTE', session.access_token);
     } catch (err) {
       console.error(err);
       // Revert optimistic update
@@ -315,6 +347,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setComments(prev => [...prev, newComment]);
       setPost(prev => ({ ...prev, comments_count: prev.comments_count + 1 }));
       setCommentText('');
+      trackEvent(post.id, 'POST_COMMENT', session.access_token);
     } catch (err: any) {
       alert(err.message);
     } finally {
@@ -709,7 +742,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const authorUsername = authorProfile?.username;
 
   return (
-    <article className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
+    <article ref={postRef} className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
       {/* Dynamic Header */}
       <div className="post-header" style={{ marginBottom: '1rem' }}>
         <div className="post-user">
@@ -849,6 +882,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                     onClick={() => {
                       setActiveShareMenu(false);
                       window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + post.slug)}`, '_blank');
+                      trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'whatsapp' });
                     }}
                   >
                     💬 WhatsApp
@@ -858,6 +892,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                     onClick={() => {
                       setActiveShareMenu(false);
                       window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/post/' + post.slug)}`, '_blank');
+                      trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'linkedin' });
                     }}
                   >
                     💼 LinkedIn
@@ -867,6 +902,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                     onClick={() => {
                       setActiveShareMenu(false);
                       window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + post.slug)}&title=${encodeURIComponent(post.title)}`, '_blank');
+                      trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'reddit' });
                     }}
                   >
                     👽 Reddit
@@ -878,6 +914,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                       const shareUrl = `${window.location.origin}/post/${post.slug}`;
                       navigator.clipboard.writeText(shareUrl);
                       showToast('Link copied!');
+                      trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'copy' });
                     }}
                   >
                     <Copy size={13} /> Copy Link
@@ -986,6 +1023,31 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
             {post.type === 'problem' ? 'Problem' : 'Idea'}
           </span>
+
+          {isOwner && (
+            <button
+              onClick={() => router.push(`/analytics?postId=${post.id}`)}
+              className="theme-toggle-btn"
+              style={{
+                marginLeft: 'auto',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: '0.35rem 0.65rem',
+                borderRadius: '8px',
+                border: '1px solid var(--border-color)',
+                background: 'var(--bg-hover)',
+                color: 'var(--accent-blue)',
+                fontSize: '0.75rem',
+                fontWeight: 500,
+                cursor: 'pointer',
+              }}
+              title="View Analytics"
+            >
+              <BarChart2 size={14} />
+              Analytics
+            </button>
+          )}
         </div>
       </div>
 
