@@ -23,7 +23,7 @@ import {
 } from 'lucide-react';
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Post, Comment } from '@/lib/types';
+import { Post } from '@/lib/types';
 import AuthModal from './AuthModal';
 import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
@@ -32,6 +32,7 @@ import ImageGallery from './ImageGallery';
 import ErrorBoundary from './ErrorBoundary';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
+import CommentsModal from './CommentsModal';
 
 function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance } = useMicroAnimations();
@@ -44,7 +45,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const activeFilter = searchParams.get('filter') || defaultFilter || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
-  const [openComments, setOpenComments] = useState<Record<string, boolean>>({});
+  const [commentsModalPostId, setCommentsModalPostId] = useState<string | null>(null);
   const [shuffledPosts, setShuffledPosts] = useState<Post[]>([]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -303,18 +304,14 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
   const handleVote = (postId: string, voteType: 'up' | 'down') => {
     if (!session) {
-      alert('Please sign in to vote.');
+      setIsAuthOpen(true);
       return;
     }
     voteMutation.mutate({ postId, voteType });
   };
 
-
-  const toggleComments = (postId: string) => {
-    setOpenComments(prev => ({
-      ...prev,
-      [postId]: !prev[postId]
-    }));
+  const openCommentsModal = (postId: string) => {
+    setCommentsModalPostId(postId);
   };
 
   // Render list of posts
@@ -334,6 +331,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   }, [session]);
 
   const displayedPosts = session ? posts : shuffledPosts;
+
+  const commentsModalPost = commentsModalPostId
+    ? displayedPosts.find((p) => p.id === commentsModalPostId) || null
+    : null;
 
   useEffect(() => {
     if (!isLoading && displayedPosts.length > 0) {
@@ -485,37 +486,29 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   />
                   <div className="post-user-info">
                     <h4
-                      className="flex items-center gap-1.5 flex-wrap"
-                      style={{ fontWeight: 600, fontSize: '0.9rem' }}
+                      className="post-author-name"
+                      onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
                     >
-                      <span 
-                        onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
-                        style={{ cursor: 'pointer', color: 'var(--text-main)' }}
-                      >
-                        {post.profiles?.full_name || 'Anonymous'}
-                      </span>
-                      {post.profiles?.username && (
-                        <span 
-                          onClick={() => router.push(`/user/${post.profiles?.username}`)}
-                          style={{ cursor: 'pointer', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500 }}
-                        >
-                          @{post.profiles.username}
-                        </span>
-                      )}
-                      <span
-                        style={{
-                          fontSize: '0.65rem',
-                          fontWeight: 500,
-                          background: 'var(--bg-hover)',
-                          padding: '1px 6px',
-                          borderRadius: '10px',
-                          color: 'var(--text-muted)'
-                        }}
-                      >
-                        {post.profiles?.role || 'Innovator'}
-                      </span>
+                      {post.profiles?.full_name || 'Anonymous'}
                     </h4>
-                    <p>{new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</p>
+                    {post.profiles?.username && (
+                      <p
+                        className="post-author-username"
+                        onClick={() => router.push(`/user/${post.profiles!.username!}`)}
+                      >
+                        @{post.profiles.username}
+                      </p>
+                    )}
+                    <p className="post-author-meta">
+                      <span className="post-author-role">{post.profiles?.role || 'Innovator'}</span>
+                      <span className="post-author-dot">·</span>
+                      {new Date(post.created_at).toLocaleDateString(undefined, {
+                        month: 'short',
+                        day: 'numeric',
+                        hour: '2-digit',
+                        minute: '2-digit',
+                      })}
+                    </p>
                   </div>
                 </div>
 
@@ -672,8 +665,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               {/* Multiple Image Gallery Grid / Lightbox display */}
               <ImageGallery imageUrlsString={post.image_url} />
 
-              <div className="post-footer" style={{ borderBottom: openComments[post.id] ? 'none' : undefined, paddingBottom: openComments[post.id] ? '0' : undefined }}>
-                <div className="flex items-center gap-2">
+              <div className="post-footer">
+                <div className="flex items-center gap-2 post-footer-actions">
                   {/* Upvote Capsule */}
                   <div className="vote-container" style={{ borderColor: hasUpvoted ? 'var(--accent-blue)' : undefined, background: hasUpvoted ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
                     <button
@@ -704,17 +697,16 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     </span>
                   </div>
 
-                  {/* Comments Toggle */}
-                  <div
-                    onClick={() => toggleComments(post.id)}
-                    style={{ position: 'relative', cursor: 'pointer', display: 'flex', alignItems: 'center', marginLeft: '0.5rem', color: openComments[post.id] ? 'var(--text-main)' : 'var(--text-muted)' }}
-                    aria-label="Toggle comments"
+                  {/* Comments — opens modal */}
+                  <button
+                    type="button"
+                    className="post-comment-btn"
+                    onClick={() => openCommentsModal(post.id)}
+                    aria-label="View comments"
                   >
                     <MessageCircle size={19} />
-                    <span className="comment-count-badge" style={{ background: openComments[post.id] ? 'var(--text-main)' : undefined, color: openComments[post.id] ? 'var(--bg-dark)' : undefined }}>
-                      {post.comments_count}
-                    </span>
-                  </div>
+                    <span className="post-comment-count">{post.comments_count}</span>
+                  </button>
 
                   {/* Post Type Badge */}
                   <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
@@ -722,11 +714,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   </span>
                 </div>
               </div>
-
-              {/* Collapsible Comments Section */}
-              {openComments[post.id] && (
-                <CommentsSection postId={post.id} session={session} />
-              )}
             </div>
           </ErrorBoundary>
         );
@@ -782,6 +769,16 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
 
+      <CommentsModal
+        post={commentsModalPost}
+        isOpen={!!commentsModalPost}
+        onClose={() => setCommentsModalPostId(null)}
+        session={session}
+        userVote={commentsModalPost ? userVotes?.[commentsModalPost.id] || null : null}
+        onVote={handleVote}
+        onAuthRequired={() => setIsAuthOpen(true)}
+      />
+
       {editingPost && (
         <EditPostModal
           isOpen={!!editingPost}
@@ -809,337 +806,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         </div>
       )}
     </main>
-  );
-}
-
-// ── Comments Subcomponent ──
-interface CommentsSectionProps {
-  postId: string;
-  session: any;
-}
-
-function CommentsSection({ postId, session }: CommentsSectionProps) {
-  const queryClient = useQueryClient();
-  const router = useRouter();
-  const [commentText, setCommentText] = useState('');
-  const [editCommentId, setEditCommentId] = useState<string | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
-  const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
-
-  // Fetch comments for this post
-  const { data: comments, isLoading, isError } = useQuery<Comment[]>({
-    queryKey: ['comments', postId],
-    queryFn: async () => {
-      // 1. Try join fetch (depends on foreign key constraint)
-      const { data, error } = await supabase
-        .from('comments')
-        .select('*, profiles:user_id(full_name, avatar_url)')
-        .eq('post_id', postId)
-        .order('created_at', { ascending: true });
-
-      if (error) {
-        console.warn('Comments join query failed (likely missing FK constraint). Falling back to split fetch...', error);
-
-        // 2. Fallback: Fetch raw comments first
-        const { data: rawComments, error: commentsError } = await supabase
-          .from('comments')
-          .select('*')
-          .eq('post_id', postId)
-          .order('created_at', { ascending: true });
-
-        if (commentsError) throw new Error(commentsError.message);
-        if (!rawComments || rawComments.length === 0) return [];
-
-        // 3. Fetch profiles for user_ids in comments
-        const userIds = Array.from(new Set(rawComments.map(c => c.user_id)));
-        const { data: profiles, error: profilesError } = await supabase
-          .from('profiles')
-          .select('id, full_name, avatar_url, role')
-          .in('id', userIds);
-
-        if (profilesError) {
-          console.warn('Fallback profiles fetch failed:', profilesError);
-          return rawComments.map(c => ({
-            ...c,
-            profiles: null
-          }));
-        }
-
-        // 4. Map profiles back to comments
-        const profileMap = new Map(profiles.map(p => [p.id, p]));
-        return rawComments.map(c => ({
-          ...c,
-          profiles: profileMap.get(c.user_id) || null
-        }));
-      }
-
-      return data || [];
-    }
-  });
-
-  // Create Comment Mutation
-  const addCommentMutation = useMutation({
-    mutationFn: async (body: string) => {
-      if (!session) throw new Error('Must be logged in');
-      const res = await fetch('/api/posts/comment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ post_id: postId, body }),
-      });
-      if (!res.ok) throw new Error('Failed to post comment');
-      return res.json();
-    },
-    onSuccess: () => {
-      setCommentText('');
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    }
-  });
-
-  // Delete Comment Mutation
-  const deleteCommentMutation = useMutation({
-    mutationFn: async (commentId: string) => {
-      const { error } = await supabase
-        .from('comments')
-        .delete()
-        .eq('id', commentId);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => {
-      setDeletingCommentId(null);
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    }
-  });
-
-  // Update Comment Mutation
-  const updateCommentMutation = useMutation({
-    mutationFn: async ({ commentId, body }: { commentId: string; body: string }) => {
-      const { error } = await supabase
-        .from('comments')
-        .update({ body })
-        .eq('id', commentId);
-      if (error) throw new Error(error.message);
-    },
-    onSuccess: () => {
-      setEditCommentId(null);
-      setEditCommentText('');
-      queryClient.invalidateQueries({ queryKey: ['comments', postId] });
-      queryClient.invalidateQueries({ queryKey: ['posts'] });
-    }
-  });
-
-  const handleCommentSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session) {
-      alert('Please sign in to add comments.');
-      return;
-    }
-    if (!commentText.trim()) return;
-    addCommentMutation.mutate(commentText);
-  };
-
-  const handleDeleteComment = (commentId: string) => {
-    setDeletingCommentId(commentId);
-  };
-
-  return (
-    <div className="comments-section">
-      {isLoading && (
-        <div style={{ display: 'flex', justifyContent: 'center', padding: '1rem 0' }}>
-          <Loader2 size={18} className="spin" style={{ color: 'var(--text-muted)' }} />
-        </div>
-      )}
-
-      {isError && (
-        <p style={{ color: '#ef4444', fontSize: '0.8rem', textAlign: 'center', margin: '0.5rem 0' }}>
-          Failed to load comments.
-        </p>
-      )}
-
-      {!isLoading && !isError && (
-        <div className="comments-list">
-          {comments?.length === 0 ? (
-            <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', textAlign: 'center', padding: '0.5rem 0' }}>
-              No comments yet. Start the conversation!
-            </p>
-          ) : (
-            comments?.map((comment) => {
-              const isCommentOwner = session?.user?.id === comment.user_id;
-              const authorName = (comment.profiles?.full_name?.trim() ? comment.profiles.full_name : null) ||
-                (isCommentOwner ? session?.user?.user_metadata?.full_name : null) ||
-                'Anonymous';
-              const authorAvatar = comment.profiles?.avatar_url ||
-                (isCommentOwner ? session?.user?.user_metadata?.avatar_url : null) ||
-                `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`;
-              const authorRole = comment.profiles?.role ||
-                (isCommentOwner ? session?.user?.user_metadata?.role : null) ||
-                'Innovator';
-
-              return (
-                <div className="comment-item" key={comment.id}>
-                  <img
-                    src={authorAvatar}
-                    alt={authorName}
-                    className="comment-avatar"
-                    onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}
-                    onError={(e) => {
-                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                    }}
-                    style={{ cursor: 'pointer', flexShrink: 0 }}
-                  />
-                  <div className="comment-content">
-                    <div className="comment-author-time">
-                      <span
-                        className="comment-author"
-                        style={{ display: 'inline-flex', alignItems: 'center', gap: '0.35rem', cursor: 'pointer' }}
-                      >
-                        <span onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}>
-                          {authorName}
-                        </span>
-                        {comment.profiles?.username && (
-                          <span 
-                            onClick={() => router.push(`/user/${comment.profiles?.username}`)}
-                            style={{ color: 'var(--accent-blue)', fontSize: '0.75rem', fontWeight: 500 }}
-                          >
-                            @{comment.profiles.username}
-                          </span>
-                        )}
-                        <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '1px 5px', borderRadius: '8px', fontWeight: 500 }}>
-                          {authorRole}
-                        </span>
-                      </span>
-                      <span className="comment-time" style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                        {new Date(comment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}
-                        {isCommentOwner && (
-                          <div style={{ display: 'flex', gap: '4px' }}>
-                            <button
-                              onClick={() => {
-                                setEditCommentId(comment.id);
-                                setEditCommentText(comment.body);
-                              }}
-                              style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px', display: 'flex' }}
-                              title="Edit"
-                            >
-                              <Pencil size={12} />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteComment(comment.id)}
-                              style={{ background: 'transparent', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', display: 'flex' }}
-                              title="Delete"
-                            >
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        )}
-                      </span>
-                    </div>
-                    <div className="comment-text">
-                      {editCommentId === comment.id ? (
-                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px', marginTop: '4px' }}>
-                          <textarea
-                            value={editCommentText}
-                            onChange={(e) => setEditCommentText(e.target.value)}
-                            style={{ 
-                              width: '100%', 
-                              minHeight: '60px',
-                              padding: '10px 12px', 
-                              borderRadius: '8px', 
-                              border: '1px solid var(--border-color)', 
-                              background: 'var(--bg-secondary)', 
-                              color: 'var(--text-main)', 
-                              fontSize: '0.9rem',
-                              fontFamily: 'inherit',
-                              resize: 'vertical',
-                              outline: 'none',
-                              transition: 'border-color 0.2s',
-                            }}
-                            onFocus={(e) => e.target.style.borderColor = 'var(--accent-blue)'}
-                            onBlur={(e) => e.target.style.borderColor = 'var(--border-color)'}
-                            autoFocus
-                            onKeyDown={(e) => {
-                              if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                updateCommentMutation.mutate({ commentId: comment.id, body: editCommentText });
-                              } else if (e.key === 'Escape') {
-                                setEditCommentId(null);
-                              }
-                            }}
-                          />
-                          <div style={{ display: 'flex', gap: '8px', justifyContent: 'flex-end', alignItems: 'center' }}>
-                            <button 
-                              onClick={() => setEditCommentId(null)}
-                              style={{ fontSize: '0.85rem', padding: '6px 12px', background: 'transparent', color: 'var(--text-muted)', border: 'none', cursor: 'pointer', fontWeight: 500, borderRadius: '6px', transition: 'background 0.2s' }}
-                              onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(255,255,255,0.05)'}
-                              onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                            >
-                              Cancel
-                            </button>
-                            <button 
-                              onClick={() => updateCommentMutation.mutate({ commentId: comment.id, body: editCommentText })}
-                              style={{ fontSize: '0.85rem', padding: '6px 16px', background: 'var(--accent-blue)', color: 'white', border: 'none', borderRadius: '20px', cursor: 'pointer', display: 'flex', alignItems: 'center', fontWeight: 600, transition: 'opacity 0.2s' }}
-                              onMouseEnter={(e) => e.currentTarget.style.opacity = '0.9'}
-                              onMouseLeave={(e) => e.currentTarget.style.opacity = '1'}
-                              disabled={!editCommentText.trim() || updateCommentMutation.isPending}
-                            >
-                              {updateCommentMutation.isPending ? <Loader2 size={12} className="spin" /> : 'Save'}
-                            </button>
-                          </div>
-                        </div>
-                      ) : (
-                        <RenderSegments segments={parseLinksInText(decodeHTMLEntities(comment.body))} />
-                      )}
-                    </div>
-                  </div>
-                </div>
-              );
-            })
-          )}
-        </div>
-      )}
-
-      {/* Write Comment Form */}
-      <form onSubmit={handleCommentSubmit} className="comment-input-wrapper">
-        <img
-          src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
-          alt="You"
-          onError={(e) => {
-            e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-          }}
-          style={{ width: '26px', height: '26px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
-        />
-        <input
-          type="text"
-          placeholder={session ? "Write a comment..." : "Sign in to write a comment"}
-          value={commentText}
-          onChange={(e) => setCommentText(e.target.value)}
-          disabled={!session || addCommentMutation.isPending}
-        />
-        <button
-          type="submit"
-          style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '4px' }}
-          disabled={!session || !commentText.trim() || addCommentMutation.isPending}
-        >
-          {addCommentMutation.isPending ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
-        </button>
-      </form>
-
-      <DeleteConfirmModal
-        isOpen={!!deletingCommentId}
-        onClose={() => setDeletingCommentId(null)}
-        onConfirm={() => {
-          if (deletingCommentId) {
-            deleteCommentMutation.mutate(deletingCommentId);
-          }
-        }}
-        title="Delete Comment"
-        description="Are you sure you want to delete this comment? This action is permanent and cannot be undone."
-        isPending={deleteCommentMutation.isPending}
-      />
-    </div>
   );
 }
 

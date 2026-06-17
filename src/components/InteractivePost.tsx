@@ -5,7 +5,6 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Image as ImageIcon,
   Link2,
-  Send,
   TriangleIcon,
   MessageCircle,
   Bookmark,
@@ -16,7 +15,6 @@ import {
   Share2,
   Copy,
   Loader2,
-  Edit2,
   BarChart2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
@@ -27,6 +25,7 @@ import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import ImageGallery from './ImageGallery';
+import CommentThread from './CommentThread';
 
 interface InteractivePostProps {
   initialPost: Post;
@@ -44,15 +43,6 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   
-  // Comment composer state
-  const [commentText, setCommentText] = useState('');
-  const [commentSubmitting, setCommentSubmitting] = useState(false);
-
-  // Reply composer state
-  const [activeReplyCommentId, setActiveReplyCommentId] = useState<string | null>(null);
-  const [replyText, setReplyText] = useState('');
-  const [replySubmitting, setReplySubmitting] = useState(false);
-  
   // Modals & Popovers state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isEditPostOpen, setIsEditPostOpen] = useState(false);
@@ -64,10 +54,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const postRef = useRef<HTMLElement>(null);
   const viewTrackedRef = useRef(false);
 
-  // Edit Comment State
-  const [editCommentId, setEditCommentId] = useState<string | null>(null);
-  const [editCommentText, setEditCommentText] = useState('');
-  const [isEditingComment, setIsEditingComment] = useState(false);
+  // Edit Comment State - handled by CommentThread
 
   // Load Session and Votes on Mount
   useEffect(() => {
@@ -290,165 +277,86 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     }
   };
 
-  const handleAddComment = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleAddComment = async (body: string, parentId?: string | null) => {
     if (!session) {
       setIsAuthOpen(true);
       return;
     }
-    if (!commentText.trim()) return;
 
-    setCommentSubmitting(true);
-
-    // Dynamic support for mock posts comment addition
     if (post.id === 'dylan-post' || post.id === 'ryan-post') {
       const mockComment: Comment = {
         id: `mock-comment-${Date.now()}`,
         post_id: post.id,
+        parent_id: parentId || null,
         user_id: session.user.id,
-        body: commentText,
+        body,
         created_at: new Date().toISOString(),
         updated_at: new Date().toISOString(),
         profiles: {
           full_name: session.user.user_metadata?.full_name || 'Member',
           avatar_url: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
           role: session.user.user_metadata?.role || 'Innovator',
-        } as any
+          username: session.user.user_metadata?.username || null,
+        } as any,
       };
-      setComments(prev => [...prev, mockComment]);
-      setPost(prev => ({ ...prev, comments_count: prev.comments_count + 1 }));
-      setCommentText('');
-      setCommentSubmitting(false);
+      setComments((prev) => [...prev, mockComment]);
+      setPost((prev) => ({ ...prev, comments_count: prev.comments_count + 1 }));
       return;
     }
 
-    try {
-      const res = await fetch('/api/posts/comment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ post_id: post.id, body: commentText.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit comment');
-      
-      const newComment: Comment = {
-        ...data.comment,
-        profiles: {
-          full_name: session.user.user_metadata?.full_name || 'Member',
-          avatar_url: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
-          role: session.user.user_metadata?.role || 'Innovator',
-          username: session.user.user_metadata?.username || null
-        }
-      };
-
-      setComments(prev => [...prev, newComment]);
-      setPost(prev => ({ ...prev, comments_count: prev.comments_count + 1 }));
-      setCommentText('');
-      trackEvent(post.id, 'POST_COMMENT', session.access_token);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setCommentSubmitting(false);
-    }
-  };
-
-  const handleAddReply = async (parentId: string, e: React.FormEvent) => {
-    e.preventDefault();
-    if (!session) {
-      setIsAuthOpen(true);
-      return;
-    }
-    if (!replyText.trim()) return;
-
-    setReplySubmitting(true);
-
-    // Dynamic support for mock posts comment addition
-    if (post.id === 'dylan-post' || post.id === 'ryan-post') {
-      const mockReply: Comment = {
-        id: `mock-reply-${Date.now()}`,
+    const res = await fetch('/api/posts/comment', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({
         post_id: post.id,
-        parent_id: parentId,
-        user_id: session.user.id,
-        body: replyText,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        profiles: {
-          full_name: session.user.user_metadata?.full_name || 'Member',
-          avatar_url: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
-          role: session.user.user_metadata?.role || 'Innovator',
-          username: session.user.user_metadata?.username || null
-        } as any
-      };
-      setComments(prev => [...prev, mockReply]);
-      setPost(prev => ({ ...prev, comments_count: prev.comments_count + 1 }));
-      setReplyText('');
-      setActiveReplyCommentId(null);
-      setReplySubmitting(false);
-      return;
-    }
+        body,
+        parent_id: parentId || null,
+      }),
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || 'Failed to submit comment');
 
-    try {
-      const res = await fetch('/api/posts/comment', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-        },
-        body: JSON.stringify({ post_id: post.id, body: replyText.trim(), parent_id: parentId }),
-      });
-      const data = await res.json();
-      if (!res.ok) throw new Error(data.error || 'Failed to submit reply');
-      
-      const newReply: Comment = {
-        ...data.comment,
-        profiles: {
-          full_name: session.user.user_metadata?.full_name || 'Member',
-          avatar_url: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
-          role: session.user.user_metadata?.role || 'Innovator',
-          username: session.user.user_metadata?.username || null
-        }
-      };
+    const newComment: Comment = {
+      ...data.comment,
+      profiles: {
+        full_name: session.user.user_metadata?.full_name || 'Member',
+        avatar_url:
+          session.user.user_metadata?.avatar_url ||
+          `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
+        role: session.user.user_metadata?.role || 'Innovator',
+        username: session.user.user_metadata?.username || null,
+      },
+    };
 
-      setComments(prev => [...prev, newReply]);
-      setPost(prev => ({ ...prev, comments_count: prev.comments_count + 1 }));
-      setReplyText('');
-      setActiveReplyCommentId(null);
-    } catch (err: any) {
-      alert(err.message);
-    } finally {
-      setReplySubmitting(false);
+    setComments((prev) => [...prev, newComment]);
+    setPost((prev) => ({ ...prev, comments_count: prev.comments_count + 1 }));
+    if (!parentId) {
+      trackEvent(post.id, 'POST_COMMENT', session.access_token);
     }
   };
 
-  const handleEditComment = async (commentId: string) => {
-    if (!editCommentText.trim()) return;
-    setIsEditingComment(true);
+  const handleEditComment = async (commentId: string, body: string) => {
+    if (!body.trim()) return;
 
-    try {
-      // In Supabase, standard client edit
-      const { error } = await supabase
-        .from('comments')
-        .update({ body: editCommentText.trim(), updated_at: new Date().toISOString() })
-        .eq('id', commentId)
-        .eq('user_id', session.user.id);
+    const { error } = await supabase
+      .from('comments')
+      .update({ body: body.trim(), updated_at: new Date().toISOString() })
+      .eq('id', commentId)
+      .eq('user_id', session.user.id);
 
-      if (error) throw error;
+    if (error) throw error;
 
-      setComments(prev => prev.map(c => c.id === commentId ? { ...c, body: editCommentText.trim(), updated_at: new Date().toISOString() } : c));
-      setEditCommentId(null);
-      setEditCommentText('');
-    } catch (err: any) {
-      alert(err.message || 'Failed to edit comment');
-    } finally {
-      setIsEditingComment(false);
-    }
+    setComments((prev) =>
+      prev.map((c) =>
+        c.id === commentId ? { ...c, body: body.trim(), updated_at: new Date().toISOString() } : c
+      )
+    );
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    if (!window.confirm('Delete comment?')) return;
     try {
       const { error } = await supabase
         .from('comments')
@@ -484,254 +392,6 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setIsDeletingPost(false);
       setIsDeletePostOpen(false);
     }
-  };
-
-  // Group comments into parents and replies
-  const parentComments = comments.filter(c => !c.parent_id);
-  const repliesByParentId = comments.reduce((acc, curr) => {
-    if (curr.parent_id) {
-      if (!acc[curr.parent_id]) {
-        acc[curr.parent_id] = [];
-      }
-      acc[curr.parent_id].push(curr);
-    }
-    return acc;
-  }, {} as Record<string, Comment[]>);
-
-  const renderCommentNode = (comment: Comment, isReply = false) => {
-    const isCommentOwner = session?.user?.id === comment.user_id;
-    const commentAuthorName = comment.profiles?.full_name || 'Anonymous';
-    const commentAuthorAvatar = comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`;
-    const commentAuthorRole = comment.profiles?.role || 'Innovator';
-    const commentAuthorUsername = comment.profiles?.username;
-
-    return (
-      <div 
-        key={comment.id} 
-        id={`comment-${comment.id}`}
-        style={{ 
-          display: 'flex', 
-          gap: '0.75rem', 
-          alignItems: 'flex-start', 
-          padding: '0.75rem', 
-          borderRadius: '12px',
-          borderBottom: '1px solid rgba(255, 255, 255, 0.03)',
-          marginLeft: isReply ? '2.5rem' : '0px',
-          borderLeft: isReply ? '2px solid var(--border-color)' : 'none',
-          paddingLeft: isReply ? '0.75rem' : '0.75rem',
-          background: isReply ? 'rgba(255, 255, 255, 0.01)' : 'transparent',
-          marginTop: isReply ? '0.5rem' : '0px',
-          transition: 'background-color 0.5s ease'
-        }}
-      >
-        <img
-          src={commentAuthorAvatar}
-          alt={commentAuthorName}
-          className="avatar"
-          onClick={() => router.push(commentAuthorUsername ? `/user/${commentAuthorUsername}` : `/profile?userId=${comment.user_id}`)}
-          onError={(e) => {
-            e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-          }}
-          style={{ width: isReply ? '26px' : '32px', height: isReply ? '26px' : '32px', borderRadius: '50%', flexShrink: 0, cursor: 'pointer' }}
-        />
-        
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
-              <span
-                style={{ fontSize: '0.8rem', fontWeight: 600, color: 'var(--text-main)', cursor: 'pointer' }}
-                onClick={() => router.push(commentAuthorUsername ? `/user/${commentAuthorUsername}` : `/profile?userId=${comment.user_id}`)}
-              >
-                {commentAuthorName}
-              </span>
-              {commentAuthorUsername && (
-                <span 
-                  style={{ fontSize: '0.75rem', color: 'var(--accent-blue)', fontWeight: 500, cursor: 'pointer' }}
-                  onClick={() => router.push(`/user/${commentAuthorUsername}`)}
-                >
-                  @{commentAuthorUsername}
-                </span>
-              )}
-              <span style={{ fontSize: '0.6rem', color: 'var(--text-muted)', background: 'var(--bg-hover)', padding: '1px 5px', borderRadius: '8px' }}>
-                {commentAuthorRole}
-              </span>
-            </div>
-
-            {isCommentOwner && (
-              <div style={{ display: 'flex', gap: '0.4rem' }}>
-                <button
-                  onClick={() => {
-                    setEditCommentId(comment.id);
-                    setEditCommentText(comment.body);
-                  }}
-                  style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: '2px' }}
-                  title="Edit Comment"
-                >
-                  <Edit2 size={12} />
-                </button>
-                <button
-                  onClick={() => handleDeleteComment(comment.id)}
-                  style={{ background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px' }}
-                  title="Delete Comment"
-                >
-                  <Trash2 size={12} />
-                </button>
-              </div>
-            )}
-          </div>
-
-          <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-            {new Date(comment.created_at).toLocaleDateString(undefined, {
-              month: 'short',
-              day: 'numeric',
-              hour: '2-digit',
-              minute: '2-digit'
-            })}
-          </p>
-
-          {editCommentId === comment.id ? (
-            <div style={{ marginTop: '0.5rem', display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-              <input
-                type="text"
-                value={editCommentText}
-                onChange={(e) => setEditCommentText(e.target.value)}
-                disabled={isEditingComment}
-                style={{
-                  flex: 1,
-                  background: 'var(--bg-card)',
-                  border: '1px solid var(--border-color)',
-                  borderRadius: '8px',
-                  padding: '4px 8px',
-                  fontSize: '0.82rem',
-                  color: 'var(--text-main)',
-                  outline: 'none'
-                }}
-              />
-              <button
-                onClick={() => handleEditComment(comment.id)}
-                disabled={isEditingComment}
-                style={{
-                  background: 'var(--accent-blue)',
-                  border: 'none',
-                  color: 'white',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Save
-              </button>
-              <button
-                onClick={() => setEditCommentId(null)}
-                disabled={isEditingComment}
-                style={{
-                  background: 'var(--bg-hover)',
-                  border: '1px solid var(--border-color)',
-                  color: 'var(--text-main)',
-                  padding: '4px 10px',
-                  borderRadius: '8px',
-                  fontSize: '0.75rem',
-                  cursor: 'pointer'
-                }}
-              >
-                Cancel
-              </button>
-            </div>
-          ) : (
-            <>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-main)', marginTop: '0.4rem', lineHeight: '1.4', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                {comment.body}
-              </p>
-              
-              {/* Reply Button (Only for main comments) */}
-              {!isReply && session && (
-                <button
-                  onClick={() => {
-                    setActiveReplyCommentId(activeReplyCommentId === comment.id ? null : comment.id);
-                    setReplyText('');
-                  }}
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: 'var(--accent-blue)',
-                    fontSize: '0.75rem',
-                    fontWeight: 500,
-                    cursor: 'pointer',
-                    marginTop: '0.5rem',
-                    padding: '2px 0px',
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '4px'
-                  }}
-                >
-                  <MessageCircle size={12} />
-                  Reply
-                </button>
-              )}
-
-              {/* Reply Composer Form */}
-              {!isReply && activeReplyCommentId === comment.id && (
-                <form 
-                  onSubmit={(e) => handleAddReply(comment.id, e)} 
-                  style={{ marginTop: '0.75rem', display: 'flex', gap: '0.5rem', alignItems: 'flex-start' }}
-                >
-                  <img
-                    src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=guest"}
-                    alt="You"
-                    className="avatar"
-                    onError={(e) => {
-                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                    }}
-                    style={{ width: '24px', height: '24px', borderRadius: '50%', flexShrink: 0 }}
-                  />
-                  <div style={{ flex: 1, position: 'relative' }}>
-                    <textarea
-                      className="composer-input"
-                      rows={1}
-                      placeholder="Write a reply..."
-                      value={replyText}
-                      onChange={(e) => setReplyText(e.target.value)}
-                      disabled={replySubmitting}
-                      style={{
-                        width: '100%',
-                        background: 'var(--bg-hover)',
-                        border: '1px solid var(--border-color)',
-                        borderRadius: '8px',
-                        padding: '0.5rem 2rem 0.5rem 0.5rem',
-                        fontSize: '0.8rem',
-                        color: 'var(--text-main)',
-                        resize: 'none',
-                        outline: 'none'
-                      }}
-                    />
-                    <button
-                      type="submit"
-                      disabled={replySubmitting || !replyText.trim()}
-                      style={{
-                        position: 'absolute',
-                        right: '8px',
-                        bottom: '8px',
-                        background: 'none',
-                        border: 'none',
-                        color: replyText.trim() ? 'var(--accent-blue)' : 'var(--text-muted)',
-                        cursor: replyText.trim() ? 'pointer' : 'default',
-                        padding: '2px'
-                      }}
-                    >
-                      {replySubmitting ? <Loader2 size={12} className="spin" /> : <Send size={12} />}
-                    </button>
-                  </div>
-                </form>
-              )}
-            </>
-          )}
-
-          {/* Render Replies (Nested) */}
-          {!isReply && repliesByParentId[comment.id]?.map(reply => renderCommentNode(reply, true))}
-        </div>
-      </div>
-    );
   };
 
   const isOwner = session?.user?.id === post.user_id;
@@ -1052,71 +712,30 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       </div>
 
       {/* ── Interactive Comments Section ── */}
-      <div className="comments-section" style={{ marginTop: '1.5rem' }}>
-        <h2 style={{ fontSize: '1.05rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '1rem' }}>
-          Comments ({comments.length})
-        </h2>
+      <div className="comments-section post-comments-section">
+        <h2 className="post-comments-title">Comments ({comments.length})</h2>
 
-        {/* Comment Composer Form */}
-        <form onSubmit={handleAddComment} style={{ marginBottom: '1.5rem', display: 'flex', gap: '0.75rem', alignItems: 'flex-start' }}>
-          <img
-            src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=guest"}
-            alt="You"
-            className="avatar"
-            style={{ width: '32px', height: '32px', borderRadius: '50%', flexShrink: 0 }}
-          />
-          <div style={{ flex: 1, position: 'relative' }}>
-            <textarea
-              className="composer-input"
-              rows={2}
-              placeholder={session ? "Write a comment..." : "Sign in to join the discussion..."}
-              value={commentText}
-              onChange={(e) => setCommentText(e.target.value)}
-              disabled={commentSubmitting}
-              onClick={() => {
-                if (!session) setIsAuthOpen(true);
-              }}
-              style={{
-                width: '100%',
-                background: 'var(--bg-hover)',
-                border: '1px solid var(--border-color)',
-                borderRadius: '12px',
-                padding: '0.75rem 2.5rem 0.75rem 0.75rem',
-                fontSize: '0.85rem',
-                color: 'var(--text-main)',
-                resize: 'none',
-                outline: 'none'
-              }}
-            />
-            <button
-              type="submit"
-              disabled={commentSubmitting || !commentText.trim()}
-              style={{
-                position: 'absolute',
-                right: '10px',
-                bottom: '12px',
-                background: 'none',
-                border: 'none',
-                color: commentText.trim() ? 'var(--accent-blue)' : 'var(--text-muted)',
-                cursor: commentText.trim() ? 'pointer' : 'default',
-                padding: '4px'
-              }}
-            >
-              {commentSubmitting ? <Loader2 size={16} className="spin" /> : <Send size={16} />}
-            </button>
-          </div>
-        </form>
-
-        {/* Comments List */}
-        <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          {parentComments.length === 0 ? (
-            <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', textAlign: 'center', padding: '1rem' }}>
-              No comments yet. Start the conversation!
-            </p>
-          ) : (
-            parentComments.map((comment) => renderCommentNode(comment, false))
-          )}
-        </div>
+        <CommentThread
+          comments={comments}
+          session={session}
+          postId={post.id}
+          highlightCommentId={highlightComment}
+          onAuthRequired={() => setIsAuthOpen(true)}
+          onAddComment={async (body, parentId) => {
+            try {
+              await handleAddComment(body, parentId);
+            } catch (err: any) {
+              alert(err.message || 'Failed to post comment');
+            }
+          }}
+          onEditComment={async (commentId, body) => {
+            await handleEditComment(commentId, body);
+          }}
+          onDeleteComment={async (commentId) => {
+            if (!window.confirm('Delete comment?')) return;
+            await handleDeleteComment(commentId);
+          }}
+        />
       </div>
 
       {/* Modals & Toast */}

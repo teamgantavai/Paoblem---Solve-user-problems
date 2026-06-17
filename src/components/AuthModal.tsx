@@ -215,69 +215,6 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     }
   };
 
-  // ─── Demo Account Login Logic ───
-  const handleDemoLogin = async () => {
-    setError(null);
-    setLoading(true);
-    const demoEmail = 'demo@paoblem.com';
-    const demoPassword = 'demopassword123';
-
-    try {
-      // 1. Attempt Sign In
-      const { data, error: signInError } = await supabase.auth.signInWithPassword({
-        email: demoEmail,
-        password: demoPassword,
-      });
-
-      if (signInError) {
-        const msg = signInError.message.toLowerCase();
-        // 2. If user doesn't exist, create the demo account dynamically
-        if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
-          setError('Initializing demo account...');
-          const { error: signUpError } = await supabase.auth.signUp({
-            email: demoEmail,
-            password: demoPassword,
-            options: {
-              data: {
-                full_name: 'Demo Innovator',
-                role: 'Innovator',
-              },
-            },
-          });
-
-          if (signUpError) {
-            throw new Error(signUpError.message);
-          }
-
-          // Retry login
-          const { data: retryData, error: retryError } = await supabase.auth.signInWithPassword({
-            email: demoEmail,
-            password: demoPassword,
-          });
-
-          if (retryError) {
-            throw new Error('Demo created but email confirmation is active in Supabase. Please check your Supabase configurations.');
-          } else if (retryData.user) {
-            if (onAuthenticated) onAuthenticated();
-            setStep('success');
-            setTimeout(() => { handleClose(); router.push('/profile'); }, 800);
-          }
-        } else {
-          throw new Error(signInError.message);
-        }
-      } else if (data.user) {
-        if (onAuthenticated) onAuthenticated();
-        setStep('success');
-        setTimeout(() => { handleClose(); router.push('/profile'); }, 800);
-      }
-    } catch (err: any) {
-      console.error(err);
-      setError(err.message || 'Failed to authenticate with demo account');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   // ─── Resend Verification Link ───
   const handleResendVerificationLink = async () => {
     setError(null);
@@ -425,36 +362,6 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             >
               <GoogleIcon />
               Continue with Google
-            </button>
-
-            {/* Demo Account Access Button */}
-            <button
-              type="button"
-              onClick={handleDemoLogin}
-              disabled={loading}
-              className="w-full flex items-center justify-center gap-3 px-4 py-3 rounded-2xl text-sm font-semibold transition-all cursor-pointer"
-              style={{
-                width: '100%',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                gap: '0.5rem',
-                padding: '0.75rem 1rem',
-                backgroundColor: 'rgba(99, 102, 241, 0.1)',
-                border: '1px solid rgba(99, 102, 241, 0.3)',
-                borderRadius: '16px',
-                fontSize: '0.88rem',
-                fontWeight: 600,
-                color: '#818cf8',
-                cursor: 'pointer',
-                transition: 'all 0.2s',
-              }}
-            >
-              <svg style={{ width: '18px', height: '18px' }} fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M11 3.055A9.003 9.003 0 1020.95 13H11V3.055z" />
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.2" d="M20.488 9H15V3.512A9.025 9.025 0 0120.488 9z" />
-              </svg>
-              Quick Demo Login
             </button>
 
             {/* Divider */}

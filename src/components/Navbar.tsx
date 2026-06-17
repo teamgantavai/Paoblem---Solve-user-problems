@@ -244,7 +244,7 @@ function NavbarInner() {
               <AlignLeft size={24} strokeWidth={2.5} />
             </button>
             <img 
-              src={theme === 'light' ? '/logo-light.png' : '/logo.svg'} 
+              src={theme === 'light' ? '/logo-light.svg' : '/logo.svg'} 
               alt="Paoblem Logo" 
               style={{ height: '38px', objectFit: 'contain', cursor: 'pointer' }} 
               onClick={() => router.push('/')}
@@ -487,7 +487,7 @@ function NavbarInner() {
       {/* Side Drawer */}
       <div className={`drawer ${isOpen ? 'open' : ''}`}>
         <div className="drawer-header">
-          <img src={theme === 'light' ? '/logo-light.png' : '/logo.svg'} alt="Paoblem Logo" style={{ height: '32px', objectFit: 'contain' }} />
+          <img src={theme === 'light' ? '/logo-light.svg' : '/logo.svg'} alt="Paoblem Logo" style={{ height: '32px', objectFit: 'contain' }} />
           <button
             className="drawer-close-btn"
             onClick={() => setIsOpen(false)}
