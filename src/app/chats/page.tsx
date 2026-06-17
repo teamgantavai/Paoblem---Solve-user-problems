@@ -630,6 +630,14 @@ function ChatsPageContent() {
 
   const activeChatInfo = activePartnerId ? chatGroups[activePartnerId] : null;
 
+  const latestReadMessageId = useMemo(() => {
+    for (let i = filteredActiveMessages.length - 1; i >= 0; i--) {
+      const m = filteredActiveMessages[i];
+      if (m.sender_id === session?.user?.id && m.read) return m.id;
+    }
+    return null;
+  }, [filteredActiveMessages, session?.user?.id]);
+
   // Shared media panels
   const sharedImages = activeMessages.filter(m => m.type === 'IMAGE' || m.attachments?.some(a => a.file_type.includes('image')));
   const sharedFiles = activeMessages.filter(m => m.type === 'FILE' || m.attachments?.some(a => !a.file_type.includes('image')));
@@ -973,6 +981,23 @@ function ChatsPageContent() {
                                   ))}
                                 </div>
                               )}
+
+                              {/* Seen Avatar Indicator */}
+                              {msg.id === latestReadMessageId && (
+                                <div className="seen-avatar-wrapper">
+                                  {activeChatInfo?.partnerAvatar ? (
+                                    <img 
+                                      src={activeChatInfo.partnerAvatar} 
+                                      alt="seen" 
+                                      className="seen-avatar" 
+                                    />
+                                  ) : (
+                                    <div className="seen-avatar" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.4rem', fontWeight: 'bold', color: 'white' }}>
+                                      {getInitials(activeChatInfo?.partnerName || '?')}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
                             </div>
 
                             {/* Self Avatar - Only on the first message of the group */}
@@ -1004,12 +1029,13 @@ function ChatsPageContent() {
 
                 {/* Partner Typing Indicator */}
                 {partnerTyping && (
-                  <div style={{ padding: '0.45rem 1.25rem', display: 'flex', alignItems: 'center', gap: '0.45rem', fontSize: '0.78rem', color: '#6366f1' }}>
-                    <span>{activeChatInfo.partnerName} is typing...</span>
-                    <div className="typing-dots" style={{ display: 'flex', gap: '3px' }}>
-                      <span className="dot dot1" />
-                      <span className="dot dot2" />
-                      <span className="dot dot3" />
+                  <div className="typing-bubble-wrapper" style={{ padding: '0 1.25rem' }}>
+                    <div className="typing-bubble">
+                      <div className="typing-dots">
+                        <span className="dot dot1" />
+                        <span className="dot dot2" />
+                        <span className="dot dot3" />
+                      </div>
                     </div>
                   </div>
                 )}
