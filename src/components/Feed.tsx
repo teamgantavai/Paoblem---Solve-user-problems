@@ -7,8 +7,7 @@ import {
   Link2,
   Wand2,
   Send,
-  ChevronUp,
-  ChevronDown,
+  TriangleIcon,
   MessageCircle,
   Bookmark,
   MoreVertical,
@@ -337,15 +336,15 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       <h1 className="feed-title">Paoblems</h1>
 
       {singlePostId && (
-        <button 
-          className="btn" 
+        <button
+          className="btn"
           onClick={() => router.push('/')}
-          style={{ 
-            marginBottom: '1.25rem', 
-            display: 'inline-flex', 
-            alignItems: 'center', 
-            gap: '0.5rem', 
-            backgroundColor: 'var(--bg-hover)', 
+          style={{
+            marginBottom: '1.25rem',
+            display: 'inline-flex',
+            alignItems: 'center',
+            gap: '0.5rem',
+            backgroundColor: 'var(--bg-hover)',
             border: '1px solid var(--border-color)',
             color: 'var(--text-main)',
             padding: '0.55rem 1rem',
@@ -463,14 +462,14 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
                     alt={post.profiles?.full_name || 'Anonymous'}
                     className="avatar"
-                    onClick={() => router.push(`/profile?userId=${post.user_id}`)}
+                    onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="post-user-info">
                     <h4
                       className="flex items-center gap-2"
                       style={{ fontWeight: 600, cursor: 'pointer' }}
-                      onClick={() => router.push(`/profile?userId=${post.user_id}`)}
+                      onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
                     >
                       {post.profiles?.full_name || 'Anonymous'}
                       <span
@@ -570,7 +569,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                             onClick={() => {
                               setActiveShareMenuPostId(null);
                               setShowSubSharePostId(null);
-                              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/?post=' + post.id)}`, '_blank');
+                              window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank');
                             }}
                           >
                             💬 WhatsApp
@@ -580,7 +579,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                             onClick={() => {
                               setActiveShareMenuPostId(null);
                               setShowSubSharePostId(null);
-                              window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}`, '_blank');
+                              window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank');
                             }}
                           >
                             💼 LinkedIn
@@ -590,7 +589,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                             onClick={() => {
                               setActiveShareMenuPostId(null);
                               setShowSubSharePostId(null);
-                              window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/?post=' + post.id)}&title=${encodeURIComponent(post.title)}`, '_blank');
+                              window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}&title=${encodeURIComponent(post.title)}`, '_blank');
                             }}
                           >
                             👽 Reddit
@@ -600,7 +599,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                             onClick={() => {
                               setActiveShareMenuPostId(null);
                               setShowSubSharePostId(null);
-                              const shareUrl = `${window.location.origin}/?post=${post.id}`;
+                              const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`;
                               navigator.clipboard.writeText(shareUrl);
                               showToast('Link copied!');
                             }}
@@ -653,7 +652,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
                       aria-label="Upvote"
                     >
-                      <ChevronUp size={16} />
+                      <TriangleIcon size={16} />
                     </button>
                     <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}>
                       +{post.upvotes}
@@ -668,7 +667,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       style={{ color: hasDownvoted ? '#ef4444' : undefined }}
                       aria-label="Downvote"
                     >
-                      <ChevronDown size={16} />
+                      <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} />
                     </button>
                     <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>
                       -{post.downvotes}
@@ -955,14 +954,14 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                     src={authorAvatar}
                     alt={authorName}
                     className="comment-avatar"
-                    onClick={() => router.push(`/profile?userId=${comment.user_id}`)}
+                    onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="comment-content">
                     <div className="comment-author-time">
                       <span
                         className="comment-author"
-                        onClick={() => router.push(`/profile?userId=${comment.user_id}`)}
+                        onClick={() => router.push(comment.profiles?.username ? `/user/${comment.profiles.username}` : `/profile?userId=${comment.user_id}`)}
                         style={{ cursor: 'pointer' }}
                       >
                         {authorName}

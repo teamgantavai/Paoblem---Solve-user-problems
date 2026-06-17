@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('posts')
-      .select('*, profiles:user_id(full_name, avatar_url, role)');
+      .select('*, profiles:user_id(full_name, avatar_url, role, username)');
 
     if (postId) {
       if (postId === 'dylan-post' || postId === 'ryan-post') {

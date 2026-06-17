@@ -1,7 +1,7 @@
 'use client';
 
 import React from 'react';
-import { ChevronUp, MessageCircle, User, Bell, Radio } from 'lucide-react';
+import { TriangleIcon, MessageCircle, User, Bell, Radio } from 'lucide-react';
 import { Notification } from '@/lib/types';
 
 interface NotificationItemProps {
@@ -13,11 +13,13 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
   const getIcon = () => {
     switch (notification.type) {
       case 'upvote':
-        return <ChevronUp size={16} className="notif-icon-vote" />;
+        return <TriangleIcon size={16} className="notif-icon-vote" />;
       case 'comment':
         return <MessageCircle size={16} className="notif-icon-comment" />;
       case 'follow':
         return <User size={16} className="notif-icon-follow" />;
+      case 'downvote':
+        return <TriangleIcon size={16} className="notif-icon-vote" />;
       default:
         return <Bell size={16} className="notif-icon-system" />;
     }
@@ -39,7 +41,7 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
   };
 
   return (
-    <div 
+    <div
       className={`notif-item ${notification.read ? 'read' : 'unread'}`}
       onClick={() => !notification.read && onMarkAsRead(notification.id)}
     >
