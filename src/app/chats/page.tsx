@@ -52,6 +52,27 @@ function ChatsPageContent() {
   const [loadingSession, setLoadingSession] = useState(true);
   const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
+  
+  // Helper to format timestamps to relative time (e.g. "12m", "1h", "2d")
+  const formatRelativeTime = (isoString: string) => {
+    const date = new Date(isoString);
+    const now = new Date();
+    const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
+    
+    if (diffInSeconds < 60) return `${diffInSeconds}s`;
+    
+    const diffInMinutes = Math.floor(diffInSeconds / 60);
+    if (diffInMinutes < 60) return `${diffInMinutes}m`;
+    
+    const diffInHours = Math.floor(diffInMinutes / 60);
+    if (diffInHours < 24) return `${diffInHours}h`;
+    
+    const diffInDays = Math.floor(diffInHours / 24);
+    if (diffInDays < 30) return `${diffInDays}d`;
+    
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric' });
+  };
+
   const [mobileConversationOpen, setMobileConversationOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [chatSearchQuery, setChatSearchQuery] = useState('');
@@ -63,10 +84,16 @@ function ChatsPageContent() {
   const [activeRightTab, setActiveRightTab] = useState<'media' | 'files' | 'links'>('media');
   
   // Modals & AI dropdowns
-  const [emojiPickerOpen, setEmojiPickerOpen] = useState(false);
   const [aiSummaryOpen, setAiSummaryOpen] = useState(false);
-  const [aiSummaryData, setAiSummaryData] = useState<{ summary: string; actionItems: string[] } | null>(null);
   const [loadingSummary, setLoadingSummary] = useState(false);
+  const [aiSummaryData, setAiSummaryData] = useState<{ summary?: string, actionItems?: string[] } | null>(null);
+
+  // New Chat Modal state
+  const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newChatUsername, setNewChatUsername] = useState('');
+  const [newChatLoading, setNewChatLoading] = useState(false);
+  const [newChatError, setNewChatError] = useState('');
+
   const [aiToneEnhanceOpen, setAiToneEnhanceOpen] = useState(false);
   const [enhancingMessage, setEnhancingMessage] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -168,6 +195,7 @@ function ChatsPageContent() {
     if (messages.length > 0) {
       setLocalMessages(messages);
     }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   // Fetch target user's details if we came from their profile
@@ -419,10 +447,39 @@ function ChatsPageContent() {
         const data = await res.json();
         setAiSummaryData(data);
       }
-    } catch (err) {
+    } catch (err: any) {
       console.error(err);
     } finally {
       setLoadingSummary(false);
+    }
+  };
+
+  const handleStartNewChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newChatUsername.trim()) return;
+
+    setNewChatLoading(true);
+    setNewChatError('');
+
+    try {
+      const res = await fetch(`/api/profile?username=${encodeURIComponent(newChatUsername.trim())}`);
+      if (!res.ok) {
+        throw new Error('User not found');
+      }
+      const data = await res.json();
+      const targetUser = data.profile;
+
+      if (targetUser.id === session?.user?.id) {
+        throw new Error("You can't start a chat with yourself.");
+      }
+
+      setIsNewChatModalOpen(false);
+      setNewChatUsername('');
+      router.push(`/chats?userId=${targetUser.id}`);
+    } catch (err: any) {
+      setNewChatError(err.message || 'Error finding user');
+    } finally {
+      setNewChatLoading(false);
     }
   };
 
@@ -569,8 +626,7 @@ function ChatsPageContent() {
     <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', minHeight: '100vh', display: 'flex', flexDirection: 'column' }}>
       <Navbar />
       
-      <div className="main-content" style={{ padding: '0', height: 'calc(100vh - 65px)', overflow: 'hidden' }}>
-        <div style={{ display: 'flex', width: '100%', height: '100%', backgroundColor: '#070708' }}>
+      <div style={{ display: 'flex', flex: 1, width: '100%', minHeight: 'calc(100vh - 70px)', overflow: 'hidden', backgroundColor: '#070708' }}>
           
           {/* 1. LEFT SIDEBAR: Redesigned with NO red or blue borders, uses 22%-25% width */}
           <div 
@@ -582,9 +638,9 @@ function ChatsPageContent() {
               flexShrink: 0,
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%', 
               backgroundColor: '#000000',
-              padding: '0.5rem'
+              padding: '0.5rem',
+              overflowY: 'auto'
             }}
           >
             {/* Search and Header */}
@@ -595,10 +651,13 @@ function ChatsPageContent() {
                     Messages
                   </h2>
                   <span style={{ backgroundColor: '#ffffff', color: '#000000', fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
-                    12
+                    {sortedChats.length}
                   </span>
                 </div>
-                <button style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#ffffff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
+                <button 
+                  onClick={() => setIsNewChatModalOpen(true)}
+                  style={{ width: '32px', height: '32px', borderRadius: '50%', backgroundColor: '#ffffff', border: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}
+                >
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#000000" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                 </button>
               </div>
@@ -637,7 +696,14 @@ function ChatsPageContent() {
               ) : (
                 sortedChats.map(([pid, chat], idx) => {
                   const isActive = activePartnerId === pid;
-                  const tags: any[] = idx % 3 === 0 ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
+                  const tags: any[] = 
+                               chat.partnerName === 'Elmer Laverty' ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
+                               chat.partnerName === 'Florencio Dorrance' ? [{text: "Some content", color: "#a1a1aa", outlined: true}] : 
+                               chat.partnerName === 'Lavern Laboy' ? [{text: "Bug", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] :
+                               chat.partnerName === 'Titus Kitamura' ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Some content", color: "#a1a1aa", outlined: true}] :
+                               chat.partnerName === 'Geoffrey Mott' ? [{text: "Request", color: "#10b981", bg: "#10b98120", solid: true}] :
+                               chat.partnerName === 'Alfonzo Schuessler' ? [{text: "Follow up", color: "#a1a1aa", outlined: true}] :
+                               idx % 3 === 0 ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
                                idx % 3 === 1 ? [{text: "Some content", color: "#a1a1aa", outlined: true}] : 
                                [{text: "Bug", color: "#ef4444", bg: "#ef444420", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}];
 
@@ -677,7 +743,7 @@ function ChatsPageContent() {
                               {chat.partnerName}
                             </h4>
                             <span style={{ fontSize: '0.7rem', color: '#6b7280', whiteSpace: 'nowrap', marginLeft: '0.5rem' }}>
-                              {new Date(chat.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                              {formatRelativeTime(chat.timestamp)}
                             </span>
                           </div>
                           <p style={{ fontSize: '0.82rem', color: '#a1a1aa', margin: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', fontWeight: chat.unread ? 600 : 400 }}>
@@ -719,10 +785,10 @@ function ChatsPageContent() {
               flex: 1, 
               display: 'flex', 
               flexDirection: 'column', 
-              height: '100%', 
               backgroundColor: '#121214',
               borderLeft: '1px solid #1f1f22',
               borderRight: '1px solid #1f1f22',
+              overflowY: 'auto'
             }}
           >
             {activePartnerId && activeChatInfo ? (
@@ -807,6 +873,7 @@ function ChatsPageContent() {
                               alignSelf: isMe ? 'flex-end' : 'flex-start',
                               maxWidth: '70%',
                               display: 'flex',
+                              alignItems: 'flex-end',
                               gap: '0.75rem',
                             }}
                           >
@@ -834,7 +901,7 @@ function ChatsPageContent() {
                                 style={{
                                   padding: '0.65rem 1rem',
                                   borderRadius: '20px',
-                                  backgroundColor: isMe ? '#4b4b4b' : '#ffffff',
+                                  backgroundColor: isMe ? '#404040' : '#ffffff',
                                   color: isMe ? '#ffffff' : '#000000',
                                   fontSize: '0.95rem',
                                   lineHeight: '1.4',
@@ -1045,26 +1112,17 @@ function ChatsPageContent() {
                 <div style={{ marginBottom: '2rem' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                     <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
-                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>6</span>
+                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>1</span>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {[
-                      { name: 'Florencio Dorrance', role: 'Market Development Manager', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Florencio' },
-                      { name: 'Benny Spanbauer', role: 'Area Sales Manager', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Benny' },
-                      { name: 'Jamel Eusebio', role: 'Administrator', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Jamel' },
-                      { name: 'Lavern Laboy', role: 'Account Executive', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Lavern' },
-                      { name: 'Alfonzo Schuessler', role: 'Proposal Writer', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Alfonzo' },
-                      { name: 'Daryl Nehls', role: 'Nursing Assistant', img: 'https://api.dicebear.com/7.x/avataaars/svg?seed=Daryl' }
-                    ].map((member, i) => (
-                      <div key={i} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <img src={member.img} alt={member.name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.name}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>{member.role}</span>
-                        </div>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                      <img src={activeChatInfo.partnerAvatar} alt={activeChatInfo.partnerName} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                      <div style={{ display: 'flex', flexDirection: 'column' }}>
+                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{activeChatInfo.partnerName}</span>
+                        <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
                       </div>
-                    ))}
+                    </div>
                   </div>
                 </div>
 
@@ -1072,15 +1130,16 @@ function ChatsPageContent() {
                 <div>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
                     <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Files</h3>
-                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>125</span>
+                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>{sharedFiles.length}</span>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                     {sharedFiles.length > 0 ? sharedFiles.map((m, idx) => {
                       const file = m.attachments?.[0] || { name: 'Shared Document', size: 0, file_type: 'unknown' };
-                      const isPdf = file.name.toLowerCase().endsWith('.pdf');
-                      const isImage = file.file_type?.includes('image') || file.name.toLowerCase().match(/\.(png|jpg|jpeg|gif)$/i);
-                      const isDoc = file.name.toLowerCase().match(/\.(doc|docx)$/i);
+                      const fileName = file.name || 'Shared Document';
+                      const isPdf = fileName.toLowerCase().endsWith('.pdf');
+                      const isImage = file.file_type?.includes('image') || fileName.toLowerCase().match(/\.(png|jpg|jpeg|gif)$/i);
+                      const isDoc = fileName.toLowerCase().match(/\.(doc|docx)$/i);
                       
                       const iconColor = isPdf ? '#ef4444' : isImage ? '#10b981' : isDoc ? '#3b82f6' : '#a1a1aa';
                       
@@ -1092,7 +1151,7 @@ function ChatsPageContent() {
                           
                           <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
                             <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                              {file.name}
+                              {fileName}
                             </span>
                             <span style={{ fontSize: '0.75rem', color: '#a1a1aa', textTransform: 'uppercase' }}>
                               {(isPdf ? 'PDF' : isImage ? 'PNG' : isDoc ? 'DOC' : 'FILE')} {(file.size ? (file.size / 1024 / 1024).toFixed(1) + 'mb' : '1mb')}
@@ -1105,45 +1164,7 @@ function ChatsPageContent() {
                         </div>
                       );
                     }) : (
-                      // Fallback mock files to match design
-                      <>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{ width: '44px', height: '44px', backgroundColor: '#ffffff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <FileText size={20} color="#ef4444" />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>i9.pdf</span>
-                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>PDF 9mb</span>
-                          </div>
-                          <button style={{ background: 'transparent', color: '#ffffff', border: '1px solid #4b4b4b', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                            <Download size={14} />
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{ width: '44px', height: '44px', backgroundColor: '#ffffff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <ImageIcon size={20} color="#10b981" />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>Screenshot-3817.png</span>
-                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>PNG 4mb</span>
-                          </div>
-                          <button style={{ background: 'transparent', color: '#ffffff', border: '1px solid #4b4b4b', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                            <Download size={14} />
-                          </button>
-                        </div>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
-                          <div style={{ width: '44px', height: '44px', backgroundColor: '#ffffff', borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
-                            <FileText size={20} color="#3b82f6" />
-                          </div>
-                          <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column' }}>
-                            <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>sharefile.docx</span>
-                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>DOC 555kb</span>
-                          </div>
-                          <button style={{ background: 'transparent', color: '#ffffff', border: '1px solid #4b4b4b', borderRadius: '50%', width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer' }}>
-                            <Download size={14} />
-                          </button>
-                        </div>
-                      </>
+                      <p style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>No files shared yet.</p>
                     )}
                   </div>
                 </div>
@@ -1152,7 +1173,6 @@ function ChatsPageContent() {
           )}
           
         </div>
-      </div>
 
       {/* Lightbox */}
       {lightboxImage && (
@@ -1205,6 +1225,43 @@ function ChatsPageContent() {
                 </div>
               </div>
             )}
+          </div>
+        </div>
+      )}
+
+      {/* New Chat Modal */}
+      {isNewChatModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Start a New Chat
+              </h3>
+              <button onClick={() => { setIsNewChatModalOpen(false); setNewChatError(''); setNewChatUsername(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
+                <input 
+                  type="text" 
+                  value={newChatUsername}
+                  onChange={(e) => setNewChatUsername(e.target.value)}
+                  placeholder="e.g. johndoe"
+                  autoFocus
+                  style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                />
+              </div>
+              {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
+              <button 
+                type="submit" 
+                disabled={newChatLoading || !newChatUsername.trim()}
+                style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || !newChatUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || !newChatUsername.trim()) ? 0.6 : 1 }}
+              >
+                {newChatLoading ? 'Searching...' : 'Start Chat'}
+              </button>
+            </form>
           </div>
         </div>
       )}
