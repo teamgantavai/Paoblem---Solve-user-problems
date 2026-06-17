@@ -1322,40 +1322,34 @@ function ChatsPageContent() {
 
               <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
                 {/* Team Members */}
-                <div style={{ marginBottom: '2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                      <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
-                      <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>{activeChatInfo.members?.length || 1}</span>
+                {activeChatInfo.isGroup && (
+                  <div style={{ marginBottom: '2rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                        <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
+                        <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>{activeChatInfo.members?.length || 1}</span>
+                      </div>
+                      <button 
+                        onClick={() => setIsAddMemberModalOpen(true)}
+                        style={{ background: '#2a2a2a', border: 'none', color: '#ffffff', cursor: 'pointer', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                      >
+                        <span style={{ fontSize: '1.2rem', fontWeight: 300 }}>+</span>
+                      </button>
                     </div>
-                    <button 
-                      onClick={() => setIsAddMemberModalOpen(true)}
-                      style={{ background: '#2a2a2a', border: 'none', color: '#ffffff', cursor: 'pointer', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                    >
-                      <span style={{ fontSize: '1.2rem', fontWeight: 300 }}>+</span>
-                    </button>
-                  </div>
 
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    {(activeChatInfo.members && activeChatInfo.members.length > 0) ? activeChatInfo.members.map(member => (
-                      <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <img src={member.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.id}`} alt={member.full_name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.full_name}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                      {activeChatInfo.members?.map((member: any) => (
+                        <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                          <img src={member.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.id}`} alt={member.full_name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                          <div style={{ display: 'flex', flexDirection: 'column' }}>
+                            <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.full_name}</span>
+                            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                          </div>
                         </div>
-                      </div>
-                    )) : (
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                        <img src={activeChatInfo.partnerAvatar} alt={activeChatInfo.partnerName} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
-                        <div style={{ display: 'flex', flexDirection: 'column' }}>
-                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{activeChatInfo.partnerName}</span>
-                          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
-                        </div>
-                      </div>
-                    )}
+                      ))}
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Files */}
                 <div>
