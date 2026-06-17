@@ -11,6 +11,7 @@ import {
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import '../styles/profile-page.css';
+import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 /* ── Constants ────────────────────────────────────────── */
 const VALID_ROLES = [
@@ -729,6 +730,15 @@ function AboutTab({ bio, userComments, onAddBioClick }: { bio: string; userComme
    Problems / Ideas Tab Component
    ───────────────────────────────────────────────────────── */
 function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSavedTab?: boolean }) {
+  const { animateListEntrance, animateCardHover, animateCardHoverOut } = useMicroAnimations();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (posts.length > 0) {
+      animateListEntrance(listRef, '.profile-post-card');
+    }
+  }, [posts.length, animateListEntrance]);
+
   if (posts.length === 0) {
     return (
       <div className="profile-empty-state card">
@@ -739,11 +749,13 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
   }
 
   return (
-    <div className="profile-post-list">
+    <div ref={listRef} className="profile-post-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
       {posts.map((post) => (
         <div
           key={post.id}
           className="card profile-post-card"
+          onMouseEnter={animateCardHover}
+          onMouseLeave={animateCardHoverOut}
           onClick={() => window.location.href = `/?post=${post.id}`}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
@@ -775,6 +787,15 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
    Comments Sub-component
    ───────────────────────────────────────────────────────── */
 function CommentsTab({ comments }: { comments: UserComment[] }) {
+  const { animateListEntrance } = useMicroAnimations();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (comments.length > 0) {
+      animateListEntrance(listRef, '.profile-comment-item-card');
+    }
+  }, [comments.length, animateListEntrance]);
+
   if (comments.length === 0) {
     return (
       <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.875rem' }}>No recent comments.</p>
@@ -782,7 +803,7 @@ function CommentsTab({ comments }: { comments: UserComment[] }) {
   }
 
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.50rem' }}>
+    <div ref={listRef} style={{ display: 'flex', flexDirection: 'column', gap: '0.50rem' }}>
       {comments.map((comment) => (
         <div key={comment.id} className="profile-comment-item-card">
           {comment.post_title && (

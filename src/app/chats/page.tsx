@@ -12,6 +12,8 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
+import { useMicroAnimations } from '@/hooks/useMicroAnimations';
+import GSAPModalWrapper from '@/components/GSAPModalWrapper';
 
 interface DBMessage {
   id: string;
@@ -98,6 +100,8 @@ export default function ChatsPage() {
 }
 
 function ChatsPageContent() {
+  const { animateListEntrance, animateMessageEntrance, animateModalEntrance } = useMicroAnimations();
+  const sidebarListRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -825,6 +829,12 @@ function ChatsPageContent() {
     return name.split(' ').map(n => n[0]).slice(0, 2).join('').toUpperCase();
   };
 
+  useEffect(() => {
+    if (sidebarListRef.current) {
+      animateListEntrance(sidebarListRef, '.conversation-card-item');
+    }
+  }, [localMessages.length, searchQuery, animateListEntrance]);
+
   if (loadingSession) {
     return (
       <div style={{ display: 'flex', justifyContent: 'center', alignItems: 'center', height: '100vh', backgroundColor: '#070708' }}>
@@ -930,6 +940,7 @@ function ChatsPageContent() {
   const sharedImages = activeMessages.filter(m => m.type === 'IMAGE' || m.attachments?.some(a => a.file_type.includes('image')));
   const sharedFiles = activeMessages.filter(m => m.type === 'FILE' || m.attachments?.some(a => !a.file_type.includes('image')));
   const sharedLinks = activeMessages.filter(m => m.type === 'LINK' || m.body.includes('http://') || m.body.includes('https://'));
+  const unreadChatsCount = sortedChats.filter(([_, chat]) => chat.unread).length;
 
   return (
     <div className="app-container" style={{ backgroundColor: '#070708', color: '#f8f9fa', height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
@@ -959,9 +970,11 @@ function ChatsPageContent() {
                   <h2 style={{ fontSize: '1.5rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa' }}>
                     Messages
                   </h2>
-                  <span style={{ backgroundColor: '#ffffff', color: '#000000', fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
-                    {sortedChats.length}
-                  </span>
+                  {unreadChatsCount > 0 && (
+                    <span style={{ backgroundColor: '#ffffff', color: '#000000', fontSize: '0.75rem', fontWeight: 600, padding: '0.15rem 0.5rem', borderRadius: '12px' }}>
+                      {unreadChatsCount}
+                    </span>
+                  )}
                 </div>
                 <button 
                   onClick={() => setIsNewChatModalOpen(true)}
@@ -992,7 +1005,7 @@ function ChatsPageContent() {
             </div>
             
             {/* Conversations List */}
-            <div style={{ flex: 1, overflowY: 'auto', padding: '0.25rem 0.5rem' }}>
+            <div ref={sidebarListRef} style={{ flex: 1, overflowY: 'auto', padding: '0.25rem 0.5rem' }}>
               {isLoading && messages.length === 0 ? (
                 <div style={{ display: 'flex', justifyContent: 'center', padding: '3rem' }}>
                   <Loader2 size={24} className="spin" style={{ color: '#6366f1' }} />
@@ -1020,6 +1033,7 @@ function ChatsPageContent() {
                   return (
                     <div 
                       key={pid} 
+                      className="conversation-card-item"
                       onClick={() => setActiveChatId(pid)}
                       style={{ 
                         display: 'flex', 
@@ -1029,8 +1043,9 @@ function ChatsPageContent() {
                         cursor: 'pointer', 
                         borderRadius: '16px',
                         backgroundColor: isActive ? '#2a2a2a' : 'transparent',
-                        transition: 'background-color 0.2s',
-                        marginBottom: '0.25rem'
+                        transition: 'all 0.2s',
+                        marginBottom: '0.2rem',
+                        border: 'none'
                       }}
                     >
                       <div style={{ display: 'flex', alignItems: 'flex-start', gap: '0.85rem' }}>
@@ -1270,42 +1285,15 @@ function ChatsPageContent() {
                                 </div>
                               )}
 
-                              {/* Seen Avatar Indicator */}
+                              {/* Read Receipt Indicator */}
                               {msg.id === latestReadMessageId && (
-                                <div className="seen-avatar-wrapper">
-                                  {activeChatInfo?.partnerAvatar ? (
-                                    <img 
-                                      src={activeChatInfo.partnerAvatar} 
-                                      alt="seen" 
-                                      className="seen-avatar" 
-                                    />
-                                  ) : (
-                                    <div className="seen-avatar" style={{ background: 'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontSize: '0.4rem', fontWeight: 'bold', color: 'white' }}>
-                                      {getInitials(activeChatInfo?.partnerName || '?')}
-                                    </div>
-                                  )}
+                                <div style={{ fontSize: '0.7rem', color: '#6b7280', marginTop: '0.25rem', paddingRight: '0.2rem', fontWeight: 500 }}>
+                                  Seen
                                 </div>
                               )}
                             </div>
 
-                            {/* Self Avatar - Only on the first message of the group */}
-                            {isMe && (
-                              <div style={{ width: '36px', height: '36px', flexShrink: 0 }}>
-                                {!isGrouped && (
-                                  session?.user?.user_metadata?.avatar_url ? (
-                                    <img
-                                      src={session.user.user_metadata.avatar_url}
-                                      alt="my avatar"
-                                      style={{ width: '100%', height: '100%', borderRadius: '50%', objectFit: 'cover' }}
-                                    />
-                                  ) : (
-                                    <div style={{ width: '100%', height: '100%', borderRadius: '50%', background: '#6366f1', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 600, fontSize: '0.85rem', color: '#fff' }}>
-                                      {getInitials(session?.user?.email || 'Me')}
-                                    </div>
-                                  )
-                                )}
-                              </div>
-                            )}
+
                           </div>
                         </div>
                         </div>
@@ -1567,11 +1555,11 @@ function ChatsPageContent() {
 
       {/* Lightbox */}
       {lightboxImage && (
-        <div 
+        <GSAPModalWrapper 
           onClick={() => setLightboxImage(null)}
           style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.85)', zIndex: 1000, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', gap: '1rem' }}
         >
-          <img src={lightboxImage} alt="lightbox" style={{ maxWidth: '90%', maxHeight: '85%', borderRadius: '12px', objectFit: 'contain' }} />
+          <img className="modal-box" src={lightboxImage} alt="lightbox" style={{ maxWidth: '90%', maxHeight: '85%', borderRadius: '12px', objectFit: 'contain' }} />
           <a 
             href={lightboxImage} 
             download 
@@ -1589,16 +1577,15 @@ function ChatsPageContent() {
               fontSize: '0.9rem'
             }}
           >
-            <Download size={18} />
-            Save Image
+            <Download size={16} /> Download Image
           </a>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {/* AI Summary Modal */}
       {aiSummaryOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Sparkles size={18} style={{ color: '#6366f1' }} />
@@ -1637,13 +1624,13 @@ function ChatsPageContent() {
               </div>
             )}
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {/* New Chat Modal */}
       {isNewChatModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '420px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {newChatMode === 'pick' ? 'Start a New Chat' : newChatMode === 'dm' ? 'Direct Message' : 'New Group Chat'}
@@ -1834,13 +1821,13 @@ function ChatsPageContent() {
               </>
             )}
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {/* Add Member Modal */}
       {isAddMemberModalOpen && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 Add Team Member
@@ -1877,13 +1864,13 @@ function ChatsPageContent() {
               </button>
             </form>
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {/* Chat Management Modals */}
       {showRenameModal && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>Rename Group</h3>
             <form onSubmit={handleRenameGroup} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
               <input 
@@ -1900,12 +1887,12 @@ function ChatsPageContent() {
               </div>
             </form>
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {showConfirmClear && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>Clear Chat</h3>
             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>Are you sure you want to clear all messages? This will only remove them for you.</p>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
@@ -1913,12 +1900,12 @@ function ChatsPageContent() {
               <button type="button" onClick={handleClearChat} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: 'pointer' }}>Clear</button>
             </div>
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {showConfirmDelete && (
-        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 700, color: '#f8f9fa' }}>{activeChatInfo?.isGroup ? 'Leave/Delete Group' : 'Delete Chat'}</h3>
             <p style={{ color: '#a1a1aa', fontSize: '0.9rem', margin: 0 }}>
               {activeChatInfo?.isGroup 
@@ -1933,7 +1920,7 @@ function ChatsPageContent() {
               <button type="button" disabled={isDeletingChat} onClick={() => handleDeleteChat(activeChatInfo?.members?.some((m: any) => m.id === session?.user?.id && m.id === activeMessages[activeMessages.length - 1]?.sender_id) ?? false)} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: isDeletingChat ? 'not-allowed' : 'pointer' }}>{isDeletingChat ? 'Processing...' : 'Confirm'}</button>
             </div>
           </div>
-        </div>
+        </GSAPModalWrapper>
       )}
 
       {/* Responsive Overlay & Styling */}
