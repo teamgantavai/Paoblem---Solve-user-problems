@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { 
-  Loader2, MessageCircle, Send, ArrowLeft, User, Search, Pin, 
+  Loader2, MessageCircle, Send, ArrowLeft, User, Users, Search, Pin, 
   FileText, Image as ImageIcon, Link as LinkIcon, Trash2, Edit, 
   Reply, Forward, Sparkles, Smile, Mic, Download, 
   Check, CheckCheck, Info, Phone, X, Sparkle, AlertCircle, RefreshCw, MoreVertical,
@@ -105,9 +105,12 @@ function ChatsPageContent() {
 
   // New Chat Modal state
   const [isNewChatModalOpen, setIsNewChatModalOpen] = useState(false);
+  const [newChatMode, setNewChatMode] = useState<'pick' | 'dm' | 'group'>('pick');
   const [newChatUsername, setNewChatUsername] = useState('');
   const [newChatLoading, setNewChatLoading] = useState(false);
   const [newChatError, setNewChatError] = useState('');
+  const [groupChatUsernames, setGroupChatUsernames] = useState<string[]>([]);
+  const [groupChatInput, setGroupChatInput] = useState('');
 
   const [aiToneEnhanceOpen, setAiToneEnhanceOpen] = useState(false);
   const [enhancingMessage, setEnhancingMessage] = useState(false);
@@ -294,11 +297,22 @@ function ChatsPageContent() {
 
     // Optimistically mark messages from partner as read locally
     setLocalMessages(prev => prev.map(m => {
-      if (m.partner_id === activeChatId && !m.read && m.sender_id !== session.user.id) {
+      if ((m.partner_id === activeChatId || m.conversation_id === activeChatId) && !m.read && m.sender_id !== session.user.id) {
         return { ...m, read: true, status: 'read' };
       }
       return m;
     }));
+
+    // Optimistically update the global React Query cache so the Navbar badge disappears instantly
+    queryClient.setQueryData(['messages', session.access_token], (oldData: any) => {
+      if (!oldData) return oldData;
+      return oldData.map((m: any) => {
+        if ((m.partner_id === activeChatId || m.conversation_id === activeChatId) && !m.read && m.sender_id !== session.user.id) {
+          return { ...m, read: true };
+        }
+        return m;
+      });
+    });
 
     // Call PUT API to mark as read
     const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
@@ -999,9 +1013,9 @@ function ChatsPageContent() {
                           }}
                         >
                           <div
+                            className="message-bubble"
                             style={{
                               alignSelf: isMe ? 'flex-end' : 'flex-start',
-                              maxWidth: '70%',
                               display: 'flex',
                               alignItems: 'flex-end',
                               gap: '0.75rem',
@@ -1430,36 +1444,179 @@ function ChatsPageContent() {
       {/* New Chat Modal */}
       {isNewChatModalOpen && (
         <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '420px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                Start a New Chat
+                {newChatMode === 'pick' ? 'Start a New Chat' : newChatMode === 'dm' ? 'Direct Message' : 'New Group Chat'}
               </h3>
-              <button onClick={() => { setIsNewChatModalOpen(false); setNewChatError(''); setNewChatUsername(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+              <button onClick={() => { setIsNewChatModalOpen(false); setNewChatError(''); setNewChatUsername(''); setNewChatMode('pick'); setGroupChatUsernames([]); setGroupChatInput(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
                 <X size={18} />
               </button>
             </div>
-            <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
-                <input 
-                  type="text" 
-                  value={newChatUsername}
-                  onChange={(e) => setNewChatUsername(e.target.value)}
-                  placeholder="e.g. johndoe"
-                  autoFocus
-                  style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
-                />
+
+            {/* Step 1: Pick mode */}
+            {newChatMode === 'pick' && (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <button
+                  onClick={() => setNewChatMode('dm')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: '#fff', textAlign: 'left' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.backgroundColor = '#1e1e22'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2c'; e.currentTarget.style.backgroundColor = '#1a1a1c'; }}
+                >
+                  <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <MessageCircle size={20} color="#fff" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Direct Message</span>
+                    <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Start a private 1-on-1 conversation</span>
+                  </div>
+                </button>
+                <button
+                  onClick={() => setNewChatMode('group')}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: '#fff', textAlign: 'left' }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.backgroundColor = '#1e1e22'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2c'; e.currentTarget.style.backgroundColor = '#1a1a1c'; }}
+                >
+                  <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+                    <Users size={20} color="#fff" />
+                  </div>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
+                    <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Group Chat</span>
+                    <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Create a conversation with multiple people</span>
+                  </div>
+                </button>
               </div>
-              {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
-              <button 
-                type="submit" 
-                disabled={newChatLoading || !newChatUsername.trim()}
-                style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || !newChatUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || !newChatUsername.trim()) ? 0.6 : 1 }}
-              >
-                {newChatLoading ? 'Searching...' : 'Start Chat'}
-              </button>
-            </form>
+            )}
+
+            {/* Step 2a: Direct Message form */}
+            {newChatMode === 'dm' && (
+              <>
+                <button onClick={() => { setNewChatMode('pick'); setNewChatError(''); setNewChatUsername(''); }} style={{ background: 'none', border: 'none', color: '#6366f1', cursor: 'pointer', fontSize: '0.8rem', textAlign: 'left', padding: 0, marginTop: '-0.5rem' }}>
+                  ← Back
+                </button>
+                <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                    <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
+                    <input
+                      type="text"
+                      value={newChatUsername}
+                      onChange={(e) => setNewChatUsername(e.target.value)}
+                      placeholder="e.g. johndoe"
+                      autoFocus
+                      style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                    />
+                  </div>
+                  {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
+                  <button
+                    type="submit"
+                    disabled={newChatLoading || !newChatUsername.trim()}
+                    style={{ backgroundColor: '#6366f1', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || !newChatUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || !newChatUsername.trim()) ? 0.6 : 1 }}
+                  >
+                    {newChatLoading ? 'Searching...' : 'Start Chat'}
+                  </button>
+                </form>
+              </>
+            )}
+
+            {/* Step 2b: Group Chat form */}
+            {newChatMode === 'group' && (
+              <>
+                <button onClick={() => { setNewChatMode('pick'); setNewChatError(''); setGroupChatUsernames([]); setGroupChatInput(''); }} style={{ background: 'none', border: 'none', color: '#10b981', cursor: 'pointer', fontSize: '0.8rem', textAlign: 'left', padding: 0, marginTop: '-0.5rem' }}>
+                  ← Back
+                </button>
+
+                {/* Added members chips */}
+                {groupChatUsernames.length > 0 && (
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem' }}>
+                    {groupChatUsernames.map((uname, idx) => (
+                      <div key={idx} style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', backgroundColor: '#1e293b', color: '#e2e8f0', padding: '0.35rem 0.65rem', borderRadius: '20px', fontSize: '0.8rem', fontWeight: 500 }}>
+                        {uname}
+                        <button onClick={() => setGroupChatUsernames(prev => prev.filter((_, i) => i !== idx))} style={{ background: 'none', border: 'none', color: '#94a3b8', cursor: 'pointer', padding: 0, display: 'flex' }}>
+                          <X size={13} />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                  <input
+                    type="text"
+                    value={groupChatInput}
+                    onChange={(e) => setGroupChatInput(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        if (groupChatInput.trim() && !groupChatUsernames.includes(groupChatInput.trim().toLowerCase())) {
+                          setGroupChatUsernames(prev => [...prev, groupChatInput.trim().toLowerCase()]);
+                          setGroupChatInput('');
+                          setNewChatError('');
+                        }
+                      }
+                    }}
+                    placeholder="Add username and press Enter"
+                    autoFocus
+                    style={{ flex: 1, backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none', fontSize: '0.85rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      if (groupChatInput.trim() && !groupChatUsernames.includes(groupChatInput.trim().toLowerCase())) {
+                        setGroupChatUsernames(prev => [...prev, groupChatInput.trim().toLowerCase()]);
+                        setGroupChatInput('');
+                        setNewChatError('');
+                      }
+                    }}
+                    style={{ backgroundColor: '#2a2a2c', border: 'none', color: '#fff', borderRadius: '12px', padding: '0 1rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem' }}
+                  >+</button>
+                </div>
+
+                {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
+
+                <button
+                  type="button"
+                  disabled={newChatLoading || groupChatUsernames.length < 2}
+                  onClick={async () => {
+                    setNewChatLoading(true);
+                    setNewChatError('');
+                    try {
+                      // Resolve all usernames to IDs
+                      const ids: string[] = [];
+                      for (const uname of groupChatUsernames) {
+                        const { data, error } = await supabase.from('profiles').select('id, full_name').eq('username', uname).single();
+                        if (error || !data) {
+                          setNewChatError(`User "${uname}" not found.`);
+                          setNewChatLoading(false);
+                          return;
+                        }
+                        ids.push(data.id);
+                      }
+                      // Create group via API
+                      const res = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session!.access_token}` },
+                        body: JSON.stringify({ participantIds: ids, body: 'Group chat created.', type: 'SYSTEM' })
+                      });
+                      if (!res.ok) throw new Error('Failed to create group');
+                      const result = await res.json();
+                      setIsNewChatModalOpen(false);
+                      setNewChatMode('pick');
+                      setGroupChatUsernames([]);
+                      setGroupChatInput('');
+                      setActiveChatId(result.message.conversation_id);
+                      queryClient.invalidateQueries({ queryKey: ['messages', session!.access_token] });
+                    } catch (err: any) {
+                      setNewChatError(err.message || 'An error occurred.');
+                    } finally {
+                      setNewChatLoading(false);
+                    }
+                  }}
+                  style={{ backgroundColor: '#10b981', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || groupChatUsernames.length < 2) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || groupChatUsernames.length < 2) ? 0.6 : 1 }}
+                >
+                  {newChatLoading ? 'Creating...' : `Create Group (${groupChatUsernames.length} members)`}
+                </button>
+              </>
+            )}
           </div>
         </div>
       )}
@@ -1543,6 +1700,25 @@ function ChatsPageContent() {
           box-shadow: 0 4px 15px rgba(0,0,0,0.2) !important;
         }
 
+        .message-bubble {
+          max-width: 75%;
+          padding: 0.85rem 1rem;
+        }
+
+        @media (max-width: 1024px) {
+          .right-sidebar {
+            position: absolute !important;
+            right: 0;
+            top: 0;
+            bottom: 0;
+            z-index: 20;
+            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+          }
+          .message-bubble {
+            max-width: 85%;
+          }
+        }
+
         @media (max-width: 768px) {
           .mobile-hidden {
             display: none !important;
@@ -1565,16 +1741,13 @@ function ChatsPageContent() {
           .right-sidebar {
             display: none !important;
           }
-        }
-
-        @media (max-width: 1024px) {
-          .right-sidebar {
-            position: absolute !important;
-            right: 0;
-            top: 0;
-            bottom: 0;
-            z-index: 20;
-            box-shadow: -5px 0 25px rgba(0,0,0,0.5);
+          .message-bubble {
+            max-width: 92%;
+            padding: 0.75rem 0.85rem !important;
+            font-size: 0.9rem !important;
+          }
+          .chat-input-container {
+            padding: 0.75rem 1rem !important;
           }
         }
       `}</style>
