@@ -31,8 +31,12 @@ import { parseLinksInText, Segment } from '@/app/lib/linkParser';
 import ImageGallery from './ImageGallery';
 import ErrorBoundary from './ErrorBoundary';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
+import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
+  const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance } = useMicroAnimations();
+  const feedListRef = useRef<HTMLDivElement>(null);
+
   const router = useRouter();
   const searchParams = useSearchParams();
   const queryClient = useQueryClient();
@@ -331,6 +335,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
   const displayedPosts = session ? posts : shuffledPosts;
 
+  useEffect(() => {
+    if (!isLoading && displayedPosts.length > 0) {
+      animateListEntrance(feedListRef, '.post-card-animate');
+    }
+  }, [isLoading, filterType, displayedPosts.length]);
+
   return (
     <main className="center-feed">
       <h1 className="feed-title">Paoblems</h1>
@@ -429,35 +439,40 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       )}
 
       {/* ── Posts List ── */}
-      {isLoading && (
-        <>
-          <PostSkeleton />
-          <PostSkeleton />
-        </>
-      )}
+      <div ref={feedListRef} className="feed-list-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+        {isLoading && (
+          <>
+            <PostSkeleton />
+            <PostSkeleton />
+          </>
+        )}
 
-      {isError && (
-        <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-          <p style={{ color: '#ef4444' }}>Error fetching posts. Please check your Supabase connection.</p>
-        </div>
-      )}
+        {isError && (
+          <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
+            <p style={{ color: '#ef4444' }}>Error fetching posts. Please check your Supabase connection.</p>
+          </div>
+        )}
 
-      {!isLoading && posts.length === 0 && (
-        <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-          <p>No posts published yet. Be the first to publish a problem or idea!</p>
-        </div>
-      )}
+        {!isLoading && posts.length === 0 && (
+          <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
+            <p>No posts published yet. Be the first to publish a problem or idea!</p>
+          </div>
+        )}
 
-      {displayedPosts.map((post: Post) => {
-        const hasUpvoted = userVotes?.[post.id] === 'up';
-        const hasDownvoted = userVotes?.[post.id] === 'down';
-        const isOwner = session?.user?.id === post.user_id;
+        {displayedPosts.map((post: Post) => {
+          const hasUpvoted = userVotes?.[post.id] === 'up';
+          const hasDownvoted = userVotes?.[post.id] === 'down';
+          const isOwner = session?.user?.id === post.user_id;
 
-        return (
-          <ErrorBoundary key={post.id}>
-            <div className="card">
-              <div className="post-header">
-                <div className="post-user">
+          return (
+            <ErrorBoundary key={post.id}>
+              <div 
+                className="card post-card-animate"
+                onMouseEnter={animateCardHover}
+                onMouseLeave={animateCardHoverOut}
+              >
+                <div className="post-header">
+                  <div className="post-user">
                   <img
                     src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
                     alt={post.profiles?.full_name || 'Anonymous'}
@@ -716,6 +731,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           </ErrorBoundary>
         );
       })}
+      </div>
 
       {!session && displayedPosts.length > 0 && (
         <div

@@ -19,6 +19,8 @@ export const metadata: Metadata = {
   description: "Share your problems and find solutions",
 };
 
+import GSAPAnimations from '@/components/GSAPAnimations';
+
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -44,6 +46,7 @@ export default function RootLayout({
       </head>
       <body className={`${geistSans.variable} ${geistMono.variable}`} suppressHydrationWarning>
         <Providers>
+          <GSAPAnimations />
           {children}
         </Providers>
         <Analytics />

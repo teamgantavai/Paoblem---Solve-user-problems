@@ -21,7 +21,7 @@ import {
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
-import { Notification, Message } from '@/lib/types';
+import type { Notification as AppNotification, Message } from '@/lib/types';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
@@ -104,7 +104,7 @@ function NavbarInner() {
   }, [session?.user?.id]);
 
   // Fetch notifications counts
-  const { data: notifications = [] } = useQuery<Notification[]>({
+  const { data: notifications = [] } = useQuery<AppNotification[]>({
     queryKey: ['notifications', session?.access_token],
     queryFn: async () => {
       if (!session?.access_token) return [];
@@ -138,6 +138,63 @@ function NavbarInner() {
     enabled: !!session?.access_token,
     refetchInterval: 30000 // poll every 30s
   });
+
+  // Global message realtime listener for browser notifications
+  useEffect(() => {
+    if (!session?.user?.id) return;
+
+    // Request notification permission if not already granted
+    if ('Notification' in window && Notification.permission === 'default') {
+      Notification.requestPermission();
+    }
+
+    const channel = supabase.channel('global-message-notifications')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'messages',
+          filter: `recipient_id=eq.${session.user.id}`
+        },
+        async (payload) => {
+          const newMsg = payload.new;
+          
+          // Trigger browser notification if allowed and we are not actively looking at the chat
+          if ('Notification' in window && Notification.permission === 'granted') {
+            if (document.hidden || !window.location.pathname.startsWith('/chats')) {
+              // Fetch sender profile to show name
+              const { data: senderProfile } = await supabase
+                .from('profiles')
+                .select('full_name, username, avatar_url')
+                .eq('id', newMsg.sender_id)
+                .single();
+                
+              const senderName = senderProfile?.full_name || senderProfile?.username || 'Someone';
+              
+              const notification = new Notification(`New message from ${senderName}`, {
+                body: newMsg.body || 'Sent an attachment',
+                icon: senderProfile?.avatar_url || '/favicon.ico',
+              });
+
+              notification.onclick = () => {
+                window.focus();
+                // Optionally navigate to the chat
+                // router.push(`/chats?id=${newMsg.conversation_id || newMsg.sender_id}`);
+              };
+            }
+          }
+          
+          // Invalidate messages query to update navbar badge
+          queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, session?.access_token, queryClient]);
 
   const handleLogout = async () => {
     if (session?.user?.id) {
