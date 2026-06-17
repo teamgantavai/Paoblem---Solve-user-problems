@@ -496,7 +496,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       </span>
                       {post.profiles?.username && (
                         <span 
-                          onClick={() => router.push(`/user/${post.profiles.username}`)}
+                          onClick={() => router.push(`/user/${post.profiles?.username}`)}
                           style={{ cursor: 'pointer', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500 }}
                         >
                           @{post.profiles.username}
@@ -1002,7 +1002,7 @@ function CommentsSection({ postId, session }: CommentsSectionProps) {
                         </span>
                         {comment.profiles?.username && (
                           <span 
-                            onClick={() => router.push(`/user/${comment.profiles.username}`)}
+                            onClick={() => router.push(`/user/${comment.profiles?.username}`)}
                             style={{ color: 'var(--accent-blue)', fontSize: '0.75rem', fontWeight: 500 }}
                           >
                             @{comment.profiles.username}
