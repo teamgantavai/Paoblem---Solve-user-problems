@@ -46,6 +46,45 @@ const getRelativeTime = (isoDate: string | null) => {
   return `Last seen ${days}d ago`;
 };
 
+const UserSearchSuggestions = ({ query, onSelect, excludeUsernames = [], currentUserId }: { query: string, onSelect: (uname: string) => void, excludeUsernames?: string[], currentUserId?: string }) => {
+  const [suggestions, setSuggestions] = useState<any[]>([]);
+  useEffect(() => {
+    if (!query.trim()) {
+      setSuggestions([]);
+      return;
+    }
+    const timer = setTimeout(async () => {
+      const { data } = await supabase.from('profiles')
+        .select('username, full_name, avatar_url, id')
+        .ilike('username', `%${query}%`)
+        .limit(5);
+      if (data) {
+        setSuggestions(data.filter(u => 
+          !excludeUsernames.includes(u.username.toLowerCase()) && 
+          u.id !== currentUserId
+        ));
+      }
+    }, 300);
+    return () => clearTimeout(timer);
+  }, [query, excludeUsernames, currentUserId]);
+
+  if (!query.trim() || suggestions.length === 0) return null;
+
+  return (
+    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '12px', zIndex: 100, marginTop: '4px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.5)' }}>
+      {suggestions.map(u => (
+        <div key={u.username} onClick={() => onSelect(u.username)} style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', borderBottom: '1px solid #2a2a2c', transition: 'background-color 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2a2a2c'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+          <img src={u.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${u.id}`} alt={u.username} style={{ width: 32, height: 32, borderRadius: '50%', objectFit: 'cover' }} />
+          <div style={{ display: 'flex', flexDirection: 'column' }}>
+            <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>{u.full_name || u.username}</span>
+            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>@{u.username}</span>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+};
+
 export default function ChatsPage() {
   return (
     <Suspense fallback={
@@ -1495,7 +1534,7 @@ function ChatsPageContent() {
                   ← Back
                 </button>
                 <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
                     <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
                     <input
                       type="text"
@@ -1504,6 +1543,11 @@ function ChatsPageContent() {
                       placeholder="e.g. johndoe"
                       autoFocus
                       style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                    />
+                    <UserSearchSuggestions 
+                      query={newChatUsername} 
+                      currentUserId={session?.user?.id}
+                      onSelect={(uname) => setNewChatUsername(uname)} 
                     />
                   </div>
                   {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
@@ -1539,7 +1583,7 @@ function ChatsPageContent() {
                   </div>
                 )}
 
-                <div style={{ display: 'flex', gap: '0.5rem' }}>
+                <div style={{ display: 'flex', gap: '0.5rem', position: 'relative' }}>
                   <input
                     type="text"
                     value={groupChatInput}
@@ -1569,6 +1613,18 @@ function ChatsPageContent() {
                     }}
                     style={{ backgroundColor: '#2a2a2c', border: 'none', color: '#fff', borderRadius: '12px', padding: '0 1rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem' }}
                   >+</button>
+                  <UserSearchSuggestions 
+                    query={groupChatInput} 
+                    excludeUsernames={groupChatUsernames}
+                    currentUserId={session?.user?.id}
+                    onSelect={(uname) => {
+                      if (!groupChatUsernames.includes(uname.toLowerCase())) {
+                        setGroupChatUsernames(prev => [...prev, uname.toLowerCase()]);
+                        setGroupChatInput('');
+                        setNewChatError('');
+                      }
+                    }} 
+                  />
                 </div>
 
                 {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
@@ -1634,7 +1690,7 @@ function ChatsPageContent() {
               </button>
             </div>
             <form onSubmit={handleAddMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
                 <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
                 <input 
                   type="text" 
@@ -1643,6 +1699,12 @@ function ChatsPageContent() {
                   placeholder="e.g. johndoe"
                   autoFocus
                   style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                />
+                <UserSearchSuggestions 
+                  query={addMemberUsername} 
+                  currentUserId={session?.user?.id}
+                  excludeUsernames={activeChatInfo?.members?.map((m: any) => m.username) || []}
+                  onSelect={(uname) => setAddMemberUsername(uname)} 
                 />
               </div>
               {addMemberError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{addMemberError}</p>}
