@@ -1930,7 +1930,7 @@ function ChatsPageContent() {
             </p>
             <div style={{ display: 'flex', gap: '1rem', justifyContent: 'flex-end' }}>
               <button type="button" disabled={isDeletingChat} onClick={() => setShowConfirmDelete(false)} style={{ background: 'transparent', color: '#a1a1aa', border: 'none', cursor: 'pointer', fontWeight: 600 }}>Cancel</button>
-              <button type="button" disabled={isDeletingChat} onClick={() => handleDeleteChat(activeChatInfo?.members?.some((m: any) => m.id === session?.user?.id && m.id === activeMessages[activeMessages.length - 1]?.sender_id))} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: isDeletingChat ? 'not-allowed' : 'pointer' }}>{isDeletingChat ? 'Processing...' : 'Confirm'}</button>
+              <button type="button" disabled={isDeletingChat} onClick={() => handleDeleteChat(activeChatInfo?.members?.some((m: any) => m.id === session?.user?.id && m.id === activeMessages[activeMessages.length - 1]?.sender_id) ?? false)} style={{ backgroundColor: '#ef4444', color: '#ffffff', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.5rem 1rem', cursor: isDeletingChat ? 'not-allowed' : 'pointer' }}>{isDeletingChat ? 'Processing...' : 'Confirm'}</button>
             </div>
           </div>
         </div>
