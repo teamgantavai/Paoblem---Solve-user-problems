@@ -31,6 +31,18 @@ interface DBMessage {
   status?: 'sending' | 'sent' | 'read' | 'error';
 }
 
+const getRelativeTime = (isoDate: string | null) => {
+  if (!isoDate) return 'Offline';
+  const diff = Date.now() - new Date(isoDate).getTime();
+  const minutes = Math.floor(diff / 60000);
+  if (minutes < 1) return 'Just now';
+  if (minutes < 60) return `Last seen ${minutes}m ago`;
+  const hours = Math.floor(minutes / 60);
+  if (hours < 24) return `Last seen ${hours}h ago`;
+  const days = Math.floor(hours / 24);
+  return `Last seen ${days}d ago`;
+};
+
 export default function ChatsPage() {
   return (
     <Suspense fallback={
@@ -226,6 +238,7 @@ function ChatsPageContent() {
       .channel('realtime-profiles')
       .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => {
         refetch();
+        queryClient.invalidateQueries({ queryKey: ['target-chat-profile'] });
       })
       .subscribe();
 
@@ -736,6 +749,9 @@ function ChatsPageContent() {
                           {chat.unread && (
                             <div style={{ position: 'absolute', top: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ef4444', border: '2px solid #111111' }} />
                           )}
+                          {chat.online && (
+                            <div style={{ position: 'absolute', bottom: 0, right: 0, width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#10b981', border: '2px solid #111111' }} />
+                          )}
                         </div>
                         <div style={{ flex: 1, minWidth: 0, display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
                           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline' }}>
@@ -815,8 +831,10 @@ function ChatsPageContent() {
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
                       <h3 style={{ fontSize: '1.25rem', fontWeight: 700, margin: 0, color: '#ffffff' }}>{activeChatInfo?.partnerName}</h3>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginTop: '0.15rem' }}>
-                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: '#10b981' }} />
-                        <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>Online</span>
+                        <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: activeChatInfo?.online ? '#10b981' : '#6b7280' }} />
+                        <span style={{ fontSize: '0.8rem', color: '#a1a1aa' }}>
+                          {activeChatInfo?.online ? 'Online' : getRelativeTime(activeChatInfo?.lastSeen || null)}
+                        </span>
                       </div>
                     </div>
                   </div>
