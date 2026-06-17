@@ -15,6 +15,7 @@ import Navbar from '@/components/Navbar';
 
 interface DBMessage {
   id: string;
+  conversation_id: string;
   sender_id: string;
   recipient_id: string;
   partner_id: string;
@@ -22,6 +23,8 @@ interface DBMessage {
   partner_avatar: string;
   partner_online?: boolean;
   partner_last_seen?: string;
+  is_group?: boolean;
+  members?: any[];
   body: string;
   read: boolean;
   type: string;
@@ -62,7 +65,7 @@ function ChatsPageContent() {
   
   const [session, setSession] = useState<any>(null);
   const [loadingSession, setLoadingSession] = useState(true);
-  const [activePartnerId, setActivePartnerId] = useState<string | null>(null);
+  const [activeChatId, setActiveChatId] = useState<string | null>(null);
   const [newMessage, setNewMessage] = useState('');
   
   // Helper to format timestamps to relative time (e.g. "12m", "1h", "2d")
@@ -109,6 +112,10 @@ function ChatsPageContent() {
   const [aiToneEnhanceOpen, setAiToneEnhanceOpen] = useState(false);
   const [enhancingMessage, setEnhancingMessage] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [isAddMemberModalOpen, setIsAddMemberModalOpen] = useState(false);
+  const [addMemberUsername, setAddMemberUsername] = useState('');
+  const [addMemberLoading, setAddMemberLoading] = useState(false);
+  const [addMemberError, setAddMemberError] = useState('');
 
   // Attachment states
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -274,47 +281,45 @@ function ChatsPageContent() {
   // Set active partner ID
   useEffect(() => {
     if (targetUserId) {
-      setActivePartnerId(targetUserId);
+      setActiveChatId(targetUserId);
       setMobileConversationOpen(true);
-    } else if (messages.length > 0 && !activePartnerId) {
-      setActivePartnerId(messages[0].partner_id);
+    } else if (messages.length > 0 && !activeChatId) {
+      setActiveChatId(messages[0].partner_id);
     }
   }, [targetUserId, messages]);
 
   // CRITICAL BUG FIX: Instant Read Receipts & Notification Sync when conversation opens
   useEffect(() => {
-    if (!activePartnerId || !session?.access_token) return;
+    if (!activeChatId || !session?.access_token) return;
 
     // Optimistically mark messages from partner as read locally
     setLocalMessages(prev => prev.map(m => {
-      if (m.partner_id === activePartnerId && !m.read && m.sender_id !== session.user.id) {
+      if (m.partner_id === activeChatId && !m.read && m.sender_id !== session.user.id) {
         return { ...m, read: true, status: 'read' };
       }
       return m;
     }));
 
-    // Call PUT API to mark as read in database
-    fetch('/api/messages', {
-      method: 'PUT',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${session.access_token}`
-      },
-      body: JSON.stringify({ partnerId: activePartnerId, read: true })
+    // Call PUT API to mark as read
+    const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
+    fetch('/api/messages/read', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+      body: JSON.stringify({ conversationId: isConversationId ? activeChatId : undefined, partnerId: !isConversationId ? activeChatId : undefined, read: true })
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
       queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
       queryClient.invalidateQueries({ queryKey: ['notifications', session.access_token] });
     }).catch(console.error);
-  }, [activePartnerId, session?.access_token]);
+  }, [activeChatId, session?.access_token]);
 
   // Handle typing state
   const handleTyping = () => {
-    if (!session || !activePartnerId) return;
+    if (!session || !activeChatId) return;
 
     if (!isTyping) {
       setIsTyping(true);
-      supabase.channel(`typing-${activePartnerId}`).send({
+      supabase.channel(`typing-${activeChatId}`).send({
         type: 'broadcast',
         event: 'typing',
         payload: { userId: session.user.id, typing: true }
@@ -325,7 +330,7 @@ function ChatsPageContent() {
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      supabase.channel(`typing-${activePartnerId}`).send({
+      supabase.channel(`typing-${activeChatId}`).send({
         type: 'broadcast',
         event: 'typing',
         payload: { userId: session.user.id, typing: false }
@@ -335,12 +340,12 @@ function ChatsPageContent() {
 
   // Subscribe to partner typing events
   useEffect(() => {
-    if (!session || !activePartnerId) return;
+    if (!session || !activeChatId) return;
 
     const typingChannel = supabase
       .channel(`typing-${session.user.id}`)
       .on('broadcast', { event: 'typing' }, (payload: any) => {
-        if (payload.payload?.userId === activePartnerId) {
+        if (payload.payload?.userId === activeChatId) {
           setPartnerTyping(payload.payload?.typing || false);
         }
       })
@@ -349,7 +354,7 @@ function ChatsPageContent() {
     return () => {
       supabase.removeChannel(typingChannel);
     };
-  }, [activePartnerId, session]);
+  }, [activeChatId, session]);
 
   // Auto-expand composer field
   useEffect(() => {
@@ -363,13 +368,20 @@ function ChatsPageContent() {
   // Send Message Mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ partnerId, body, type = 'TEXT', atts = [] }: { partnerId: string; body: string; type?: string; atts?: any[] }) => {
+      const isConversationId = localMessages.some(m => m.conversation_id === partnerId);
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({ recipientId: partnerId, body, type, attachments: atts }),
+        body: JSON.stringify({ 
+          conversationId: isConversationId ? partnerId : undefined,
+          recipientId: !isConversationId ? partnerId : undefined, 
+          body, 
+          type, 
+          attachments: atts 
+        }),
       });
       if (!res.ok) throw new Error('Failed to send message');
       return res.json();
@@ -409,7 +421,7 @@ function ChatsPageContent() {
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
     if (!newMessage.trim() && attachments.length === 0) return;
-    if (!activePartnerId) return;
+    if (!activeChatId) return;
 
     let msgType = 'TEXT';
     if (attachments.length > 0) {
@@ -421,7 +433,7 @@ function ChatsPageContent() {
     }
 
     sendMessageMutation.mutate({ 
-      partnerId: activePartnerId, 
+      partnerId: activeChatId, 
       body: newMessage,
       type: msgType,
       atts: attachments
@@ -465,11 +477,11 @@ function ChatsPageContent() {
 
   // AI Summary handler
   const handleAISummary = async () => {
-    if (!activePartnerId) return;
+    if (!activeChatId) return;
     setLoadingSummary(true);
     setAiSummaryOpen(true);
     try {
-      const activeChatMessages = localMessages.filter(m => m.partner_id === activePartnerId);
+      const activeChatMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId);
       const res = await fetch('/api/ai/summarize', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -489,20 +501,10 @@ function ChatsPageContent() {
   const handleStartNewChat = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newChatUsername.trim()) return;
-
     setNewChatLoading(true);
     setNewChatError('');
 
     try {
-      const res = await fetch(`/api/profile?username=${encodeURIComponent(newChatUsername.trim())}`);
-      if (!res.ok) {
-        throw new Error('User not found');
-      }
-      const data = await res.json();
-      const targetUser = data.profile;
-
-      if (targetUser.id === session?.user?.id) {
-        throw new Error("You can't start a chat with yourself.");
       }
 
       setIsNewChatModalOpen(false);
@@ -596,12 +598,14 @@ function ChatsPageContent() {
     online: boolean; 
     lastSeen: string | null;
     pinned?: boolean;
+    isGroup?: boolean;
+    members?: any[];
   }> = {};
 
   localMessages.forEach((msg) => {
-    const pid = msg.partner_id;
-    if (!chatGroups[pid]) {
-      chatGroups[pid] = {
+    const cid = msg.conversation_id || msg.partner_id;
+    if (!chatGroups[cid]) {
+      chatGroups[cid] = {
         partnerName: msg.partner_name,
         partnerAvatar: msg.partner_avatar,
         latestMessage: msg.body,
@@ -609,12 +613,14 @@ function ChatsPageContent() {
         unread: !msg.read && msg.sender_id !== session.user.id,
         online: msg.partner_online || false,
         lastSeen: msg.partner_last_seen || null,
-        pinned: false
+        pinned: false,
+        isGroup: msg.is_group || false,
+        members: msg.members || []
       };
     }
   });
 
-  // Target user injected if empty chat
+  // Target user injected if empty chat (legacy routing)
   if (targetUserId && targetProfileData?.profile && !chatGroups[targetUserId]) {
     chatGroups[targetUserId] = {
       partnerName: targetProfileData.profile.full_name || 'Member',
@@ -624,7 +630,9 @@ function ChatsPageContent() {
       unread: false,
       online: targetProfileData.profile.online || false,
       lastSeen: targetProfileData.profile.last_seen || null,
-      pinned: true
+      pinned: true,
+      isGroup: false,
+      members: [targetProfileData.profile]
     };
   }
 
@@ -641,13 +649,13 @@ function ChatsPageContent() {
       return new Date(b[1].timestamp).getTime() - new Date(a[1].timestamp).getTime();
     });
 
-  const activeMessages = localMessages.filter(m => m.partner_id === activePartnerId).reverse();
+  const activeMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId).reverse();
   const filteredActiveMessages = activeMessages.filter(m => {
     if (!chatSearchQuery.trim()) return true;
     return m.body.toLowerCase().includes(chatSearchQuery.toLowerCase());
   });
 
-  const activeChatInfo = activePartnerId ? chatGroups[activePartnerId] : null;
+  const activeChatInfo = activeChatId ? chatGroups[activeChatId] : null;
 
   const latestReadMessageId = (() => {
     for (let i = filteredActiveMessages.length - 1; i >= 0; i--) {
@@ -735,7 +743,7 @@ function ChatsPageContent() {
                 </div>
               ) : (
                 sortedChats.map(([pid, chat], idx) => {
-                  const isActive = activePartnerId === pid;
+                  const isActive = activeChatId === pid;
                   const tags: any[] = 
                                chat.partnerName === 'Elmer Laverty' ? [{text: "Question", color: "#f59e0b", bg: "#f59e0b20", solid: true}, {text: "Developer", color: "#10b981", bg: "#10b98120", solid: true}] : 
                                chat.partnerName === 'Florencio Dorrance' ? [{text: "Some content", color: "#a1a1aa", outlined: true}] : 
@@ -751,7 +759,7 @@ function ChatsPageContent() {
                   return (
                     <div 
                       key={pid} 
-                      onClick={() => setActivePartnerId(pid)}
+                      onClick={() => setActiveChatId(pid)}
                       style={{ 
                         display: 'flex', 
                         flexDirection: 'column',
@@ -834,7 +842,7 @@ function ChatsPageContent() {
               overflow: 'hidden'
             }}
           >
-            {activePartnerId && activeChatInfo ? (
+            {activeChatId && activeChatInfo ? (
               <div style={{ display: 'flex', flexDirection: 'column', height: '100%', overflow: 'hidden' }}>
                 {/* Chat Header */}
                 <div style={{ padding: '1rem 1.5rem', borderBottom: '1px solid #2a2a2a', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1163,7 +1171,7 @@ function ChatsPageContent() {
           </div>
 
           {/* 3. RIGHT SIDEBAR: Directory */}
-          {activePartnerId && activeChatInfo && rightSidebarOpen && (
+          {activeChatId && activeChatInfo && rightSidebarOpen && (
             <div 
               style={{ 
                 width: '320px',
@@ -1196,19 +1204,37 @@ function ChatsPageContent() {
               <div style={{ flex: 1, overflowY: 'auto', padding: '1rem 1.25rem' }}>
                 {/* Team Members */}
                 <div style={{ marginBottom: '2rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '1.25rem' }}>
-                    <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
-                    <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>1</span>
+                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '1.25rem' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                      <h3 style={{ fontSize: '0.9rem', fontWeight: 600, color: '#ffffff', margin: 0 }}>Team Members</h3>
+                      <span style={{ backgroundColor: '#2a2a2a', color: '#ffffff', fontSize: '0.7rem', padding: '0.1rem 0.4rem', borderRadius: '8px', fontWeight: 600 }}>{activeChatInfo.members?.length || 1}</span>
+                    </div>
+                    <button 
+                      onClick={() => setIsAddMemberModalOpen(true)}
+                      style={{ background: '#2a2a2a', border: 'none', color: '#ffffff', cursor: 'pointer', borderRadius: '50%', width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    >
+                      <span style={{ fontSize: '1.2rem', fontWeight: 300 }}>+</span>
+                    </button>
                   </div>
 
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
-                      <img src={activeChatInfo.partnerAvatar} alt={activeChatInfo.partnerName} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
-                      <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{activeChatInfo.partnerName}</span>
-                        <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                    {(activeChatInfo.members && activeChatInfo.members.length > 0) ? activeChatInfo.members.map(member => (
+                      <div key={member.id} style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <img src={member.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${member.id}`} alt={member.full_name} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{member.full_name}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                        </div>
                       </div>
-                    </div>
+                    )) : (
+                      <div style={{ display: 'flex', alignItems: 'center', gap: '0.85rem' }}>
+                        <img src={activeChatInfo.partnerAvatar} alt={activeChatInfo.partnerName} style={{ width: '40px', height: '40px', borderRadius: '12px', objectFit: 'cover' }} />
+                        <div style={{ display: 'flex', flexDirection: 'column' }}>
+                          <span style={{ fontSize: '0.85rem', fontWeight: 600, color: '#ffffff' }}>{activeChatInfo.partnerName}</span>
+                          <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>Member</span>
+                        </div>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -1366,6 +1392,43 @@ function ChatsPageContent() {
                 style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (newChatLoading || !newChatUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (newChatLoading || !newChatUsername.trim()) ? 0.6 : 1 }}
               >
                 {newChatLoading ? 'Searching...' : 'Start Chat'}
+              </button>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Add Member Modal */}
+      {isAddMemberModalOpen && (
+        <div style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '400px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                Add Team Member
+              </h3>
+              <button onClick={() => { setIsAddMemberModalOpen(false); setAddMemberError(''); setAddMemberUsername(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
+                <X size={18} />
+              </button>
+            </div>
+            <form onSubmit={handleAddMember} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
+                <input 
+                  type="text" 
+                  value={addMemberUsername}
+                  onChange={(e) => setAddMemberUsername(e.target.value)}
+                  placeholder="e.g. johndoe"
+                  autoFocus
+                  style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                />
+              </div>
+              {addMemberError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{addMemberError}</p>}
+              <button 
+                type="submit" 
+                disabled={addMemberLoading || !addMemberUsername.trim()}
+                style={{ backgroundColor: '#ffffff', color: '#000000', fontWeight: 600, border: 'none', borderRadius: '12px', padding: '0.75rem', cursor: (addMemberLoading || !addMemberUsername.trim()) ? 'not-allowed' : 'pointer', opacity: (addMemberLoading || !addMemberUsername.trim()) ? 0.6 : 1 }}
+              >
+                {addMemberLoading ? 'Adding...' : 'Add Member'}
               </button>
             </form>
           </div>

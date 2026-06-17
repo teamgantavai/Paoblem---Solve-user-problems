@@ -75,7 +75,10 @@ export async function GET(req: NextRequest) {
         // Format messages to preserve backward compatibility (mapping to partner_id, partner_name etc.)
         const formattedMessages = (messagesData || []).map((m: any) => {
           const convMembers = membersMap[m.conversation_id] || [];
-          const partner = convMembers.find(member => member.id !== user.id) || convMembers[0] || {};
+          const partners = convMembers.filter(member => member.id !== user.id);
+          const partner = partners[0] || convMembers[0] || {};
+          const isGroup = convMembers.length > 2;
+          const partnerName = isGroup ? partners.map(p => p.full_name?.split(' ')[0] || 'User').join(', ') : (partner.full_name || 'Member');
           
           return {
             id: m.id,
@@ -83,10 +86,12 @@ export async function GET(req: NextRequest) {
             sender_id: m.sender_id,
             recipient_id: partner.id || m.sender_id,
             partner_id: partner.id || m.sender_id,
-            partner_name: partner.full_name || 'Member',
+            partner_name: partnerName,
             partner_avatar: partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.id || m.sender_id}`,
-            partner_online: partner.online || false,
+            partner_online: isGroup ? partners.some(p => p.online) : (partner.online || false),
             partner_last_seen: partner.last_seen || null,
+            is_group: isGroup,
+            members: convMembers,
             body: m.content || '',
             read: m.read_receipts?.some((r: any) => r.user_id !== m.sender_id) || false,
             type: m.type || 'TEXT',
@@ -153,16 +158,31 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { recipientId, body, type = 'TEXT', attachments = [], conversationId } = await req.json();
-    if (!recipientId && !conversationId) {
-      return NextResponse.json({ error: 'recipientId or conversationId is required' }, { status: 400 });
+    const { recipientId, participantIds, body, type = 'TEXT', attachments = [], conversationId } = await req.json();
+    if (!recipientId && !conversationId && (!participantIds || participantIds.length === 0)) {
+      return NextResponse.json({ error: 'recipientId, participantIds or conversationId is required' }, { status: 400 });
     }
 
     // Try new schema inserting logic first
     try {
       let activeConversationId = conversationId;
 
-      if (!activeConversationId && recipientId) {
+      if (!activeConversationId && participantIds && participantIds.length > 0) {
+        // Create new group chat conversation
+        const { data: newConv, error: createErr } = await supabaseAdmin
+          .from('conversations')
+          .insert({ type: 'group' })
+          .select()
+          .single();
+        if (createErr) throw createErr;
+        activeConversationId = newConv.id;
+        
+        const membersToInsert = [user.id, ...participantIds].map(uid => ({
+          conversation_id: activeConversationId,
+          user_id: uid
+        }));
+        await supabaseAdmin.from('conversation_members').insert(membersToInsert);
+      } else if (!activeConversationId && recipientId) {
         // Find if direct conversation already exists
         const { data: existingMembers, error: findErr } = await supabaseAdmin
           .from('conversation_members')
