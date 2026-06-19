@@ -60,7 +60,7 @@ type ProfileData = {
   username: string | null;
 };
 
-async function attachProfiles<T extends { user_id?: string }>(supabase: ReturnType<typeof createClient>, rows: T[]) {
+async function attachProfiles<T extends { user_id?: string }>(supabase: any, rows: T[]) {
   const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean))) as string[];
   if (userIds.length === 0) return rows;
 
