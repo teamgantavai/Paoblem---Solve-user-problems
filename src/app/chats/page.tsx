@@ -3,13 +3,14 @@
 import React, { useState, useEffect, useRef, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { 
-  Loader2, MessageCircle, Send, ArrowLeft, User, Users, Search, Pin, 
-  FileText, Image as ImageIcon, Link as LinkIcon, Trash2, Edit, 
+import {
+  Loader2, MessageCircle, Send, ArrowLeft, User, Users, Search, Pin,
+  FileText, Image as ImageIcon, Link as LinkIcon, Trash2, Edit,
   Reply, Forward, Sparkles, Smile, Mic, Download, Copy, Bookmark, Share2, Archive,
   Check, CheckCheck, Info, X, Sparkle, AlertCircle, RefreshCw, MoreVertical,
-  VolumeX, Ban, AlertTriangle, EyeOff, Trash
+  VolumeX, Ban, AlertTriangle, EyeOff, Trash, Clock, Settings, Key, Phone, Plus, Paperclip
 } from 'lucide-react';
+import toast from 'react-hot-toast';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
@@ -17,7 +18,8 @@ import GSAPModalWrapper from '@/components/GSAPModalWrapper';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
 
 interface DBMessage {
-  id: string;
+  id?: string;
+  tempId?: string;
   conversation_id: string;
   sender_id: string;
   recipient_id: string;
@@ -497,11 +499,11 @@ function ChatsPageContent() {
     });
 
     // Call PUT API to mark as read
-    const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
+
     fetch('/api/messages', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ conversationId: isConversationId ? activeChatId : undefined, partnerId: !isConversationId ? activeChatId : undefined, read: true })
+      body: JSON.stringify({ partnerId: activeChatId, read: true })
     }).then(() => {
       queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
       queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
@@ -1536,12 +1538,33 @@ function ChatsPageContent() {
                       
                       // Message grouping
                       const prevMsg = index > 0 ? filteredActiveMessages[index - 1] : null;
-                      const isGrouped = prevMsg && prevMsg.sender_id === msg.sender_id && 
-                        (new Date(msg.created_at).getTime() - new Date(prevMsg.created_at).getTime() < 120000);
+                      const nextMsg = index < filteredActiveMessages.length - 1 ? filteredActiveMessages[index + 1] : null;
 
                       // Date separator check
                       const showDateSeparator = !prevMsg || 
                         new Date(msg.created_at).toDateString() !== new Date(prevMsg.created_at).toDateString();
+                      
+                      const showDateSeparatorNext = !nextMsg || 
+                        new Date(nextMsg.created_at).toDateString() !== new Date(msg.created_at).toDateString();
+
+                      const isGroupedWithPrev = prevMsg && prevMsg.sender_id === msg.sender_id && !showDateSeparator;
+                      const isGroupedWithNext = nextMsg && nextMsg.sender_id === msg.sender_id && !showDateSeparatorNext;
+
+                      const isGrouped = isGroupedWithPrev;
+
+                      const getBorderRadius = () => {
+                        const base = '20px';
+                        const small = '4px';
+                        if (isMe) {
+                          const tr = isGroupedWithPrev ? small : base;
+                          const br = isGroupedWithNext ? small : base;
+                          return `${base} ${tr} ${br} ${base}`;
+                        } else {
+                          const tl = isGroupedWithPrev ? small : base;
+                          const bl = isGroupedWithNext ? small : base;
+                          return `${tl} ${base} ${base} ${bl}`;
+                        }
+                      };
 
                       return (
                         <div key={msg.id} style={{ display: 'flex', flexDirection: 'column' }}>
@@ -1559,7 +1582,7 @@ function ChatsPageContent() {
                           style={{ 
                             display: 'flex', 
                             flexDirection: 'column', 
-                            marginTop: isGrouped && !showDateSeparator ? '2px' : '0.75rem',
+                            marginTop: isGrouped && !showDateSeparator ? '2px' : '0.85rem',
                             position: 'relative' 
                           }}
                         >
@@ -1575,7 +1598,7 @@ function ChatsPageContent() {
                             {/* Partner Avatar - Only on the first message of the group */}
                             {!isMe && (
                             <div style={{ width: '36px', height: '36px', flexShrink: 0 }}>
-                                {!isGrouped && (
+                                {!isGroupedWithPrev && (
                                   <Avatar src={activeChatInfo.partnerAvatar} name={activeChatInfo.partnerName} size={36} />
                                 )}
                               </div>
@@ -1600,7 +1623,7 @@ function ChatsPageContent() {
                                 }}
                                 style={{
                                   padding: '0.65rem 1rem',
-                                  borderRadius: '20px',
+                                  borderRadius: getBorderRadius(),
                                   backgroundColor: isMe ? 'var(--accent-blue)' : 'var(--bg-card)',
                                   color: isMe ? '#ffffff' : 'var(--text-main)',
                                   fontSize: '0.95rem',
