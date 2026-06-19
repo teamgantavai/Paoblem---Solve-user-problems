@@ -1217,7 +1217,7 @@ function ChatsPageContent() {
   const sharedImages = activeMessages.filter(m => m.type === 'IMAGE' || m.attachments?.some(a => a.file_type.includes('image')));
   const sharedFiles = activeMessages.filter(m => m.type === 'FILE' || m.attachments?.some(a => !a.file_type.includes('image')));
   const sharedLinks = activeMessages.filter(m => m.type === 'LINK' || m.body.includes('http://') || m.body.includes('https://'));
-  const bookmarkedMessages = activeMessages.filter(m => savedMessageIds.includes(m.id));
+  const bookmarkedMessages = activeMessages.filter(m => m.id && savedMessageIds.includes(m.id));
   const unreadChatsCount = sortedChats.filter(([_, chat]) => chat.unread).length;
 
   return (
@@ -1609,11 +1609,11 @@ function ChatsPageContent() {
                                 onClick={(e) => e.stopPropagation()}
                                 onContextMenu={(e) => {
                                   e.preventDefault();
-                                  setActiveActionMessageId(activeActionMessageId === msg.id ? null : msg.id);
+                                  setActiveActionMessageId(activeActionMessageId === msg.id ? null : (msg.id || null));
                                 }}
                                 onTouchStart={() => {
                                   if (messageLongPressTimerRef.current) clearTimeout(messageLongPressTimerRef.current);
-                                  messageLongPressTimerRef.current = setTimeout(() => setActiveActionMessageId(msg.id), 550);
+                                  messageLongPressTimerRef.current = setTimeout(() => setActiveActionMessageId(msg.id || null), 550);
                                 }}
                                 onTouchMove={() => {
                                   if (messageLongPressTimerRef.current) clearTimeout(messageLongPressTimerRef.current);
@@ -1698,15 +1698,15 @@ function ChatsPageContent() {
                             <button type="button" title="Reply" onClick={() => startReply(msg)} className="chat-icon-btn"><Reply size={14} /></button>
                             {isMe && <button type="button" title="Edit" onClick={() => startMessageEdit(msg)} className="chat-icon-btn"><Edit size={14} /></button>}
                             {['😢', '😡'].map((emoji) => (
-                              <button key={emoji} type="button" title={`React ${emoji}`} onClick={() => handleReaction(msg.id, emoji)} className="chat-icon-btn" style={{ fontSize: '0.86rem' }}>{emoji}</button>
+                              <button key={emoji} type="button" title={`React ${emoji}`} onClick={() => msg.id && handleReaction(msg.id, emoji)} className="chat-icon-btn" style={{ fontSize: '0.86rem' }}>{emoji}</button>
                             ))}
                             {['👍', '❤️', '😂', '😮'].map((emoji) => (
-                              <button key={emoji} type="button" title={`React ${emoji}`} onClick={() => handleReaction(msg.id, emoji)} className="chat-icon-btn" style={{ fontSize: '0.86rem' }}>{emoji}</button>
+                              <button key={emoji} type="button" title={`React ${emoji}`} onClick={() => msg.id && handleReaction(msg.id, emoji)} className="chat-icon-btn" style={{ fontSize: '0.86rem' }}>{emoji}</button>
                             ))}
                             <button type="button" title="Copy" onClick={() => handleCopyMessage(msg.body)} className="chat-icon-btn"><Copy size={14} /></button>
-                            <button type="button" title={savedMessageIds.includes(msg.id) ? 'Unsave' : 'Save'} onClick={() => toggleSaveMessage(msg.id)} className="chat-icon-btn"><Bookmark size={14} fill={savedMessageIds.includes(msg.id) ? 'currentColor' : 'none'} /></button>
+                            <button type="button" title={msg.id && savedMessageIds.includes(msg.id) ? 'Unsave' : 'Save'} onClick={() => msg.id && toggleSaveMessage(msg.id)} className="chat-icon-btn"><Bookmark size={14} fill={msg.id && savedMessageIds.includes(msg.id) ? 'currentColor' : 'none'} /></button>
                             <button type="button" title="Forward" onClick={() => handleShareMessage(msg)} className="chat-icon-btn"><Forward size={14} /></button>
-                            <button type="button" title="Delete" onClick={() => handleDeleteMessageLocal(msg.id)} className="chat-icon-btn chat-icon-btn-danger"><Trash2 size={14} /></button>
+                            <button type="button" title="Delete" onClick={() => msg.id && handleDeleteMessageLocal(msg.id)} className="chat-icon-btn chat-icon-btn-danger"><Trash2 size={14} /></button>
                           </div>
                         </div>
                         </div>
@@ -1730,10 +1730,10 @@ function ChatsPageContent() {
                 )}
 
                 <div className="chat-composer">
-                  {replyToMessage && (
+                  {replyToMessage && replyToMessage.id && (
                     <button
                       type="button"
-                      onClick={() => jumpToMessage(replyToMessage.id)}
+                      onClick={() => jumpToMessage(replyToMessage.id!)}
                       style={{ width: '100%', marginBottom: '0.65rem', padding: '0.65rem 0.8rem', borderRadius: '12px', border: '1px solid var(--border-color)', borderLeft: '3px solid var(--accent-blue)', background: 'var(--bg-hover)', color: 'var(--text-main)', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '0.75rem', cursor: 'pointer', textAlign: 'left' }}
                     >
                       <span style={{ minWidth: 0 }}>
