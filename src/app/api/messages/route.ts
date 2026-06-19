@@ -417,16 +417,19 @@ export async function PUT(req: NextRequest) {
 
       if (updateError) throw updateError;
 
-      await supabaseAdmin
-        .from('message_edit_history')
-        .insert({
-          message_id: messageId,
-          editor_id: user.id,
-          old_content: existing.content || '',
-          new_content: body.trim()
-        })
-        .throwOnError()
-        .catch(() => null);
+      try {
+        await supabaseAdmin
+          .from('message_edit_history')
+          .insert({
+            message_id: messageId,
+            editor_id: user.id,
+            old_content: existing.content || '',
+            new_content: body.trim()
+          })
+          .throwOnError();
+      } catch {
+        // Silently fail if edit history insert fails
+      }
 
       return NextResponse.json({ success: true, message: updated });
     }
