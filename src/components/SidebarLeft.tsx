@@ -128,10 +128,20 @@ function SidebarLeftInner() {
               />
             </div>
             <div className="profile-info">
-              <div className="profile-name-row">
+              <div className="profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                 <span className="profile-name">{displayName}</span>
+                <span style={{
+                  fontSize: '0.65rem',
+                  fontWeight: 500,
+                  backgroundColor: '#3c11eb',
+                  color: 'white',
+                  padding: '1px 6px',
+                  borderRadius: '12px',
+                  whiteSpace: 'nowrap'
+                }}>
+                  {displayRole}
+                </span>
               </div>
-              <p className="profile-role">{displayRole}</p>
             </div>
           </div>
         </div>

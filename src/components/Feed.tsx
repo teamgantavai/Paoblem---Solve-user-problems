@@ -34,7 +34,7 @@ import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import CommentsModal from './CommentsModal';
 
 function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
-  const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance } = useMicroAnimations();
+  const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance, animateUpvote } = useMicroAnimations();
   const feedListRef = useRef<HTMLDivElement>(null);
 
   const router = useRouter();
@@ -485,10 +485,18 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   />
                   <div className="post-user-info">
                     <h4
-                      className="post-author-name"
-                      onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+                      className="post-author-name-container"
+                      style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}
                     >
-                      {post.profiles?.full_name || 'Anonymous'}
+                      <span
+                        className="post-author-name"
+                        onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+                      >
+                        {post.profiles?.full_name || 'Anonymous'}
+                      </span>
+                      <span className="post-author-role">
+                        {post.profiles?.role || 'Innovator'}
+                      </span>
                     </h4>
                     {post.profiles?.username && (
                       <p
@@ -499,8 +507,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       </p>
                     )}
                     <p className="post-author-meta">
-                      <span className="post-author-role">{post.profiles?.role || 'Innovator'}</span>
-                      <span className="post-author-dot">·</span>
                       {new Date(post.created_at).toLocaleDateString(undefined, {
                         month: 'short',
                         day: 'numeric',
@@ -667,16 +673,19 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               <div className="post-footer">
                 <div className="flex items-center gap-2 post-footer-actions">
                   {/* Upvote Capsule */}
-                  <div className="vote-container" style={{ borderColor: hasUpvoted ? 'var(--accent-blue)' : undefined, background: hasUpvoted ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
+                  <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34, 197, 94, 0.08)' : undefined }}>
                     <button
                       className="vote-btn"
-                      onClick={() => handleVote(post.id, 'up')}
-                      style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}
+                      onClick={(e) => {
+                        animateUpvote(e.currentTarget);
+                        handleVote(post.id, 'up');
+                      }}
+                      style={{ color: hasUpvoted ? '#22c55e' : undefined }}
                       aria-label="Upvote"
                     >
-                      <TriangleIcon size={16} />
+                      <TriangleIcon size={16} fill={hasUpvoted ? 'currentColor' : 'none'} />
                     </button>
-                    <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? 'var(--accent-blue)' : undefined }}>
+                    <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? '#22c55e' : undefined }}>
                       +{post.upvotes}
                     </span>
                   </div>
@@ -685,11 +694,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
                     <button
                       className="vote-btn"
-                      onClick={() => handleVote(post.id, 'down')}
+                      onClick={() => {
+                        handleVote(post.id, 'down');
+                      }}
                       style={{ color: hasDownvoted ? '#ef4444' : undefined }}
                       aria-label="Downvote"
                     >
-                      <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} />
+                      <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
                     </button>
                     <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>
                       -{post.downvotes}

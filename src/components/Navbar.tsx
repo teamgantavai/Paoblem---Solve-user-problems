@@ -543,13 +543,22 @@ function NavbarInner() {
               <div className="drawer-profile-info">
                 {renderProfileAvatar(48, 'drawer-profile-avatar')}
                 <div className="drawer-profile-details">
-                  <div className="drawer-profile-name-row">
+                  <div className="drawer-profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                     <span className="drawer-profile-name">{displayName}</span>
+                    <span style={{
+                      fontSize: '0.65rem',
+                      fontWeight: 500,
+                      backgroundColor: '#3c11eb',
+                      color: 'white',
+                      padding: '1px 6px',
+                      borderRadius: '12px',
+                      whiteSpace: 'nowrap'
+                    }}>
+                      {displayRole}
+                    </span>
                   </div>
-                  <span className="drawer-profile-role">{displayRole}</span>
                 </div>
               </div>
-
             </div>
           ) : (
             <div 
@@ -567,7 +576,7 @@ function NavbarInner() {
               </button>
             </div>
           )}
-  
+   
           {/* Navigation Menu */}
           <div className="drawer-menu-section">
             <div 
@@ -606,7 +615,7 @@ function NavbarInner() {
               </div>
             )}
           </div>
-
+ 
           <div className="drawer-pulse-card">
             <div className="drawer-pulse-head">
               <span>
@@ -645,7 +654,7 @@ function NavbarInner() {
           </div>
         </div>
       </div>
- 
+  
       {/* Modals */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
@@ -653,7 +662,7 @@ function NavbarInner() {
     </>
   );
 }
-
+ 
 export default function Navbar() {
   return (
     <Suspense fallback={null}>

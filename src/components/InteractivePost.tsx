@@ -28,6 +28,7 @@ import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import ImageGallery from './ImageGallery';
 import ImageUploader from './ImageUploader';
 import CommentThread from './CommentThread';
+import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 interface InteractivePostProps {
   initialPost: Post;
@@ -35,6 +36,7 @@ interface InteractivePostProps {
 }
 
 export default function InteractivePost({ initialPost, initialComments }: InteractivePostProps) {
+  const { animateUpvote } = useMicroAnimations();
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightComment = searchParams ? searchParams.get('highlightComment') : null;
@@ -43,6 +45,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [session, setSession] = useState<any>(null);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
+  const [userSolutionVotes, setUserSolutionVotes] = useState<Record<string, 'up' | 'down'>>({});
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [isSolutionsLoading, setIsSolutionsLoading] = useState(false);
@@ -73,6 +76,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setSession(currentSession);
       if (currentSession?.user?.id) {
         fetchUserVote(currentSession.user.id);
+        fetchUserSolutionVotes(currentSession.user.id);
       }
     });
 
@@ -80,8 +84,10 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setSession(currentSession);
       if (currentSession?.user?.id) {
         fetchUserVote(currentSession.user.id);
+        fetchUserSolutionVotes(currentSession.user.id);
       } else {
         setUserVote(null);
+        setUserSolutionVotes({});
       }
     });
 
@@ -156,6 +162,23 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         .maybeSingle();
       if (data) {
         setUserVote(data.vote_type as 'up' | 'down');
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  const fetchUserSolutionVotes = async (userId: string) => {
+    if (post.id === 'dylan-post' || post.id === 'ryan-post') return;
+    try {
+      const { data } = await supabase
+        .from('solution_votes')
+        .select('solution_id, vote_type')
+        .eq('user_id', userId);
+      if (data && data.length > 0) {
+        const map: Record<string, 'up' | 'down'> = {};
+        data.forEach((v: any) => { map[v.solution_id] = v.vote_type as 'up' | 'down'; });
+        setUserSolutionVotes(map);
       }
     } catch (err) {
       console.error(err);
@@ -302,16 +325,35 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       return;
     }
 
+    const previousVote = userSolutionVotes[solutionId] || null;
+    const isToggleOff = previousVote === voteType;
+
+    // Optimistic UI for vote state
+    setUserSolutionVotes((prev) => {
+      const next = { ...prev };
+      if (isToggleOff) { delete next[solutionId]; } else { next[solutionId] = voteType; }
+      return next;
+    });
+
+    // Optimistic UI for counts
     setSolutions((prev) =>
-      prev.map((solution) =>
-        solution.id === solutionId
-          ? {
-              ...solution,
-              upvotes: voteType === 'up' ? solution.upvotes + 1 : solution.upvotes,
-              downvotes: voteType === 'down' ? solution.downvotes + 1 : solution.downvotes,
-            }
-          : solution
-      )
+      prev.map((solution) => {
+        if (solution.id !== solutionId) return solution;
+        let upDelta = 0;
+        let downDelta = 0;
+        if (isToggleOff) {
+          if (voteType === 'up') upDelta = -1; else downDelta = -1;
+        } else if (previousVote) {
+          if (voteType === 'up') { upDelta = 1; downDelta = -1; } else { upDelta = -1; downDelta = 1; }
+        } else {
+          if (voteType === 'up') upDelta = 1; else downDelta = 1;
+        }
+        return {
+          ...solution,
+          upvotes: Math.max(0, solution.upvotes + upDelta),
+          downvotes: Math.max(0, solution.downvotes + downDelta),
+        };
+      })
     );
 
     try {
@@ -327,6 +369,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     } catch (err) {
       console.error(err);
       fetchSolutions();
+      if (session?.user?.id) fetchUserSolutionVotes(session.user.id);
     }
   };
 
@@ -593,16 +636,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               onClick={() => router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`)}
             >
               {authorName}
-              <span
-                style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 500,
-                  background: 'var(--bg-hover)',
-                  padding: '1px 6px',
-                  borderRadius: '10px',
-                  color: 'var(--text-muted)'
-                }}
-              >
+              <span className="post-author-role">
                 {authorRole}
               </span>
             </h4>
@@ -811,16 +845,19 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       <div className="post-footer" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
         <div className="flex items-center gap-2">
           {/* Upvote Capsule */}
-          <div className="vote-container" style={{ borderColor: userVote === 'up' ? 'var(--accent-blue)' : undefined, background: userVote === 'up' ? 'rgba(0, 132, 255, 0.08)' : undefined }}>
+          <div className="vote-container" style={{ borderColor: userVote === 'up' ? '#22c55e' : undefined, background: userVote === 'up' ? 'rgba(34, 197, 94, 0.08)' : undefined }}>
             <button
               className="vote-btn"
-              onClick={() => handleVote('up')}
-              style={{ color: userVote === 'up' ? 'var(--accent-blue)' : undefined }}
+              onClick={(e) => {
+                animateUpvote(e.currentTarget);
+                handleVote('up');
+              }}
+              style={{ color: userVote === 'up' ? '#22c55e' : undefined }}
               aria-label="Upvote"
             >
-              <TriangleIcon size={16} />
+              <TriangleIcon size={16} fill={userVote === 'up' ? 'currentColor' : 'none'} />
             </button>
-            <span className={`vote-label up ${userVote === 'up' ? 'active' : ''}`} style={{ color: userVote === 'up' ? 'var(--accent-blue)' : undefined }}>
+            <span className={`vote-label up ${userVote === 'up' ? 'active' : ''}`} style={{ color: userVote === 'up' ? '#22c55e' : undefined }}>
               +{post.upvotes}
             </span>
           </div>
@@ -829,11 +866,13 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           <div className="vote-container" style={{ borderColor: userVote === 'down' ? '#ef4444' : undefined, background: userVote === 'down' ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
             <button
               className="vote-btn"
-              onClick={() => handleVote('down')}
+              onClick={() => {
+                handleVote('down');
+              }}
               style={{ color: userVote === 'down' ? '#ef4444' : undefined }}
               aria-label="Downvote"
             >
-              <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} />
+              <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} fill={userVote === 'down' ? 'currentColor' : 'none'} />
             </button>
             <span className={`vote-label down ${userVote === 'down' ? 'active' : ''}`}>
               -{post.downvotes}
@@ -918,7 +957,11 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                   key={solution.id}
                   solution={solution}
                   isOwner={session?.user?.id === solution.user_id}
+                  userVote={userSolutionVotes[solution.id] || null}
+                  session={session}
                   onVote={handleSolutionVote}
+                  onAuthRequired={() => setIsAuthOpen(true)}
+                  animateUpvote={animateUpvote}
                   onEdit={() => openEditSolutionModal(solution)}
                   onDelete={async () => {
                     if (!session || !window.confirm('Delete this solution?')) return;
@@ -1056,21 +1099,104 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   );
 }
 
+interface SolutionComment {
+  id: string;
+  user_id: string;
+  solution_id: string;
+  body: string;
+  created_at: string;
+  profiles?: { full_name: string | null; avatar_url: string | null; role: string | null; username: string | null } | null;
+}
+
 function SolutionCard({
   solution,
   isOwner,
+  userVote,
+  session,
   onVote,
+  onAuthRequired,
+  animateUpvote,
   onEdit,
   onDelete,
 }: {
   solution: Solution;
   isOwner: boolean;
+  userVote: 'up' | 'down' | null;
+  session: any;
   onVote: (solutionId: string, voteType: 'up' | 'down') => void;
+  onAuthRequired: () => void;
+  animateUpvote: (target: HTMLElement) => void;
   onEdit: () => void;
   onDelete: () => void;
 }) {
   const authorName = solution.profiles?.full_name || 'Developer';
   const authorAvatar = solution.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${solution.user_id}`;
+  const hasUpvoted = userVote === 'up';
+  const hasDownvoted = userVote === 'down';
+
+  // Solution comments state
+  const [showComments, setShowComments] = useState(false);
+  const [solutionComments, setSolutionComments] = useState<SolutionComment[]>([]);
+  const [isLoadingComments, setIsLoadingComments] = useState(false);
+  const [commentText, setCommentText] = useState('');
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [localCommentsCount, setLocalCommentsCount] = useState(solution.comments_count);
+
+  const fetchComments = async () => {
+    setIsLoadingComments(true);
+    try {
+      const { data } = await supabase
+        .from('solution_comments')
+        .select('*, profiles:user_id(full_name, avatar_url, role, username)')
+        .eq('solution_id', solution.id)
+        .order('created_at', { ascending: true });
+      setSolutionComments(data || []);
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsLoadingComments(false);
+    }
+  };
+
+  const handleToggleComments = () => {
+    const next = !showComments;
+    setShowComments(next);
+    if (next && solutionComments.length === 0) fetchComments();
+  };
+
+  const handleAddComment = async () => {
+    if (!session) { onAuthRequired(); return; }
+    if (!commentText.trim()) return;
+    setIsSubmittingComment(true);
+    try {
+      const { data, error } = await supabase
+        .from('solution_comments')
+        .insert({ user_id: session.user.id, solution_id: solution.id, body: commentText.trim() })
+        .select('*, profiles:user_id(full_name, avatar_url, role, username)')
+        .single();
+      if (error) throw error;
+      if (data) {
+        setSolutionComments((prev) => [...prev, data]);
+        setLocalCommentsCount((c) => c + 1);
+        setCommentText('');
+      }
+    } catch (err) {
+      console.error(err);
+    } finally {
+      setIsSubmittingComment(false);
+    }
+  };
+
+  const handleDeleteComment = async (commentId: string) => {
+    if (!window.confirm('Delete this comment?')) return;
+    try {
+      await supabase.from('solution_comments').delete().eq('id', commentId);
+      setSolutionComments((prev) => prev.filter((c) => c.id !== commentId));
+      setLocalCommentsCount((c) => Math.max(0, c - 1));
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   return (
     <article className="solution-card">
@@ -1106,23 +1232,141 @@ function SolutionCard({
       )}
 
       <div className="solution-card-footer">
-        <div className="vote-container">
-          <button className="vote-btn" onClick={() => onVote(solution.id, 'up')} aria-label="Upvote solution">
-            <TriangleIcon size={15} />
+        {/* Upvote */}
+        <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34, 197, 94, 0.08)' : undefined }}>
+          <button
+            className="vote-btn"
+            onClick={(e) => { animateUpvote(e.currentTarget); onVote(solution.id, 'up'); }}
+            style={{ color: hasUpvoted ? '#22c55e' : undefined }}
+            aria-label="Upvote solution"
+          >
+            <TriangleIcon size={15} fill={hasUpvoted ? 'currentColor' : 'none'} />
           </button>
-          <span className="vote-label up">+{solution.upvotes}</span>
+          <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? '#22c55e' : undefined }}>+{solution.upvotes}</span>
         </div>
-        <div className="vote-container">
-          <button className="vote-btn" onClick={() => onVote(solution.id, 'down')} aria-label="Downvote solution">
-            <TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} />
+        {/* Downvote */}
+        <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
+          <button
+            className="vote-btn"
+            onClick={() => onVote(solution.id, 'down')}
+            style={{ color: hasDownvoted ? '#ef4444' : undefined }}
+            aria-label="Downvote solution"
+          >
+            <TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
           </button>
-          <span className="vote-label down">-{solution.downvotes}</span>
+          <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>-{solution.downvotes}</span>
         </div>
-        <span className="solution-comments-pill">
+        {/* Comments pill */}
+        <button
+          type="button"
+          className="solution-comments-pill"
+          onClick={handleToggleComments}
+          style={{ cursor: 'pointer', border: 'none' }}
+        >
           <MessageCircle size={14} />
-          {solution.comments_count}
-        </span>
+          {localCommentsCount}
+        </button>
       </div>
+
+      {/* Collapsible comments section */}
+      {showComments && (
+        <div className="solution-comments-section" style={{ marginTop: '0.75rem', paddingTop: '0.75rem', borderTop: '1px solid var(--border-color)' }}>
+          {isLoadingComments ? (
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-muted)', fontSize: '0.8rem', padding: '0.5rem 0' }}>
+              <Loader2 size={14} className="spin" /> Loading comments...
+            </div>
+          ) : (
+            <>
+              {solutionComments.length === 0 && (
+                <p style={{ color: 'var(--text-muted)', fontSize: '0.8rem', margin: '0.25rem 0 0.75rem' }}>No comments yet.</p>
+              )}
+              {solutionComments.map((comment) => (
+                <div key={comment.id} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
+                  <img
+                    src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`}
+                    alt={comment.profiles?.full_name || 'User'}
+                    style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                  />
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.15rem' }}>
+                      <span style={{ fontWeight: 600, fontSize: '0.78rem', color: 'var(--text-main)' }}>
+                        {comment.profiles?.full_name || 'User'}
+                      </span>
+                      <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>·</span>
+                      <time style={{ fontSize: '0.7rem', color: 'var(--text-muted)' }}>
+                        {new Date(comment.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric' })}
+                      </time>
+                      {session?.user?.id === comment.user_id && (
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteComment(comment.id)}
+                          style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', fontSize: '0.7rem' }}
+                          aria-label="Delete comment"
+                        >
+                          <Trash2 size={12} />
+                        </button>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '0.82rem', color: 'var(--text-main)', margin: 0, lineHeight: 1.45, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>
+                      {comment.body}
+                    </p>
+                  </div>
+                </div>
+              ))}
+
+              {/* Comment composer */}
+              <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
+                <img
+                  src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=guest'}
+                  alt="You"
+                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                />
+                <div style={{ flex: 1, display: 'flex', gap: '0.35rem' }}>
+                  <input
+                    type="text"
+                    value={commentText}
+                    onChange={(e) => setCommentText(e.target.value)}
+                    onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAddComment(); } }}
+                    placeholder={session ? 'Write a comment...' : 'Sign in to comment'}
+                    disabled={isSubmittingComment}
+                    onClick={() => { if (!session) onAuthRequired(); }}
+                    style={{
+                      flex: 1,
+                      background: 'var(--search-bg)',
+                      border: '1px solid var(--border-color)',
+                      borderRadius: '16px',
+                      padding: '0.4rem 0.75rem',
+                      fontSize: '0.8rem',
+                      color: 'var(--text-main)',
+                      outline: 'none',
+                    }}
+                  />
+                  <button
+                    type="button"
+                    onClick={handleAddComment}
+                    disabled={isSubmittingComment || !commentText.trim()}
+                    style={{
+                      background: commentText.trim() ? '#22c55e' : 'var(--search-bg)',
+                      color: commentText.trim() ? '#fff' : 'var(--text-muted)',
+                      border: 'none',
+                      borderRadius: '50%',
+                      width: 32,
+                      height: 32,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      cursor: commentText.trim() ? 'pointer' : 'default',
+                      flexShrink: 0,
+                    }}
+                  >
+                    {isSubmittingComment ? <Loader2 size={14} className="spin" /> : <Send size={14} />}
+                  </button>
+                </div>
+              </div>
+            </>
+          )}
+        </div>
+      )}
     </article>
   );
 }

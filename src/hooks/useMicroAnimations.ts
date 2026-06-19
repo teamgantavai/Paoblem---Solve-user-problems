@@ -89,7 +89,17 @@ export function useMicroAnimations() {
     );
   });
 
+  // 6. Upvote jump animation
+  const animateUpvote = contextSafe((target: HTMLElement) => {
+    const icon = target.querySelector('svg') || target;
+    gsap.set(icon, { transformOrigin: 'center center' });
+    gsap.timeline()
+      .to(icon, { y: -6, scale: 1.3, duration: 0.12, ease: 'power2.out' })
+      .to(icon, { y: 0, scale: 1, duration: 0.2, ease: 'back.out(2)' });
+  });
+
   return {
+    animateUpvote,
     animateButtonPress,
     animateButtonRelease,
     animateButtonHover,
