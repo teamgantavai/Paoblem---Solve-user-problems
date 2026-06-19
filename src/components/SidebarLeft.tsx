@@ -2,13 +2,17 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
+import { usePathname } from 'next/navigation';
 import {
   TrendingUp,
   BarChart2,
   Bookmark,
   Plus,
   Star,
-  LogIn
+  LogIn,
+  Lightbulb,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import AuthModal from './AuthModal';
@@ -17,6 +21,7 @@ import DevelopmentNotice from './DevelopmentNotice';
 
 function SidebarLeftInner() {
   const router = useRouter();
+  const pathname = usePathname();
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
 
@@ -26,6 +31,14 @@ function SidebarLeftInner() {
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [noticeFeature, setNoticeFeature] = useState('');
+  const [pulseStats, setPulseStats] = useState({
+    totalSolutions: 0,
+    problemsSolved: 0,
+    unsolvedProblems: 0,
+    totalProblems: 0,
+    totalIdeas: 0,
+    totalPosts: 0,
+  });
 
   const triggerNotice = (feature: string) => {
     setNoticeFeature(feature);
@@ -59,6 +72,41 @@ function SidebarLeftInner() {
         if (data) setProfile(data as any);
       });
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    let cancelled = false;
+    async function fetchPulseStats() {
+      try {
+        const [solutionsRes, problemsRes, ideasRes] = await Promise.all([
+          fetch('/api/solutions?filter=all'),
+          supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'problem'),
+          supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'idea'),
+        ]);
+
+        const solutionJson = solutionsRes.ok ? await solutionsRes.json() : null;
+        const totalProblems = problemsRes.count || 0;
+        const totalIdeas = ideasRes.count || 0;
+
+        if (!cancelled) {
+          setPulseStats({
+            totalSolutions: solutionJson?.stats?.totalSolutions || 0,
+            problemsSolved: solutionJson?.stats?.problemsSolved || 0,
+            unsolvedProblems: solutionJson?.stats?.unsolvedProblems || 0,
+            totalProblems,
+            totalIdeas,
+            totalPosts: totalProblems + totalIdeas,
+          });
+        }
+      } catch (err) {
+        console.error('Failed to load pulse stats', err);
+      }
+    }
+
+    fetchPulseStats();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   const displayName = profile?.full_name || session?.user?.user_metadata?.full_name || 'Member';
   const displayRole = profile?.role || 'Innovator';
@@ -159,6 +207,69 @@ function SidebarLeftInner() {
           <Star size={20} />
           <span>My Posts</span>
         </div>
+      </div>
+
+      <div className="card sidebar-solutions-card">
+        <div className="sidebar-solutions-head">
+          <span>
+            <Lightbulb size={15} />
+            {pathname === '/solutions' ? 'Solution Pulse' : 'Problem Pulse'}
+          </span>
+          <button type="button" onClick={() => router.push(pathname === '/solutions' ? '/' : '/solutions')}>
+            {pathname === '/solutions' ? 'Home' : 'View'}
+          </button>
+        </div>
+        {pathname === '/solutions' ? (
+          <>
+            <div className="sidebar-solutions-grid">
+              <div>
+                <strong>{pulseStats.totalSolutions}</strong>
+                <span>Total</span>
+              </div>
+              <div>
+                <strong>{pulseStats.problemsSolved}</strong>
+                <span>Solved</span>
+              </div>
+              <div>
+                <strong>{pulseStats.unsolvedProblems}</strong>
+                <span>Open</span>
+              </div>
+            </div>
+            <div className="sidebar-solution-status">
+              <CheckCircle size={14} />
+              <span>{pulseStats.problemsSolved} problems solved by developers</span>
+            </div>
+            <div className="sidebar-solution-status sidebar-solution-status--open">
+              <Clock size={14} />
+              <span>{pulseStats.unsolvedProblems} waiting for solutions</span>
+            </div>
+          </>
+        ) : (
+          <>
+            <div className="sidebar-solutions-grid">
+              <div>
+                <strong>{pulseStats.totalProblems}</strong>
+                <span>Problems</span>
+              </div>
+              <div>
+                <strong>{pulseStats.totalIdeas}</strong>
+                <span>Ideas</span>
+              </div>
+              <div>
+                <strong>{pulseStats.totalPosts}</strong>
+                <span>Total</span>
+              </div>
+            </div>
+            <div className="sidebar-solution-status">
+              <TrendingUp size={14} />
+              <span>{pulseStats.totalProblems} problems posted by the community</span>
+            </div>
+            <div className="sidebar-solution-status sidebar-solution-status--open">
+              <Lightbulb size={14} />
+              <span>{pulseStats.totalIdeas} ideas shared for builders</span>
+            </div>
+          </>
+        )}
       </div>
 
 

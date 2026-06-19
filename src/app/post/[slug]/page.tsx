@@ -32,6 +32,8 @@ function getMockPost(slug: string): Post | null {
       downvotes: 3,
       comments_count: 2,
       views_count: 420,
+      solutions_count: 2,
+      solved: true,
       slug: 'why-designing-sucks',
       created_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
       updated_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
@@ -56,6 +58,8 @@ function getMockPost(slug: string): Post | null {
       downvotes: 1,
       comments_count: 1,
       views_count: 310,
+      solutions_count: 0,
+      solved: false,
       slug: 'recruiting-in-2026-is-totally-broken',
       created_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
       updated_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
@@ -80,7 +84,7 @@ async function getPost(slug: string): Promise<Post | null> {
 
   let query = supabase
     .from('posts')
-    .select('*, profiles:user_id(full_name, avatar_url, role, username)');
+    .select('*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)');
 
   if (isUuid) {
     query = query.eq('id', slug);
@@ -88,12 +92,34 @@ async function getPost(slug: string): Promise<Post | null> {
     query = query.eq('slug', slug);
   }
 
-  const { data, error } = await query.maybeSingle();
+  let { data, error } = await query.maybeSingle();
+
+  if (error && error.message.includes('solutions')) {
+    let fallbackQuery = supabase
+      .from('posts')
+      .select('*, profiles:user_id(full_name, avatar_url, role, username)');
+
+    if (isUuid) {
+      fallbackQuery = fallbackQuery.eq('id', slug);
+    } else {
+      fallbackQuery = fallbackQuery.eq('slug', slug);
+    }
+
+    const fallback = await fallbackQuery.maybeSingle();
+    data = fallback.data;
+    error = fallback.error;
+  }
 
   if (error || !data) {
     return null;
   }
-  return data as Post;
+  const rawSolutionsCount = (data as { solutions_count?: { count?: number }[] }).solutions_count;
+  const solutionsCount = Number(rawSolutionsCount?.[0]?.count || 0);
+  return {
+    ...data,
+    solutions_count: solutionsCount,
+    solved: data.type === 'problem' && solutionsCount > 0,
+  } as Post;
 }
 
 // Fetch Comments

@@ -3,7 +3,7 @@
 import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
-import { Loader2, AlertTriangle, Lightbulb } from 'lucide-react';
+import { Loader2 } from 'lucide-react';
 import { Post } from '@/lib/types';
 
 export default function SidebarRight() {
@@ -19,6 +19,7 @@ export default function SidebarRight() {
     },
   });
 
+
   const trendingPosts = postsData?.posts?.slice(0, 3) || [];
 
   const handleNavigatePost = (post: Post) => {
@@ -30,7 +31,7 @@ export default function SidebarRight() {
     } else if (post.slug) {
       router.push(`/post/${post.slug}`);
     } else {
-      router.push(`/?post=${post.id}`);
+      router.push(`/post/${post.id}`);
     }
   };
 

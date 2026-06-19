@@ -28,7 +28,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('posts')
-      .select('*, profiles:user_id(full_name, avatar_url, role, username)');
+      .select('*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)');
 
     if (postId) {
       if (postId === 'dylan-post' || postId === 'ryan-post') {
@@ -45,6 +45,8 @@ export async function GET(req: NextRequest) {
           downvotes: 3,
           comments_count: 2,
           views_count: 420,
+          solutions_count: 2,
+          solved: true,
           created_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
           updated_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
           profiles: {
@@ -65,6 +67,8 @@ export async function GET(req: NextRequest) {
           downvotes: 1,
           comments_count: 1,
           views_count: 310,
+          solutions_count: 0,
+          solved: false,
           created_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
           updated_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
           profiles: {
@@ -108,8 +112,8 @@ export async function GET(req: NextRequest) {
 
     let { data, error } = await query;
 
-    if (error && (error.message.includes('username') || error.message.includes('slug'))) {
-      console.warn('[posts/list] Fallback: profiles.username or posts.slug column missing, retrying query without them.');
+    if (error && (error.message.includes('username') || error.message.includes('slug') || error.message.includes('solutions'))) {
+      console.warn('[posts/list] Fallback: optional profile, slug, or solutions relation missing. Retrying basic query.');
       let fallbackQuery = supabase
         .from('posts')
         .select('*, profiles:user_id(full_name, avatar_url, role)');
@@ -147,16 +151,28 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    const postsWithSolvedState = (data || []).map((post: any) => {
+      const rawCount = Array.isArray(post.solutions_count)
+        ? post.solutions_count[0]?.count
+        : post.solutions_count;
+      const solutionsCount = Number(rawCount || 0);
+      return {
+        ...post,
+        solutions_count: solutionsCount,
+        solved: post.type === 'problem' && solutionsCount > 0,
+      };
+    });
+
     if (postId) {
       return NextResponse.json({
-        posts: data || [],
+        posts: postsWithSolvedState,
         nextCursor: null,
         hasMore: false,
       });
     }
 
-    const hasMore = (data?.length || 0) > PAGE_SIZE;
-    const posts = hasMore ? data!.slice(0, PAGE_SIZE) : (data || []);
+    const hasMore = postsWithSolvedState.length > PAGE_SIZE;
+    const posts = hasMore ? postsWithSolvedState.slice(0, PAGE_SIZE) : postsWithSolvedState;
     const nextCursor = hasMore ? posts[posts.length - 1].created_at : null;
 
     return NextResponse.json({

@@ -17,7 +17,10 @@ import {
   Star, 
   Settings, 
   LogOut, 
-  LogIn 
+  LogIn,
+  Lightbulb,
+  CheckCircle,
+  Clock
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -138,6 +141,31 @@ function NavbarInner() {
     },
     enabled: !!session?.access_token,
     refetchInterval: 30000 // poll every 30s
+  });
+
+  const { data: pulseStats } = useQuery<{
+    stats: { totalSolutions: number; problemsSolved: number; unsolvedProblems: number };
+    postStats?: { totalProblems: number; totalIdeas: number; totalPosts: number };
+  }>({
+    queryKey: ['mobile-pulse-stats'],
+    queryFn: async () => {
+      const [solutionsRes, problemsRes, ideasRes] = await Promise.all([
+        fetch('/api/solutions?filter=all'),
+        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'problem'),
+        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'idea'),
+      ]);
+      const solutionJson = solutionsRes.ok ? await solutionsRes.json() : { stats: { totalSolutions: 0, problemsSolved: 0, unsolvedProblems: 0 } };
+      const totalProblems = problemsRes.count || 0;
+      const totalIdeas = ideasRes.count || 0;
+      return {
+        ...solutionJson,
+        postStats: {
+          totalProblems,
+          totalIdeas,
+          totalPosts: totalProblems + totalIdeas,
+        },
+      };
+    },
   });
 
   // Global message realtime listener for browser notifications
@@ -577,6 +605,43 @@ function NavbarInner() {
                 <span>Sign Out</span>
               </div>
             )}
+          </div>
+
+          <div className="drawer-pulse-card">
+            <div className="drawer-pulse-head">
+              <span>
+                <Lightbulb size={15} />
+                {isSolutionsActive ? 'Solution Pulse' : 'Problem Pulse'}
+              </span>
+            </div>
+            <div className="drawer-pulse-grid">
+              {isSolutionsActive ? (
+                <>
+                  <div><strong>{pulseStats?.stats?.totalSolutions ?? 0}</strong><span>Total</span></div>
+                  <div><strong>{pulseStats?.stats?.problemsSolved ?? 0}</strong><span>Solved</span></div>
+                  <div><strong>{pulseStats?.stats?.unsolvedProblems ?? 0}</strong><span>Open</span></div>
+                </>
+              ) : (
+                <>
+                  <div><strong>{pulseStats?.postStats?.totalProblems ?? 0}</strong><span>Problems</span></div>
+                  <div><strong>{pulseStats?.postStats?.totalIdeas ?? 0}</strong><span>Ideas</span></div>
+                  <div><strong>{pulseStats?.postStats?.totalPosts ?? 0}</strong><span>Total</span></div>
+                </>
+              )}
+            </div>
+            <p className="drawer-pulse-note">
+              {isSolutionsActive ? (
+                <>
+                  <CheckCircle size={13} />
+                  {pulseStats?.stats?.problemsSolved ?? 0} solved, <Clock size={13} /> {pulseStats?.stats?.unsolvedProblems ?? 0} open
+                </>
+              ) : (
+                <>
+                  <TrendingUp size={13} />
+                  Community problem and idea activity
+                </>
+              )}
+            </p>
           </div>
         </div>
       </div>

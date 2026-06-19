@@ -472,6 +472,68 @@
   margin: 0.5rem 0;
 }
 
+.drawer-pulse-card {
+  margin-top: 1rem;
+  border: 1px solid var(--border-color);
+  border-radius: 14px;
+  background: var(--bg-card);
+  padding: 0.95rem;
+}
+
+.drawer-pulse-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.drawer-pulse-head span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 650;
+}
+
+.drawer-pulse-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
+}
+
+.drawer-pulse-grid div {
+  border: 1px solid var(--border-color);
+  border-radius: 12px;
+  background: var(--bg-hover);
+  padding: 0.55rem 0.4rem;
+  text-align: center;
+}
+
+.drawer-pulse-grid strong {
+  display: block;
+  color: var(--text-main);
+  font-size: 1rem;
+  line-height: 1.2;
+}
+
+.drawer-pulse-grid span {
+  color: var(--text-muted);
+  font-size: 0.66rem;
+  font-weight: 600;
+}
+
+.drawer-pulse-note {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+  margin: 0.75rem 0 0;
+  color: var(--text-muted);
+  font-size: 0.72rem;
+  line-height: 1.35;
+}
+
 /* Responsive Overrides for navigation */
 @media (max-width: 768px) {
   .mobile-bottom-nav {

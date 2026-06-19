@@ -15,16 +15,18 @@ import {
   Share2,
   Copy,
   Loader2,
-  BarChart2
+  BarChart2,
+  Send
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import { Post, Comment } from '@/lib/types';
+import { Post, Comment, Solution } from '@/lib/types';
 import { trackEvent } from '@/lib/analytics-track';
 import AuthModal from './AuthModal';
 import EditPostModal from './EditPostModal';
 import DeleteConfirmModal from './DeleteConfirmModal';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import ImageGallery from './ImageGallery';
+import ImageUploader from './ImageUploader';
 import CommentThread from './CommentThread';
 
 interface InteractivePostProps {
@@ -42,6 +44,15 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [session, setSession] = useState<any>(null);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [solutions, setSolutions] = useState<Solution[]>([]);
+  const [isSolutionsLoading, setIsSolutionsLoading] = useState(false);
+  const [solutionTitle, setSolutionTitle] = useState('');
+  const [solutionBody, setSolutionBody] = useState('');
+  const [solutionLink, setSolutionLink] = useState('');
+  const [solutionImageUrls, setSolutionImageUrls] = useState<string[]>([]);
+  const [isSubmittingSolution, setIsSubmittingSolution] = useState(false);
+  const [isSolutionModalOpen, setIsSolutionModalOpen] = useState(false);
+  const [editingSolutionId, setEditingSolutionId] = useState<string | null>(null);
   
   // Modals & Popovers state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -156,6 +167,167 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     setTimeout(() => {
       setToastMessage(null);
     }, 2500);
+  };
+
+  useEffect(() => {
+    if (post.type === 'problem') {
+      fetchSolutions();
+    }
+  }, [post.id, post.type]);
+
+  async function fetchSolutions(): Promise<Solution[]> {
+    if (post.id === 'dylan-post') {
+      const mockSolutions: Solution[] = [
+        {
+          id: 'mock-solution-1',
+          problem_id: post.id,
+          user_id: 'user-ryan',
+          title: 'Create a shared design-to-code handoff workspace',
+          body: 'A practical fix is a collaborative workspace where components, tokens, redlines, and implementation notes live together instead of being passed across tools.',
+          image_url: null,
+          external_link: 'https://figma.com',
+          link_name: 'Reference workflow',
+          upvotes: 28,
+          downvotes: 1,
+          comments_count: 4,
+          created_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString(),
+          updated_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString(),
+          profiles: {
+            full_name: 'Ryan Roslansky',
+            avatar_url: 'https://i.pravatar.cc/150?u=ryan2',
+            role: 'Developer',
+            username: 'ryan_roslansky',
+          },
+        },
+      ];
+      setSolutions(mockSolutions);
+      return mockSolutions;
+    }
+
+    setIsSolutionsLoading(true);
+    try {
+      const res = await fetch(`/api/solutions?problemId=${encodeURIComponent(post.id)}`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load solutions');
+      const nextSolutions = data.solutions || [];
+      setSolutions(nextSolutions);
+      return nextSolutions;
+    } catch (err) {
+      console.error(err);
+      setSolutions([]);
+      return [];
+    } finally {
+      setIsSolutionsLoading(false);
+    }
+  }
+
+  const handleSubmitSolution = async () => {
+    if (!session) {
+      setIsAuthOpen(true);
+      return;
+    }
+    if (!solutionTitle.trim() || solutionBody.trim().length < 10) {
+      showToast('Add a title and a useful solution.');
+      return;
+    }
+
+    setIsSubmittingSolution(true);
+    try {
+      const rawLink = solutionLink.trim();
+      const formattedLink = rawLink ? (/^https?:\/\//i.test(rawLink) ? rawLink : `https://${rawLink}`) : null;
+      const payload = {
+        title: solutionTitle.trim(),
+        body: solutionBody.trim(),
+        image_url: solutionImageUrls.length > 0 ? JSON.stringify(solutionImageUrls) : null,
+        external_link: formattedLink,
+        link_name: formattedLink ? 'Solution link' : null,
+      };
+      const res = await fetch('/api/solutions', {
+        method: editingSolutionId ? 'PUT' : 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify(editingSolutionId ? { ...payload, id: editingSolutionId } : { ...payload, problem_id: post.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to publish solution');
+
+      const refreshedSolutions = await fetchSolutions();
+      setPost((prev) => ({
+        ...prev,
+        solutions_count: refreshedSolutions.length || (prev.solutions_count || 0) + 1,
+        solved: true,
+      }));
+      setSolutionTitle('');
+      setSolutionBody('');
+      setSolutionLink('');
+      setSolutionImageUrls([]);
+      setEditingSolutionId(null);
+      setIsSolutionModalOpen(false);
+      showToast(editingSolutionId ? 'Solution updated.' : 'Solution published.');
+    } catch (err: unknown) {
+      showToast(err instanceof Error ? err.message : 'Failed to publish solution');
+    } finally {
+      setIsSubmittingSolution(false);
+    }
+  };
+
+  const openCreateSolutionModal = () => {
+    setEditingSolutionId(null);
+    setSolutionTitle('');
+    setSolutionBody('');
+    setSolutionLink('');
+    setSolutionImageUrls([]);
+    setIsSolutionModalOpen(true);
+  };
+
+  const openEditSolutionModal = (solution: Solution) => {
+    setEditingSolutionId(solution.id);
+    setSolutionTitle(decodeHTMLEntities(solution.title));
+    setSolutionBody(decodeHTMLEntities(solution.body));
+    setSolutionLink(solution.external_link || '');
+    try {
+      const parsedImages = solution.image_url ? JSON.parse(solution.image_url) : [];
+      setSolutionImageUrls(Array.isArray(parsedImages) ? parsedImages : []);
+    } catch {
+      setSolutionImageUrls(solution.image_url ? [solution.image_url] : []);
+    }
+    setIsSolutionModalOpen(true);
+  };
+
+  const handleSolutionVote = async (solutionId: string, voteType: 'up' | 'down') => {
+    if (!session) {
+      setIsAuthOpen(true);
+      return;
+    }
+
+    setSolutions((prev) =>
+      prev.map((solution) =>
+        solution.id === solutionId
+          ? {
+              ...solution,
+              upvotes: voteType === 'up' ? solution.upvotes + 1 : solution.upvotes,
+              downvotes: voteType === 'down' ? solution.downvotes + 1 : solution.downvotes,
+            }
+          : solution
+      )
+    );
+
+    try {
+      const res = await fetch('/api/solutions/vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ solution_id: solutionId, vote_type: voteType }),
+      });
+      if (!res.ok) throw new Error('Vote failed');
+    } catch (err) {
+      console.error(err);
+      fetchSolutions();
+    }
   };
 
   // Close share menu on outside click
@@ -712,6 +884,64 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       </div>
 
       {/* ── Interactive Comments Section ── */}
+      {post.type === 'problem' && (
+        <section id="solutions" className="solutions-section">
+          <div className="solutions-section-header">
+            <div>
+              <h2>Solutions</h2>
+            </div>
+            <button
+              type="button"
+              className="solution-secondary-btn"
+              onClick={openCreateSolutionModal}
+            >
+              <Send size={14} />
+              Post solution
+            </button>
+          </div>
+
+          {isSolutionsLoading && (
+            <div className="solutions-loading">
+              <Loader2 size={18} className="spin" />
+              <span>Loading solutions...</span>
+            </div>
+          )}
+
+          {!isSolutionsLoading && solutions.length === 0 && (
+            <p className="solutions-empty-text">No solution yet. Share the first practical answer for this problem.</p>
+          )}
+
+          {solutions.length > 0 && (
+            <div className="solutions-list">
+              {solutions.map((solution) => (
+                <SolutionCard
+                  key={solution.id}
+                  solution={solution}
+                  isOwner={session?.user?.id === solution.user_id}
+                  onVote={handleSolutionVote}
+                  onEdit={() => openEditSolutionModal(solution)}
+                  onDelete={async () => {
+                    if (!session || !window.confirm('Delete this solution?')) return;
+                    const res = await fetch(`/api/solutions?id=${solution.id}`, {
+                      method: 'DELETE',
+                      headers: { Authorization: `Bearer ${session.access_token}` },
+                    });
+                    if (res.ok) {
+                      setSolutions((prev) => prev.filter((item) => item.id !== solution.id));
+                      setPost((prev) => {
+                        const nextCount = Math.max(0, (prev.solutions_count || 1) - 1);
+                        return { ...prev, solutions_count: nextCount, solved: nextCount > 0 };
+                      });
+                    }
+                  }}
+                />
+              ))}
+            </div>
+          )}
+
+        </section>
+      )}
+
       <div className="comments-section post-comments-section">
         <h2 className="post-comments-title">Comments ({comments.length})</h2>
 
@@ -739,6 +969,66 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       </div>
 
       {/* Modals & Toast */}
+      {isSolutionModalOpen && (
+        <div className="solution-modal-overlay" onClick={() => setIsSolutionModalOpen(false)} role="presentation">
+          <div className="solution-modal-panel" onClick={(e) => e.stopPropagation()} role="dialog" aria-modal="true" aria-labelledby="solution-modal-title">
+            <div className="solution-modal-header">
+              <div>
+                <p className="solutions-eyebrow">Developer solution</p>
+                <h2 id="solution-modal-title">{editingSolutionId ? 'Edit Solution' : 'Publish Solution'}</h2>
+              </div>
+              <button type="button" className="solution-modal-close" onClick={() => setIsSolutionModalOpen(false)} aria-label="Close solution modal">
+                x
+              </button>
+            </div>
+
+            <div className="solution-modal-problem">
+              <span>Solving</span>
+              <strong>{decodeHTMLEntities(post.title)}</strong>
+            </div>
+
+            <div className="solution-composer solution-composer--modal">
+              <input
+                value={solutionTitle}
+                onChange={(e) => setSolutionTitle(e.target.value)}
+                placeholder="Solution title"
+                className="solution-input"
+                maxLength={220}
+              />
+              <textarea
+                value={solutionBody}
+                onChange={(e) => setSolutionBody(e.target.value)}
+                placeholder="Explain the solution, implementation approach, or product idea..."
+                className="solution-textarea"
+                rows={6}
+              />
+              <input
+                value={solutionLink}
+                onChange={(e) => setSolutionLink(e.target.value)}
+                placeholder="Optional solution link"
+                className="solution-input"
+              />
+              <ImageUploader imageUrls={solutionImageUrls} onChange={setSolutionImageUrls} maxFiles={6} />
+            </div>
+
+            <div className="solution-modal-actions">
+              <button type="button" className="solution-modal-cancel" onClick={() => setIsSolutionModalOpen(false)}>
+                Cancel
+              </button>
+              <button
+                type="button"
+                className="solution-submit-btn"
+                disabled={isSubmittingSolution}
+                onClick={handleSubmitSolution}
+              >
+                {isSubmittingSolution ? <Loader2 size={15} className="spin" /> : <Send size={15} />}
+                {editingSolutionId ? 'Save Changes' : 'Publish Solution'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       
       {isEditPostOpen && (
@@ -762,6 +1052,77 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           {toastMessage}
         </div>
       )}
+    </article>
+  );
+}
+
+function SolutionCard({
+  solution,
+  isOwner,
+  onVote,
+  onEdit,
+  onDelete,
+}: {
+  solution: Solution;
+  isOwner: boolean;
+  onVote: (solutionId: string, voteType: 'up' | 'down') => void;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const authorName = solution.profiles?.full_name || 'Developer';
+  const authorAvatar = solution.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${solution.user_id}`;
+
+  return (
+    <article className="solution-card">
+      <div className="solution-card-header">
+        <img src={authorAvatar} alt={authorName} className="solution-avatar" />
+        <div>
+          <h3>{decodeHTMLEntities(solution.title)}</h3>
+          <p>
+            Solved by {authorName}
+            {solution.profiles?.role ? ` · ${solution.profiles.role}` : ''} · {new Date(solution.created_at).toLocaleDateString()}
+          </p>
+        </div>
+        {isOwner && (
+          <div className="solution-owner-actions">
+            <button type="button" className="solution-owner-btn" onClick={onEdit} aria-label="Edit solution">
+              <Pencil size={14} />
+            </button>
+            <button type="button" className="solution-owner-btn solution-owner-btn--danger" onClick={onDelete} aria-label="Delete solution">
+              <Trash2 size={14} />
+            </button>
+          </div>
+        )}
+      </div>
+
+      <p className="solution-card-body">{decodeHTMLEntities(solution.body)}</p>
+      <ImageGallery imageUrlsString={solution.image_url} />
+
+      {solution.external_link && (
+        <a className="solution-link" href={solution.external_link} target="_blank" rel="noreferrer">
+          <ExternalLink size={13} />
+          {solution.link_name || solution.external_link}
+        </a>
+      )}
+
+      <div className="solution-card-footer">
+        <div className="vote-container">
+          <button className="vote-btn" onClick={() => onVote(solution.id, 'up')} aria-label="Upvote solution">
+            <TriangleIcon size={15} />
+          </button>
+          <span className="vote-label up">+{solution.upvotes}</span>
+        </div>
+        <div className="vote-container">
+          <button className="vote-btn" onClick={() => onVote(solution.id, 'down')} aria-label="Downvote solution">
+            <TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} />
+          </button>
+          <span className="vote-label down">-{solution.downvotes}</span>
+        </div>
+        <span className="solution-comments-pill">
+          <MessageCircle size={14} />
+          {solution.comments_count}
+        </span>
+      </div>
     </article>
   );
 }

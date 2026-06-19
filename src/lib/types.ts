@@ -13,6 +13,8 @@ export interface Post {
   downvotes: number;
   comments_count: number;
   views_count: number;
+  solutions_count?: number;
+  solved?: boolean;
   slug: string | null;
   created_at: string;
   updated_at: string;
@@ -21,6 +23,35 @@ export interface Post {
     avatar_url: string | null;
     role: string | null;
     username: string | null;
+  } | null;
+}
+
+export interface Solution {
+  id: string;
+  problem_id: string;
+  user_id: string;
+  title: string;
+  body: string;
+  image_url: string | null;
+  external_link: string | null;
+  link_name: string | null;
+  upvotes: number;
+  downvotes: number;
+  comments_count: number;
+  created_at: string;
+  updated_at: string;
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+    username: string | null;
+  } | null;
+  problem?: {
+    id: string;
+    title: string;
+    slug: string | null;
+    body?: string | null;
+    type?: 'problem' | 'idea';
   } | null;
 }
 
@@ -336,4 +367,3 @@ export interface PostAnalyticsDetailResponse {
   demographics: UserDemographics;
   isDemo: boolean;
 }
-

@@ -15,7 +15,6 @@ import {
   Trash2,
   ExternalLink,
   AlertTriangle,
-  Lightbulb,
   Loader2,
   Pencil,
   Share2,
@@ -712,6 +711,15 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
                     {post.type === 'problem' ? 'Problem' : 'Idea'}
                   </span>
+                  {post.type === 'problem' && (
+                    <button
+                      type="button"
+                      className="see-solutions-btn"
+                      onClick={() => router.push(`/post/${post.slug || post.id}#solutions`)}
+                    >
+                      See solutions
+                    </button>
+                  )}
                 </div>
               </div>
             </div>
