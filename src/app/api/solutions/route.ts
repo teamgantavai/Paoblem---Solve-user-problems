@@ -52,6 +52,14 @@ function relationCount(value: CountRelation | number | null | undefined) {
   return Array.isArray(value) ? Number(value[0]?.count || 0) : Number(value || 0);
 }
 
+type ProfileData = {
+  id: string;
+  full_name: string | null;
+  avatar_url: string | null;
+  role: string | null;
+  username: string | null;
+};
+
 async function attachProfiles<T extends { user_id?: string }>(supabase: ReturnType<typeof createClient>, rows: T[]) {
   const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean))) as string[];
   if (userIds.length === 0) return rows;
@@ -59,7 +67,7 @@ async function attachProfiles<T extends { user_id?: string }>(supabase: ReturnTy
   const { data: profiles } = await supabase
     .from('profiles')
     .select('id, full_name, avatar_url, role, username')
-    .in('id', userIds);
+    .in('id', userIds) as { data: ProfileData[] | null };
 
   const profileMap = new Map((profiles || []).map((profile) => [profile.id, profile]));
   return rows.map((row) => ({
