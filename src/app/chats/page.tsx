@@ -981,7 +981,7 @@ function ChatsPageContent() {
   };
 
   const startMessageEdit = (msg: DBMessage) => {
-    setEditingMessageId(msg.id);
+    setEditingMessageId(msg.id || null);
     setEditingMessageText(msg.body);
     setActiveActionMessageId(null);
   };
