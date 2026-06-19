@@ -41,7 +41,7 @@ export async function GET(req: NextRequest) {
           .from('messages')
           .select(`
             *,
-            sender:sender_id(full_name, avatar_url),
+            sender:sender_id(username, full_name, avatar_url),
             attachments(*),
             read_receipts(*)
           `)
@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
           .from('conversation_members')
           .select(`
             conversation_id,
-            user:user_id(id, full_name, avatar_url, role, online, last_seen)
+            user:user_id(id, username, full_name, avatar_url, role, online, last_seen)
           `)
           .in('conversation_id', conversationIds);
 
@@ -119,6 +119,7 @@ export async function GET(req: NextRequest) {
             partner_id: partner.id || m.sender_id,
             partner_name: partnerName,
             partner_avatar: partnerAvatar,
+            partner_username: partner.username,
             partner_online: isGroup ? partners.some(p => p.online) : (partner.online || false),
             partner_last_seen: partner.last_seen || null,
             is_group: isGroup,
@@ -128,8 +129,10 @@ export async function GET(req: NextRequest) {
             type: m.type || 'TEXT',
             attachments: m.attachments || [],
             created_at: m.created_at,
+            edited_at: m.edited_at,
             sender_name: m.sender?.full_name || 'Member',
             sender_avatar: m.sender?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.sender_id}`,
+            sender_username: m.sender?.username,
           };
         });
 
@@ -144,7 +147,7 @@ export async function GET(req: NextRequest) {
     // FALLBACK: Query legacy messages table
     const { data, error } = await supabaseAdmin
       .from('messages')
-      .select('*, sender:sender_id(full_name, avatar_url), recipient:recipient_id(full_name, avatar_url)')
+      .select('*, sender:sender_id(username, full_name, avatar_url), recipient:recipient_id(username, full_name, avatar_url)')
       .or(`sender_id.eq.${user.id},recipient_id.eq.${user.id}`)
       .order('created_at', { ascending: false });
 
@@ -161,11 +164,14 @@ export async function GET(req: NextRequest) {
         partner_id: partnerId,
         partner_name: partner?.full_name || 'Member',
         partner_avatar: partner?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partnerId}`,
+        partner_username: partner?.username,
         body: m.body || m.content || '',
         read: m.read || false,
         created_at: m.created_at,
+        edited_at: m.edited_at,
         sender_name: m.sender?.full_name || 'Member',
         sender_avatar: m.sender?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${m.sender_id}`,
+        sender_username: m.sender?.username,
       };
     });
 
@@ -264,7 +270,7 @@ export async function POST(req: NextRequest) {
         })
         .select(`
           *,
-          sender:sender_id(full_name, avatar_url)
+          sender:sender_id(username, full_name, avatar_url)
         `)
         .single();
 
@@ -287,7 +293,7 @@ export async function POST(req: NextRequest) {
       // Fetch partner info
       const { data: partnerProfile } = await supabaseAdmin
         .from('profiles')
-        .select('full_name, avatar_url, online, last_seen')
+        .select('username, full_name, avatar_url, online, last_seen')
         .eq('id', recipientId)
         .single();
 
@@ -299,6 +305,7 @@ export async function POST(req: NextRequest) {
         partner_id: recipientId,
         partner_name: partnerProfile?.full_name || 'Member',
         partner_avatar: partnerProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${recipientId}`,
+        partner_username: partnerProfile?.username,
         partner_online: partnerProfile?.online || false,
         partner_last_seen: partnerProfile?.last_seen || null,
         body: newMsg.content || '',
@@ -306,8 +313,10 @@ export async function POST(req: NextRequest) {
         type: newMsg.type || 'TEXT',
         attachments: attachments,
         created_at: newMsg.created_at,
+        edited_at: newMsg.edited_at,
         sender_name: newMsg.sender?.full_name || 'Member',
         sender_avatar: newMsg.sender?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`,
+        sender_username: newMsg.sender?.username,
       };
 
       return NextResponse.json({ message: formattedMessage }, { status: 201 });
@@ -323,7 +332,7 @@ export async function POST(req: NextRequest) {
         recipient_id: recipientId,
         body: body || '',
       })
-      .select('*, sender:sender_id(full_name, avatar_url), recipient:recipient_id(full_name, avatar_url)')
+      .select('*, sender:sender_id(username, full_name, avatar_url), recipient:recipient_id(username, full_name, avatar_url)')
       .single();
 
     if (error) throw error;
@@ -351,11 +360,14 @@ export async function POST(req: NextRequest) {
       partner_id: partnerId,
       partner_name: partner?.full_name || 'Member',
       partner_avatar: partner?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partnerId}`,
+      partner_username: partner?.username,
       body: data.body || '',
       read: data.read || false,
       created_at: data.created_at,
+      edited_at: data.edited_at,
       sender_name: data.sender?.full_name || 'Member',
       sender_avatar: data.sender?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.sender_id}`,
+      sender_username: data.sender?.username,
     };
 
     return NextResponse.json({ message: formattedMessage }, { status: 201 });
@@ -378,11 +390,64 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { id, partnerId, read } = await req.json();
+    const { id, partnerId, conversationId, read, messageId, body } = await req.json();
+
+    if (messageId && typeof body === 'string') {
+      const { data: existing, error: existingError } = await supabaseAdmin
+        .from('messages')
+        .select('id, sender_id, content')
+        .eq('id', messageId)
+        .single();
+
+      if (existingError || !existing) {
+        return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+      }
+
+      if (existing.sender_id !== user.id) {
+        return NextResponse.json({ error: 'Only the sender can edit this message' }, { status: 403 });
+      }
+
+      const { data: updated, error: updateError } = await supabaseAdmin
+        .from('messages')
+        .update({ content: body.trim(), edited_at: new Date().toISOString() })
+        .eq('id', messageId)
+        .eq('sender_id', user.id)
+        .select('*')
+        .single();
+
+      if (updateError) throw updateError;
+
+      await supabaseAdmin
+        .from('message_edit_history')
+        .insert({
+          message_id: messageId,
+          editor_id: user.id,
+          old_content: existing.content || '',
+          new_content: body.trim()
+        })
+        .throwOnError()
+        .catch(() => null);
+
+      return NextResponse.json({ success: true, message: updated });
+    }
 
     // Try new read receipts update
     try {
-      if (partnerId) {
+      if (conversationId) {
+        const { data: unreadMsgs } = await supabaseAdmin
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', conversationId)
+          .not('sender_id', 'eq', user.id);
+
+        if (unreadMsgs && unreadMsgs.length > 0) {
+          const receipts = unreadMsgs.map(m => ({
+            message_id: m.id,
+            user_id: user.id
+          }));
+          await supabaseAdmin.from('read_receipts').upsert(receipts);
+        }
+      } else if (partnerId) {
         const { data: unreadMsgs } = await supabaseAdmin
           .from('messages')
           .select('id')
@@ -418,7 +483,14 @@ export async function PUT(req: NextRequest) {
       // ignore, proceed to fallback
     }
 
-    if (partnerId) {
+    if (conversationId) {
+      const { error } = await supabaseAdmin
+        .from('messages')
+        .update({ read: !!read })
+        .eq('conversation_id', conversationId)
+        .not('sender_id', 'eq', user.id);
+      if (error) throw error;
+    } else if (partnerId) {
       const { error } = await supabaseAdmin
         .from('messages')
         .update({ read: !!read })

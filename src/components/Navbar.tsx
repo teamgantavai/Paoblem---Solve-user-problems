@@ -43,6 +43,7 @@ function NavbarInner() {
   const [session, setSession] = useState<any>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
+  const [avatarFailed, setAvatarFailed] = useState(false);
 
   // Profile fetched from DB (so role changes propagate immediately)
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
@@ -228,7 +229,35 @@ function NavbarInner() {
 
   const displayName = profile?.full_name || session?.user?.user_metadata?.full_name || 'Member';
   const displayRole = profile?.role || 'Innovator';
-  const displayAvatar = profile?.avatar_url || session?.user?.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session?.user?.id}`;
+  const displayAvatar = profile?.avatar_url || session?.user?.user_metadata?.avatar_url || '';
+  const renderProfileAvatar = (size: number, className?: string) => (
+    displayAvatar && !avatarFailed ? (
+      <img
+        src={displayAvatar}
+        alt="Me"
+        onError={() => setAvatarFailed(true)}
+        className={className}
+        style={!className ? { width: size, height: size, borderRadius: '50%', objectFit: 'cover' } : undefined}
+      />
+    ) : (
+      <span
+        className={className}
+        style={{
+          width: size,
+          height: size,
+          borderRadius: '50%',
+          display: 'inline-flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          background: 'var(--bg-hover)',
+          border: '1px solid var(--border-color)',
+          color: 'var(--text-muted)'
+        }}
+      >
+        <User size={Math.max(14, Math.floor(size * 0.62))} />
+      </span>
+    )
+  );
 
   return (
     <>
@@ -298,31 +327,23 @@ function NavbarInner() {
                   setIsAuthOpen(true);
                 }
               }}
-              style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}
             >
               <div className="nav-icon-wrap">
-                <MessageCircle size={22} strokeWidth={2} style={unreadMsgCount > 0 ? { stroke: '#ef4444' } : undefined} />
+                <MessageCircle size={22} strokeWidth={2} />
                 {unreadMsgCount > 0 && (
                   <span className="nav-badge" style={{ backgroundColor: '#ef4444', color: 'white' }}>
                     {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
                   </span>
                 )}
               </div>
-              <span style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}>Chats</span>
+              <span>Chats</span>
             </div>
 
             {/* Authenticated / Guest User Tab */}
             {session ? (
               <div className={`nav-item ${isProfileActive ? 'active' : ''}`} onClick={handleMeClick} style={{ position: 'relative' }}>
                 <div className="nav-icon-wrap">
-                  <img 
-                    src={displayAvatar} 
-                    alt="Me" 
-                    onError={(e) => {
-                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                    }}
-                    style={{ width: '22px', height: '22px', borderRadius: '50%', objectFit: 'cover' }} 
-                  />
+                  {renderProfileAvatar(22)}
                 </div>
                 <span>Me</span>
 
@@ -447,29 +468,21 @@ function NavbarInner() {
               setIsAuthOpen(true);
             }
           }}
-          style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}
         >
           <div className="nav-icon-wrap">
-            <MessageCircle size={20} strokeWidth={2} style={unreadMsgCount > 0 ? { stroke: '#ef4444' } : undefined} />
+            <MessageCircle size={20} strokeWidth={2} />
             {unreadMsgCount > 0 && (
               <span className="nav-badge" style={{ backgroundColor: '#ef4444', color: 'white' }}>
                 {unreadMsgCount > 9 ? '9+' : unreadMsgCount}
               </span>
             )}
           </div>
-          <span style={unreadMsgCount > 0 ? { color: '#ef4444' } : undefined}>Chats</span>
+          <span>Chats</span>
         </div>
         <div className={`mobile-nav-item ${isProfileActive ? 'active' : ''}`} onClick={() => { if (session) { router.push('/profile'); } else { setIsAuthOpen(true); } }}>
           <div className="nav-icon-wrap">
             {session ? (
-              <img 
-                src={displayAvatar} 
-                alt="Me" 
-                onError={(e) => {
-                  e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                }}
-                style={{ width: '20px', height: '20px', borderRadius: '50%', objectFit: 'cover' }} 
-              />
+              renderProfileAvatar(20)
             ) : (
               <User size={20} strokeWidth={2} />
             )}
@@ -500,14 +513,7 @@ function NavbarInner() {
           {session ? (
             <div className="drawer-profile" onClick={() => { setIsOpen(false); router.push('/profile'); }} style={{ cursor: 'pointer' }}>
               <div className="drawer-profile-info">
-                <img
-                  src={displayAvatar}
-                  alt="Avatar"
-                  onError={(e) => {
-                    e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                  }}
-                  className="drawer-profile-avatar"
-                />
+                {renderProfileAvatar(48, 'drawer-profile-avatar')}
                 <div className="drawer-profile-details">
                   <div className="drawer-profile-name-row">
                     <span className="drawer-profile-name">{displayName}</span>
