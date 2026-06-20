@@ -7,11 +7,25 @@ const isVercel = !!(process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL
 // Only connect to Redis if we are NOT on Vercel
 const connection = isVercel ? null : new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
+  showFriendlyErrorStack: false,
 });
+
+if (connection) {
+  // Suppress uncaught exception / stderr logging from connection errors when Redis is not running
+  connection.on('error', (err) => {
+    // Silent suppression of connection logs
+  });
+}
 
 export const notificationQueue = isVercel ? null : new Queue('notifications', {
   connection: connection as any,
 });
+
+if (notificationQueue) {
+  notificationQueue.on('error', (err) => {
+    // Silent suppression of queue connection logs
+  });
+}
 
 // Type definition for Notification Job Data
 export interface NotificationJobData {
@@ -23,38 +37,47 @@ export interface NotificationJobData {
   post_id?: string;
 }
 
+async function insertNotificationDirectly(data: NotificationJobData) {
+  try {
+    const supabaseAdmin = createClient(
+      process.env.NEXT_PUBLIC_SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
+    );
+    
+    const { data: profile } = await supabaseAdmin
+      .from('profiles')
+      .select('username, full_name')
+      .eq('id', data.actor_id)
+      .single();
+      
+    const actingName = profile?.username ? `@${profile.username}` : (profile?.full_name || 'Someone');
+    const body = data.bodyTemplate.replace('{name}', actingName);
+
+    const { error } = await supabaseAdmin.from('notifications').insert({
+      user_id: data.user_id,
+      type: data.type,
+      title: data.title,
+      body: body,
+      post_id: data.post_id || null,
+    });
+
+    if (error) throw error;
+  } catch (err) {
+    console.error('Failed to insert notification directly:', err);
+  }
+}
+
 export async function enqueueNotification(jobName: string, data: NotificationJobData) {
   if (isVercel || !notificationQueue) {
     console.log('[Vercel Mode] Bypassing Redis queue and saving notification directly.');
-    try {
-      const supabaseAdmin = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-      
-      const { data: profile } = await supabaseAdmin
-        .from('profiles')
-        .select('username, full_name')
-        .eq('id', data.actor_id)
-        .single();
-        
-      const actingName = profile?.username ? `@${profile.username}` : (profile?.full_name || 'Someone');
-      const body = data.bodyTemplate.replace('{name}', actingName);
-
-      const { error } = await supabaseAdmin.from('notifications').insert({
-        user_id: data.user_id,
-        type: data.type,
-        title: data.title,
-        body: body,
-        post_id: data.post_id || null,
-      });
-
-      if (error) throw error;
-    } catch (err) {
-      console.error('Failed to insert notification directly on Vercel:', err);
-    }
+    await insertNotificationDirectly(data);
   } else {
-    // Local Docker mode: Use the Redis queue
-    await notificationQueue.add(jobName, data);
+    try {
+      // Local Docker mode: Use the Redis queue
+      await notificationQueue.add(jobName, data);
+    } catch (err) {
+      console.warn('Redis queue is unavailable, falling back to direct database insert:', err);
+      await insertNotificationDirectly(data);
+    }
   }
 }

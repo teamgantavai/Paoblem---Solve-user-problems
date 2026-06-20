@@ -8,15 +8,15 @@ const supabase = createClient(supabaseUrl, supabaseKey);
 
 async function check() {
   try {
-    const { data: comments, error: commentError } = await supabase
-      .from('comments')
-      .select('id, parent_id')
+    const { data: messages, error: messageError } = await supabase
+      .from('messages')
+      .select('*')
       .limit(1);
 
-    if (commentError) {
-      console.error("Error fetching comments:", commentError);
+    if (messageError) {
+      console.error("Error fetching messages:", messageError);
     } else {
-      console.log("Fetched comment row successfully:", comments);
+      console.log("Fetched messages columns:", messages && messages.length ? Object.keys(messages[0]) : messages);
     }
   } catch (err) {
     console.error("Exception during check:", err);

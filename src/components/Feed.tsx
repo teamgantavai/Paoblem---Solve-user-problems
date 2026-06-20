@@ -32,6 +32,7 @@ import ErrorBoundary from './ErrorBoundary';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import CommentsModal from './CommentsModal';
+import Avatar from './Avatar';
 
 function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance, animateUpvote } = useMicroAnimations();
@@ -376,10 +377,11 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           style={{ cursor: 'pointer' }}
         >
           <div className="composer-top">
-            <img
-              src={session?.user?.user_metadata?.avatar_url || "https://api.dicebear.com/7.x/bottts/svg?seed=fallback"}
-              alt="You"
+            <Avatar
+              src={session?.user?.user_metadata?.avatar_url}
+              name="You"
               className="composer-avatar"
+              size={36}
             />
             <div className="composer-input-wrap">
               <div className="composer-input" style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
@@ -473,14 +475,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               >
                 <div className="post-header">
                   <div className="post-user">
-                  <img
-                    src={post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`}
-                    alt={post.profiles?.full_name || 'Anonymous'}
+                  <Avatar
+                    src={post.profiles?.avatar_url}
+                    name={post.profiles?.full_name || 'Anonymous'}
                     className="avatar"
+                    size={42}
                     onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
-                    onError={(e) => {
-                      e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                    }}
                     style={{ cursor: 'pointer', flexShrink: 0 }}
                   />
                   <div className="post-user-info">

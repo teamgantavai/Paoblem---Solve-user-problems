@@ -28,6 +28,7 @@ import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import ImageGallery from './ImageGallery';
 import ImageUploader from './ImageUploader';
 import CommentThread from './CommentThread';
+import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 interface InteractivePostProps {
@@ -621,11 +622,11 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       {/* Dynamic Header */}
       <div className="post-header" style={{ marginBottom: '1rem' }}>
         <div className="post-user">
-          <img
-            src={authorAvatar}
-            alt={authorName}
+          <Avatar
+            src={authorProfile?.avatar_url}
+            name={authorName}
             className="avatar"
-            onError={(e) => { e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest"; }}
+            size={42}
             onClick={() => router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`)}
             style={{ cursor: 'pointer', flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%' }}
           />
@@ -1201,7 +1202,7 @@ function SolutionCard({
   return (
     <article className="solution-card">
       <div className="solution-card-header">
-        <img src={authorAvatar} alt={authorName} className="solution-avatar" />
+        <Avatar src={solution.profiles?.avatar_url} name={authorName} className="solution-avatar" size={40} />
         <div>
           <h3>{decodeHTMLEntities(solution.title)}</h3>
           <p>
@@ -1282,10 +1283,10 @@ function SolutionCard({
               )}
               {solutionComments.map((comment) => (
                 <div key={comment.id} style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <img
-                    src={comment.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${comment.user_id}`}
-                    alt={comment.profiles?.full_name || 'User'}
-                    style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                  <Avatar
+                    src={comment.profiles?.avatar_url}
+                    name={comment.profiles?.full_name || 'User'}
+                    size={28}
                   />
                   <div style={{ flex: 1, minWidth: 0 }}>
                     <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', marginBottom: '0.15rem' }}>
@@ -1302,7 +1303,7 @@ function SolutionCard({
                           onClick={() => handleDeleteComment(comment.id)}
                           style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', fontSize: '0.7rem' }}
                           aria-label="Delete comment"
-                        >
+                         >
                           <Trash2 size={12} />
                         </button>
                       )}
@@ -1316,10 +1317,10 @@ function SolutionCard({
 
               {/* Comment composer */}
               <div style={{ display: 'flex', gap: '0.5rem', marginTop: '0.5rem' }}>
-                <img
-                  src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=guest'}
-                  alt="You"
-                  style={{ width: 28, height: 28, borderRadius: '50%', objectFit: 'cover', flexShrink: 0 }}
+                <Avatar
+                  src={session?.user?.user_metadata?.avatar_url}
+                  name="You"
+                  size={28}
                 />
                 <div style={{ flex: 1, display: 'flex', gap: '0.35rem' }}>
                   <input

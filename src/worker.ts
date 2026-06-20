@@ -10,6 +10,11 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.
 
 const connection = new IORedis(redisUrl, {
   maxRetriesPerRequest: null,
+  showFriendlyErrorStack: false,
+});
+
+connection.on('error', (err) => {
+  // Silent suppression of connection logs when Redis is not running
 });
 
 const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);

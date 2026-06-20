@@ -259,6 +259,9 @@ function ChatsPageContent() {
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const targetUserId = searchParams.get('userId');
 
+  const [activeChatOnline, setActiveChatOnline] = useState<boolean>(false);
+  const [activeChatLastSeen, setActiveChatLastSeen] = useState<string | null>(null);
+
   useEffect(() => {
     try {
       setPinnedChatIds(JSON.parse(localStorage.getItem('paoblem_pinned_chats') || '[]'));
@@ -313,65 +316,6 @@ function ChatsPageContent() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Sync user presence state: Heartbeat every 30s + Tab Visibility check
-  useEffect(() => {
-    if (!session?.user?.id) return;
-
-    const updatePresence = async (online: boolean) => {
-      try {
-        await supabase
-          .from('profiles')
-          .update({ 
-            online, 
-            last_seen: new Date().toISOString() 
-          })
-          .eq('id', session.user.id);
-      } catch (err) {
-        // ignore fallback errors
-      }
-    };
-
-    updatePresence(true);
-
-    const heartbeatInterval = setInterval(() => {
-      if (document.visibilityState === 'visible') {
-        updatePresence(true);
-      }
-    }, 30000);
-
-    const handleVisibilityChange = () => {
-      updatePresence(document.visibilityState === 'visible');
-    };
-
-    const setOfflineOnUnload = () => {
-      if (!session?.user?.id || !session?.access_token) return;
-      const url = `${process.env.NEXT_PUBLIC_SUPABASE_URL}/rest/v1/profiles?id=eq.${session.user.id}`;
-      fetch(url, {
-        method: 'PATCH',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`,
-          'apikey': process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || ''
-        },
-        body: JSON.stringify({ 
-          online: false, 
-          last_seen: new Date().toISOString() 
-        }),
-        keepalive: true
-      }).catch(() => {});
-    };
-
-    window.addEventListener('visibilitychange', handleVisibilityChange);
-    window.addEventListener('beforeunload', setOfflineOnUnload);
-
-    return () => {
-      clearInterval(heartbeatInterval);
-      window.removeEventListener('visibilitychange', handleVisibilityChange);
-      window.removeEventListener('beforeunload', setOfflineOnUnload);
-      setOfflineOnUnload();
-    };
-  }, [session?.user?.id, session?.access_token]);
-
   // Fetch all messages
   const { data: messages = [], isLoading, refetch } = useQuery<DBMessage[]>({
     queryKey: ['chats-messages', session?.access_token],
@@ -387,7 +331,7 @@ function ChatsPageContent() {
       return data.messages || [];
     },
     enabled: !!session?.access_token,
-    refetchInterval: 3500,
+    refetchInterval: 15000, // Reduced interval since we have real-time postgres_changes
   });
 
   // Keep local messages updated with fetched messages
@@ -395,7 +339,6 @@ function ChatsPageContent() {
     if (messages.length > 0) {
       setLocalMessages(messages);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [messages]);
 
   // Fetch target user's details if we came from their profile
@@ -417,44 +360,167 @@ function ChatsPageContent() {
     }
   }, []);
 
-  // Real-time WebSockets subscription
+  // Active Conversation ID helper
+  const activeConversationId = useMemo(() => {
+    if (!activeChatId) return null;
+    const msg = localMessages.find(m => m.conversation_id === activeChatId || m.partner_id === activeChatId);
+    return msg?.conversation_id || activeChatId;
+  }, [activeChatId, localMessages]);
+
+  // Real-time separate channel subscriptions (chat, presence, typing)
   useEffect(() => {
-    if (!session?.user?.id) return;
+    if (!session?.user?.id || !activeChatId) {
+      setActiveChatOnline(false);
+      setActiveChatLastSeen(null);
+      return;
+    }
 
-    const channel = supabase
-      .channel('realtime-chat-messages')
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-        refetch();
-        queryClient.invalidateQueries({ queryKey: ['messages', session?.access_token] });
+    const currentConvId = activeConversationId || activeChatId;
 
+    // 1. Messages Channel: chat:{conversationId}
+    const chatChannel = supabase.channel(`chat:${currentConvId}`);
+    
+    chatChannel
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'messages',
+        filter: `conversation_id=eq.${currentConvId}`
+      }, (payload) => {
         if (payload.eventType === 'INSERT') {
           const newMsg = payload.new as any;
-          if (newMsg.sender_id !== session?.user?.id) {
-            // Trigger browser notification
-            if (typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
+          
+          // Format message
+          const isMe = newMsg.sender_id === session.user.id;
+          
+          setLocalMessages(prev => {
+            // Check if message already exists (optimistic update replacement)
+            const exists = prev.some(m => m.id === newMsg.id || m.tempId === newMsg.id);
+            if (exists) return prev;
+            
+            const partnerInfo = activeChatInfo || {
+              partnerName: 'Member',
+              partnerAvatar: `https://api.dicebear.com/7.x/bottts/svg?seed=${newMsg.sender_id}`
+            };
+
+            const formatted: DBMessage = {
+              id: newMsg.id,
+              conversation_id: newMsg.conversation_id,
+              sender_id: newMsg.sender_id,
+              recipient_id: isMe ? activeChatId : session.user.id,
+              partner_id: activeChatId,
+              partner_name: partnerInfo.partnerName,
+              partner_avatar: partnerInfo.partnerAvatar,
+              body: newMsg.content || '',
+              read: false,
+              type: newMsg.type || 'TEXT',
+              attachments: [],
+              created_at: newMsg.created_at,
+              status: 'sent'
+            };
+
+            // Trigger notification if not me
+            if (!isMe && typeof window !== 'undefined' && 'Notification' in window && Notification.permission === 'granted') {
               new Notification('New Message', {
-                body: newMsg.body || 'You received a new message.',
+                body: formatted.body || 'You received a new message.',
                 icon: '/favicon.ico'
               });
             }
-          }
+
+            return [formatted, ...prev];
+          });
+          scrollToBottom('smooth');
+        } else if (payload.eventType === 'UPDATE') {
+          const updatedMsg = payload.new as any;
+          setLocalMessages(prev => prev.map(m => m.id === updatedMsg.id ? { ...m, body: updatedMsg.content, edited_at: updatedMsg.edited_at } : m));
+        } else if (payload.eventType === 'DELETE') {
+          const deletedMsg = payload.old as any;
+          setLocalMessages(prev => prev.filter(m => m.id !== deletedMsg.id));
+        }
+      })
+      .on('postgres_changes', {
+        event: '*',
+        schema: 'public',
+        table: 'read_receipts'
+      }, (payload) => {
+        // Read receipt added/updated -> update seen status in real-time
+        if (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE') {
+          const receipt = payload.new as any;
+          setLocalMessages(prev => prev.map(m => {
+            if (m.id === receipt.message_id) {
+              return { ...m, read: true, status: 'read' };
+            }
+            return m;
+          }));
         }
       })
       .subscribe();
 
-    const presenceChannel = supabase
-      .channel('realtime-profiles')
-      .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'profiles' }, () => {
-        refetch();
-        queryClient.invalidateQueries({ queryKey: ['target-chat-profile'] });
+    // 2. Presence Channel: presence:{conversationId}
+    const presenceChannel = supabase.channel(`presence:${currentConvId}`);
+    
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        let partnerIsOnline = false;
+        let partnerLastSeenTime: string | null = null;
+
+        Object.values(state).forEach((presences: any) => {
+          presences.forEach((p: any) => {
+            if (p.user_id === activeChatId) {
+              partnerIsOnline = true;
+            }
+            if (p.user_id === activeChatId && p.last_seen) {
+              partnerLastSeenTime = p.last_seen;
+            }
+          });
+        });
+
+        setActiveChatOnline(partnerIsOnline);
+        if (partnerLastSeenTime) {
+          setActiveChatLastSeen(partnerLastSeenTime);
+        }
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            user_id: session.user.id,
+            last_seen: new Date().toISOString()
+          });
+        }
+      });
+
+    // 3. Typing Channel: typing:{conversationId}
+    const typingChannel = supabase.channel(`typing:${currentConvId}`);
+    let localTypingTimeout: any = null;
+
+    typingChannel
+      .on('broadcast', { event: 'typing:start' }, (payload: any) => {
+        if (payload.payload?.userId === activeChatId) {
+          setPartnerTyping(true);
+          
+          // Auto-clear safety timeout
+          if (localTypingTimeout) clearTimeout(localTypingTimeout);
+          localTypingTimeout = setTimeout(() => {
+            setPartnerTyping(false);
+          }, 2000);
+        }
+      })
+      .on('broadcast', { event: 'typing:stop' }, (payload: any) => {
+        if (payload.payload?.userId === activeChatId) {
+          setPartnerTyping(false);
+          if (localTypingTimeout) clearTimeout(localTypingTimeout);
+        }
       })
       .subscribe();
 
     return () => {
-      supabase.removeChannel(channel);
+      supabase.removeChannel(chatChannel);
       supabase.removeChannel(presenceChannel);
+      supabase.removeChannel(typingChannel);
+      if (localTypingTimeout) clearTimeout(localTypingTimeout);
     };
-  }, [session?.user?.id]);
+  }, [activeChatId, session?.user?.id, activeConversationId]);
 
   const scrollToBottom = (behavior: 'smooth' | 'auto' = 'smooth') => {
     messagesEndRef.current?.scrollIntoView({ behavior });
@@ -475,52 +541,69 @@ function ChatsPageContent() {
     }
   }, [targetUserId, messages]);
 
-  // CRITICAL BUG FIX: Instant Read Receipts & Notification Sync when conversation opens
+  // Handle Visibility and Focus for Seen Receipts
   useEffect(() => {
     if (!activeChatId || !session?.access_token) return;
 
-    // Optimistically mark messages from partner as read locally
-    setLocalMessages(prev => prev.map(m => {
-      if ((m.partner_id === activeChatId || m.conversation_id === activeChatId) && !m.read && m.sender_id !== session.user.id) {
-        return { ...m, read: true, status: 'read' };
-      }
-      return m;
-    }));
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach(entry => {
+        if (entry.isIntersecting) {
+          const msgId = entry.target.getAttribute('data-message-id');
+          if (msgId && document.visibilityState === 'visible' && document.hasFocus()) {
+            // Mark specific message read locally
+            setLocalMessages(prev => prev.map(m => m.id === msgId ? { ...m, read: true, status: 'read' } : m));
+            
+            // PUT API call to persist read status
+            fetch('/api/messages', {
+              method: 'PUT',
+              headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+              body: JSON.stringify({ id: msgId, read: true })
+            }).catch(console.error);
 
-    // Optimistically update the global React Query cache so the Navbar badge disappears instantly
-    queryClient.setQueryData(['messages', session.access_token], (oldData: any) => {
-      if (!oldData) return oldData;
-      return oldData.map((m: any) => {
-        if ((m.partner_id === activeChatId || m.conversation_id === activeChatId) && !m.read && m.sender_id !== session.user.id) {
-          return { ...m, read: true };
+            observer.unobserve(entry.target);
+          }
         }
-        return m;
       });
+    }, {
+      root: messagesContainerRef.current,
+      threshold: 0.1
     });
 
-    // Call PUT API to mark as read
+    const checkAndObserve = () => {
+      const unreadElements = messagesContainerRef.current?.querySelectorAll('.unread-partner-message');
+      unreadElements?.forEach(el => observer.observe(el));
+    };
 
-    fetch('/api/messages', {
-      method: 'PUT',
-      headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
-      body: JSON.stringify({ partnerId: activeChatId, read: true })
-    }).then(() => {
-      queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
-      queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
-      queryClient.invalidateQueries({ queryKey: ['notifications', session.access_token] });
-    }).catch(console.error);
-  }, [activeChatId, session?.access_token]);
+    checkAndObserve();
 
-  // Handle typing state
+    const handleWindowEvents = () => {
+      if (document.visibilityState === 'visible' && document.hasFocus()) {
+        checkAndObserve();
+      }
+    };
+
+    window.addEventListener('visibilitychange', handleWindowEvents);
+    window.addEventListener('focus', handleWindowEvents);
+
+    return () => {
+      observer.disconnect();
+      window.removeEventListener('visibilitychange', handleWindowEvents);
+      window.removeEventListener('focus', handleWindowEvents);
+    };
+  }, [localMessages, activeChatId, session?.access_token]);
+
+  // Handle typing state broadcast
   const handleTyping = () => {
     if (!session || !activeChatId) return;
 
+    const currentConvId = activeConversationId || activeChatId;
+
     if (!isTyping) {
       setIsTyping(true);
-      supabase.channel(`typing-${activeChatId}`).send({
+      supabase.channel(`typing:${currentConvId}`).send({
         type: 'broadcast',
-        event: 'typing',
-        payload: { userId: session.user.id, typing: true }
+        event: 'typing:start',
+        payload: { userId: session.user.id }
       });
     }
 
@@ -528,31 +611,13 @@ function ChatsPageContent() {
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      supabase.channel(`typing-${activeChatId}`).send({
+      supabase.channel(`typing:${currentConvId}`).send({
         type: 'broadcast',
-        event: 'typing',
-        payload: { userId: session.user.id, typing: false }
+        event: 'typing:stop',
+        payload: { userId: session.user.id }
       });
     }, 2000);
   };
-
-  // Subscribe to partner typing events
-  useEffect(() => {
-    if (!session || !activeChatId) return;
-
-    const typingChannel = supabase
-      .channel(`typing-${session.user.id}`)
-      .on('broadcast', { event: 'typing' }, (payload: any) => {
-        if (payload.payload?.userId === activeChatId) {
-          setPartnerTyping(payload.payload?.typing || false);
-        }
-      })
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(typingChannel);
-    };
-  }, [activeChatId, session]);
 
   // Auto-expand composer field
   useEffect(() => {
@@ -585,10 +650,11 @@ function ChatsPageContent() {
       return res.json();
     },
     onMutate: async (newMsg) => {
-      const tempId = Math.random().toString();
+      const tempId = 'temp-' + Math.random().toString(36).substring(2, 9);
       const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
       const optimisticMsg: DBMessage = {
         id: tempId,
+        tempId: tempId,
         conversation_id: isConversationId ? (activeChatId || '') : '',
         sender_id: session.user.id,
         recipient_id: newMsg.partnerId,
@@ -607,14 +673,24 @@ function ChatsPageContent() {
       return { tempId };
     },
     onError: (err, newMsg, context: any) => {
-      setLocalMessages(prev => prev.filter(m => m.id !== context?.tempId));
+      setLocalMessages(prev => prev.filter(m => m.id !== context?.tempId && m.tempId !== context?.tempId));
       setFailedMessages(prev => [...prev, { partnerId: newMsg.partnerId, body: newMsg.body, type: newMsg.type, attachments: newMsg.atts }]);
     },
-    onSuccess: () => {
+    onSuccess: (data, newMsg, context: any) => {
       setNewMessage('');
       setAttachments([]);
       setReplyToMessage(null);
-      refetch();
+      if (data?.message) {
+        setLocalMessages(prev => prev.map(m => {
+          if (m.tempId === context?.tempId || m.id === context?.tempId) {
+            return {
+              ...data.message,
+              status: 'sent'
+            };
+          }
+          return m;
+        }));
+      }
       queryClient.invalidateQueries({ queryKey: ['messages', session?.access_token] });
     }
   });
@@ -1578,7 +1654,7 @@ function ChatsPageContent() {
 
                         <div 
                           data-message-id={msg.id}
-                          className="message-group" 
+                          className={`message-group ${(!msg.read && !isMe) ? 'unread-partner-message' : ''}`}
                           style={{ 
                             display: 'flex', 
                             flexDirection: 'column', 

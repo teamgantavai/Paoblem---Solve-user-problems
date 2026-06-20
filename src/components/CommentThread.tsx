@@ -14,6 +14,7 @@ import {
   Link2,
 } from 'lucide-react';
 import { Comment } from '@/lib/types';
+import Avatar from './Avatar';
 
 export interface CommentNode extends Comment {
   children: CommentNode[];
@@ -424,10 +425,11 @@ export default function CommentThread({
 
   const renderReplyForm = (parentId: string) => (
     <form className="comment-tree-reply-form" onSubmit={(e) => handleReply(parentId, e)} style={{ marginTop: 8 }}>
-      <img
-        src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=guest'}
-        alt="You"
+      <Avatar
+        src={session?.user?.user_metadata?.avatar_url}
+        name="You"
         className="comment-tree-avatar comment-tree-avatar--sm"
+        size={24}
       />
       <div className="comment-tree-reply-input-wrap">
         <textarea
@@ -474,15 +476,12 @@ export default function CommentThread({
         style={{ position: 'relative', marginTop: isReply ? 14 : 0 }}
       >
         <div className="comment-tree-row">
-          <img
-            src={authorAvatar}
-            alt={authorName}
-            title={authorName}
+          <Avatar
+            src={node.profiles?.avatar_url}
+            name={authorName}
             className={`comment-tree-avatar ${compact || isReply ? 'comment-tree-avatar--sm' : ''}`}
+            size={compact || isReply ? 28 : 36}
             onClick={goToProfile}
-            onError={(e) => {
-              e.currentTarget.src = 'https://api.dicebear.com/7.x/bottts/svg?seed=guest';
-            }}
           />
 
           <div className="comment-tree-body" style={{ flex: 1, minWidth: 0 }}>
@@ -649,10 +648,11 @@ export default function CommentThread({
         </div>
 
         <form onSubmit={handleTopComment} style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
-          <img
-            src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=guest'}
-            alt="You"
+          <Avatar
+            src={session?.user?.user_metadata?.avatar_url}
+            name="You"
             className="comment-tree-avatar"
+            size={36}
           />
           <div style={{ flex: 1 }}>
             <textarea

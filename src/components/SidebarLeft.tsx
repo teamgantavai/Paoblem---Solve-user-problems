@@ -18,6 +18,7 @@ import { supabase } from '@/lib/supabase';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
+import Avatar from './Avatar';
 
 function SidebarLeftInner() {
   const router = useRouter();
@@ -121,10 +122,11 @@ function SidebarLeftInner() {
           <div className="profile-banner"></div>
           <div className="profile-body">
             <div className="profile-avatar-wrap">
-              <img
-                src={displayAvatar}
-                alt={displayName}
+              <Avatar
+                src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url}
+                name={displayName}
                 className="profile-avatar"
+                size={54}
               />
             </div>
             <div className="profile-info">

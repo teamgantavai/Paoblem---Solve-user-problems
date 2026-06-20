@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
 import { Post } from '@/lib/types';
+import Avatar from './Avatar';
 
 export default function SidebarRight() {
   const router = useRouter();
@@ -94,12 +95,13 @@ export default function SidebarRight() {
               return (
                 <div key={post.id} className="flex items-start justify-between" style={{ gap: '0.5rem' }}>
                   <div className="flex gap-3" style={{ flex: 1, minWidth: 0 }}>
-                    <img
-                      src={authorAvatar}
-                      alt={authorName}
+                    <Avatar
+                      src={post.profiles?.avatar_url}
+                      name={authorName}
                       className="avatar"
+                      size={30}
                       onClick={() => router.push(authorProfileUrl)}
-                      style={{ width: '30px', height: '30px', borderRadius: '50%', objectFit: 'cover', flexShrink: 0, cursor: 'pointer' }}
+                      style={{ flexShrink: 0 }}
                     />
                     <div style={{ minWidth: 0, flex: 1 }}>
                       <h4 
