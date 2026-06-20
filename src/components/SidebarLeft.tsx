@@ -15,6 +15,7 @@ import {
   Clock
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import Link from 'next/link';
 import AuthModal from './AuthModal';
 import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
@@ -58,20 +59,30 @@ function SidebarLeftInner() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch profile from DB (so role changes are reflected immediately)
-  useEffect(() => {
+  const fetchLeftProfile = () => {
     if (!session?.user?.id) {
       setProfile(null);
       return;
     }
     supabase
       .from('profiles')
-      .select('full_name, avatar_url, role, username')
+      .select('full_name, avatar_url, role, username, cover_url')
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => {
         if (data) setProfile(data as any);
       });
+  };
+
+  useEffect(() => {
+    fetchLeftProfile();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    window.addEventListener('profile-updated', fetchLeftProfile);
+    return () => {
+      window.removeEventListener('profile-updated', fetchLeftProfile);
+    };
   }, [session?.user?.id]);
 
   useEffect(() => {
@@ -118,35 +129,44 @@ function SidebarLeftInner() {
 
       {/* Profile Card / Promo Card */}
       {session ? (
-        <div className="profile-card" onClick={() => router.push('/profile')} style={{ cursor: 'pointer' }}>
-          <div className="profile-banner"></div>
-          <div className="profile-body">
-            <div className="profile-avatar-wrap">
-              <Avatar
-                src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url}
-                name={displayName}
-                className="profile-avatar"
-                size={54}
-              />
-            </div>
-            <div className="profile-info">
-              <div className="profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                <span className="profile-name">{displayName}</span>
-                <span style={{
-                  fontSize: '0.65rem',
-                  fontWeight: 500,
-                  backgroundColor: '#3c11eb',
-                  color: 'white',
-                  padding: '1px 6px',
-                  borderRadius: '12px',
-                  whiteSpace: 'nowrap'
-                }}>
-                  {displayRole}
-                </span>
+        <Link href="/profile" style={{ textDecoration: 'none' }}>
+          <div className="profile-card" style={{ cursor: 'pointer' }}>
+            <div 
+              className="profile-banner" 
+              style={{ 
+                backgroundImage: (profile as any)?.cover_url || session?.user?.user_metadata?.cover_url ? `url(${(profile as any)?.cover_url || session?.user?.user_metadata?.cover_url})` : undefined,
+                backgroundSize: 'cover',
+                backgroundPosition: 'center'
+              }}
+            ></div>
+            <div className="profile-body">
+              <div className="profile-avatar-wrap">
+                <Avatar
+                  src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url}
+                  name={displayName}
+                  className="profile-avatar"
+                  size={54}
+                />
+              </div>
+              <div className="profile-info">
+                <div className="profile-name-row" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+                  <span className="profile-name">{displayName}</span>
+                  <span style={{
+                    fontSize: '0.65rem',
+                    fontWeight: 500,
+                    backgroundColor: '#3c11eb',
+                    color: 'white',
+                    padding: '1px 6px',
+                    borderRadius: '12px',
+                    whiteSpace: 'nowrap'
+                  }}>
+                    {displayRole}
+                  </span>
+                </div>
               </div>
             </div>
           </div>
-        </div>
+        </Link>
       ) : (
         <div
           className="card"
@@ -179,14 +199,14 @@ function SidebarLeftInner() {
 
       {/* Navigation Menu */}
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
-        <div
+        <Link
+          href="/"
           className={`menu-item ${filter === 'all' || filter === 'problem' || filter === 'idea' ? 'active' : ''}`}
-          style={{ cursor: 'pointer' }}
-          onClick={() => router.push('/')}
+          style={{ cursor: 'pointer', textDecoration: 'none' }}
         >
           <TrendingUp size={20} />
           <span>Trending Problems</span>
-        </div>
+        </Link>
         <div className="menu-item" style={{ cursor: 'pointer' }} onClick={() => {
           if (!session) {
             setIsAuthOpen(true);
@@ -197,14 +217,14 @@ function SidebarLeftInner() {
           <BarChart2 size={20} />
           <span>Analytics</span>
         </div>
-        <div
+        <Link
+          href="/?filter=saved"
           className={`menu-item ${filter === 'saved' ? 'active' : ''}`}
-          style={{ cursor: 'pointer' }}
-          onClick={() => router.push('/?filter=saved')}
+          style={{ cursor: 'pointer', textDecoration: 'none' }}
         >
           <Bookmark size={20} />
           <span>Saved Posts</span>
-        </div>
+        </Link>
         <div
           className={`menu-item ${filter === 'mine' ? 'active' : ''}`}
           style={{ cursor: 'pointer' }}

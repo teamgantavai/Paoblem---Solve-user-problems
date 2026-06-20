@@ -51,7 +51,7 @@ export async function POST(req: NextRequest) {
       .select('*')
       .eq('user_id', user.id)
       .eq('post_id', post_id)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       if (existing.vote_type === vote_type) {
@@ -79,22 +79,24 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // Send notification via Queue
-    try {
-      const { data: post } = await supabaseAdmin.from('posts').select('user_id').eq('id', post_id).single();
-      if (post && post.user_id !== user.id) {
-        await enqueueNotification('vote', {
-          user_id: post.user_id,
-          actor_id: user.id,
-          type: vote_type === 'up' ? 'upvote' : 'downvote',
-          title: vote_type === 'up' ? 'New Upvote' : 'New Downvote',
-          bodyTemplate: `{name} ${vote_type}voted your post.`,
-          post_id: post_id
-        });
+    // Send notification via Queue (don't block the response on this)
+    (async () => {
+      try {
+        const { data: post } = await supabaseAdmin.from('posts').select('user_id').eq('id', post_id).single();
+        if (post && post.user_id !== user.id) {
+          await enqueueNotification('vote', {
+            user_id: post.user_id,
+            actor_id: user.id,
+            type: vote_type === 'up' ? 'upvote' : 'downvote',
+            title: vote_type === 'up' ? 'New Upvote' : 'New Downvote',
+            bodyTemplate: `{name} ${vote_type}voted your post.`,
+            post_id: post_id,
+          });
+        }
+      } catch (notifErr) {
+        console.error('Failed to enqueue vote notification:', notifErr);
       }
-    } catch (notifErr) {
-      console.error('Failed to enqueue vote notification:', notifErr);
-    }
+    })();
 
     return NextResponse.json({ action: 'created', vote_type }, { status: 201 });
   } catch {

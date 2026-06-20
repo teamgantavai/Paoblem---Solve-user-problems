@@ -30,6 +30,7 @@ import ImageUploader from './ImageUploader';
 import CommentThread from './CommentThread';
 import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
+import { useQueryClient } from '@tanstack/react-query';
 
 interface InteractivePostProps {
   initialPost: Post;
@@ -41,11 +42,13 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const router = useRouter();
   const searchParams = useSearchParams();
   const highlightComment = searchParams ? searchParams.get('highlightComment') : null;
+  const queryClient = useQueryClient();
 
   const [post, setPost] = useState<Post>(initialPost);
   const [comments, setComments] = useState<Comment[]>(initialComments);
   const [session, setSession] = useState<any>(null);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
+  const [isVoting, setIsVoting] = useState(false);
   const [userSolutionVotes, setUserSolutionVotes] = useState<Record<string, 'up' | 'down'>>({});
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [solutions, setSolutions] = useState<Solution[]>([]);
@@ -405,6 +408,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setIsAuthOpen(true);
       return;
     }
+    // Prevent spam/double clicks
+    if (isVoting) return;
 
     // Trivial local update for mock posts
     if (post.id === 'dylan-post' || post.id === 'ryan-post') {
@@ -431,28 +436,47 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       return;
     }
 
-    // Perform optimistic update
+    setIsVoting(true);
+
+    // Compute deltas before mutating state
     const previousVote = userVote;
     const isToggleOff = userVote === voteType;
-    setUserVote(isToggleOff ? null : voteType);
+    const newVote = isToggleOff ? null : voteType;
 
-    setPost(prev => {
-      let upDelta = 0;
-      let downDelta = 0;
-      if (previousVote === voteType) {
-        if (voteType === 'up') upDelta = -1;
-        else downDelta = -1;
-      } else if (previousVote) {
-        if (voteType === 'up') { upDelta = 1; downDelta = -1; }
-        else { upDelta = -1; downDelta = 1; }
-      } else {
-        if (voteType === 'up') upDelta = 1;
-        else downDelta = 1;
-      }
+    let upDelta = 0;
+    let downDelta = 0;
+    if (previousVote === voteType) {
+      if (voteType === 'up') upDelta = -1;
+      else downDelta = -1;
+    } else if (previousVote) {
+      if (voteType === 'up') { upDelta = 1; downDelta = -1; }
+      else { upDelta = -1; downDelta = 1; }
+    } else {
+      if (voteType === 'up') upDelta = 1;
+      else downDelta = 1;
+    }
+
+    // Perform optimistic update on detail page
+    setUserVote(newVote);
+    setPost(prev => ({
+      ...prev,
+      upvotes: Math.max(0, prev.upvotes + upDelta),
+      downvotes: Math.max(0, prev.downvotes + downDelta)
+    }));
+
+    // Sync the feed's React Query cache so navigating back shows updated count
+    queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: any) => {
+      if (!oldData?.pages) return oldData;
       return {
-        ...prev,
-        upvotes: Math.max(0, prev.upvotes + upDelta),
-        downvotes: Math.max(0, prev.downvotes + downDelta)
+        ...oldData,
+        pages: oldData.pages.map((page: any) => ({
+          ...page,
+          posts: page.posts.map((p: any) =>
+            p.id === post.id
+              ? { ...p, upvotes: Math.max(0, p.upvotes + upDelta), downvotes: Math.max(0, p.downvotes + downDelta) }
+              : p
+          )
+        }))
       };
     });
 
@@ -469,27 +493,30 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       trackEvent(post.id, voteType === 'up' ? 'POST_UPVOTE' : 'POST_DOWNVOTE', session.access_token);
     } catch (err) {
       console.error(err);
-      // Revert optimistic update
+      // Revert optimistic update on detail page
       setUserVote(previousVote);
-      setPost(prev => {
-        let upDelta = 0;
-        let downDelta = 0;
-        if (previousVote === voteType) {
-          if (voteType === 'up') upDelta = 1;
-          else downDelta = 1;
-        } else if (previousVote) {
-          if (voteType === 'up') { upDelta = -1; downDelta = 1; }
-          else { upDelta = 1; downDelta = -1; }
-        } else {
-          if (voteType === 'up') upDelta = -1;
-          else downDelta = -1;
-        }
+      setPost(prev => ({
+        ...prev,
+        upvotes: Math.max(0, prev.upvotes - upDelta),
+        downvotes: Math.max(0, prev.downvotes - downDelta)
+      }));
+      // Revert feed cache
+      queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: any) => {
+        if (!oldData?.pages) return oldData;
         return {
-          ...prev,
-          upvotes: Math.max(0, prev.upvotes + upDelta),
-          downvotes: Math.max(0, prev.downvotes + downDelta)
+          ...oldData,
+          pages: oldData.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.map((p: any) =>
+              p.id === post.id
+                ? { ...p, upvotes: Math.max(0, p.upvotes - upDelta), downvotes: Math.max(0, p.downvotes - downDelta) }
+                : p
+            )
+          }))
         };
       });
+    } finally {
+      setIsVoting(false);
     }
   };
 

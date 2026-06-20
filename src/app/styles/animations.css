@@ -41,3 +41,24 @@
 .modal-box {
   will-change: transform, opacity;
 }
+
+/* Top Loading Bar */
+@keyframes loading-bar {
+  0% { width: 0%; opacity: 1; }
+  50% { width: 70%; opacity: 1; }
+  100% { width: 90%; opacity: 1; }
+}
+.top-loading-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: 3px;
+  background: linear-gradient(90deg, #6366f1, #3b82f6, #10b981);
+  z-index: 9999;
+  animation: loading-bar 2s ease-out infinite;
+  animation-delay: 220ms;
+  animation-fill-mode: backwards;
+  opacity: 0;
+  box-shadow: 0 0 10px rgba(99, 102, 241, 0.5);
+  pointer-events: none;
+}

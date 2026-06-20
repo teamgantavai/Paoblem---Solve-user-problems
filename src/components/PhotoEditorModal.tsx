@@ -74,14 +74,26 @@ export default function PhotoEditorModal({ isOpen, onClose, imageUrl, onSave }: 
     if (isOpen) {
       setRotation(0);
       setFilter('none');
-      setCropMode(false);
-      setCropRect(null);
-      setAspectRatio('free');
+      
+      // Auto-detect recommended aspect ratios based on edit target type
+      // Check if image target is a banner/cover or profile photo
+      const isBanner = imageUrl.includes('cover') || (typeof window !== 'undefined' && window.location.hash === '#cover');
+      
+      // Set aspect ratio and enable crop mode instantly
+      setCropMode(true);
+      if (isBanner) {
+        setAspectRatio('16:9');
+        setTimeout(() => initDefaultCrop('16:9'), 50);
+      } else {
+        setAspectRatio('1:1');
+        setTimeout(() => initDefaultCrop('1:1'), 50);
+      }
+      
       setDragAction(null);
       setDragStart(null);
       setImgPos(null);
     }
-  }, [isOpen]);
+  }, [isOpen, imageUrl]);
 
   if (!isOpen) return null;
 
@@ -453,6 +465,22 @@ export default function PhotoEditorModal({ isOpen, onClose, imageUrl, onSave }: 
                   <div style={{ position: 'absolute', left: '66.6%', top: 0, bottom: 0, width: '1px', borderLeft: '1px dashed rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
                   <div style={{ position: 'absolute', top: '33.3%', left: 0, right: 0, height: '1px', borderTop: '1px dashed rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
                   <div style={{ position: 'absolute', top: '66.6%', left: 0, right: 0, height: '1px', borderTop: '1px dashed rgba(255,255,255,0.35)', pointerEvents: 'none' }} />
+
+                  {/* Circular preview indicator for avatars / 1:1 crops (YouTube/WhatsApp style) */}
+                  {aspectRatio === '1:1' && (
+                    <div style={{
+                      position: 'absolute',
+                      top: 0,
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      borderRadius: '50%',
+                      border: '2px solid rgba(255, 255, 255, 0.85)',
+                      boxShadow: '0 0 0 9999px rgba(0, 0, 0, 0.4)',
+                      pointerEvents: 'none',
+                      boxSizing: 'border-box',
+                    }} />
+                  )}
 
                   {/* Drag handles (larger, mobile friendly size: 14x14px with expanded hit area) */}
                   {/* Corners */}

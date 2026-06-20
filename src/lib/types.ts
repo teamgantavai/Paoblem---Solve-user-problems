@@ -23,6 +23,7 @@ export interface Post {
     avatar_url: string | null;
     role: string | null;
     username: string | null;
+    cover_url?: string | null;
   } | null;
 }
 
@@ -45,6 +46,7 @@ export interface Solution {
     avatar_url: string | null;
     role: string | null;
     username: string | null;
+    cover_url?: string | null;
   } | null;
   problem?: {
     id: string;
@@ -77,6 +79,7 @@ export interface Comment {
     avatar_url: string | null;
     role: string | null;
     username: string | null;
+    cover_url?: string | null;
   } | null;
 }
 
@@ -366,4 +369,80 @@ export interface PostAnalyticsDetailResponse {
   voters: PostVoter[];
   demographics: UserDemographics;
   isDemo: boolean;
+}
+
+// ==========================================
+// Search Types
+// ==========================================
+
+export interface SearchResult {
+  id: string;
+  title: string;
+  body_snippet: string;
+  type: 'problem' | 'idea';
+  slug: string | null;
+  upvotes: number;
+  comments_count: number;
+  views_count: number;
+  created_at: string;
+  rank: number;
+  author: {
+    full_name: string | null;
+    avatar_url: string | null;
+    username: string | null;
+  } | null;
+}
+
+export interface SearchResultSolution {
+  id: string;
+  title: string;
+  body_snippet: string;
+  problem_id: string;
+  problem_title: string;
+  upvotes: number;
+  created_at: string;
+  rank: number;
+  author: {
+    full_name: string | null;
+    avatar_url: string | null;
+    username: string | null;
+  } | null;
+}
+
+export interface SearchResultUser {
+  id: string;
+  full_name: string | null;
+  username: string | null;
+  avatar_url: string | null;
+  role: string | null;
+  bio_snippet: string | null;
+  rank: number;
+}
+
+export interface SearchResponse {
+  problems: SearchResult[];
+  ideas: SearchResult[];
+  solutions: SearchResultSolution[];
+  users: SearchResultUser[];
+  trending?: TrendingData;
+}
+
+export interface TrendingData {
+  searches: string[];
+  problems: SearchResult[];
+  ideas: SearchResult[];
+  solutions: SearchResultSolution[];
+}
+
+export interface SearchHistoryItem {
+  id: string;
+  query: string;
+  created_at: string;
+}
+
+export interface SearchAnalyticsData {
+  topSearches: { query: string; count: number }[];
+  noResultSearches: { query: string; count: number }[];
+  searchToClickRate: number;
+  trendingSearches: { query: string; count: number; trend: number }[];
 }

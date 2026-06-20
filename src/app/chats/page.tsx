@@ -677,9 +677,6 @@ function ChatsPageContent() {
       setFailedMessages(prev => [...prev, { partnerId: newMsg.partnerId, body: newMsg.body, type: newMsg.type, attachments: newMsg.atts }]);
     },
     onSuccess: (data, newMsg, context: any) => {
-      setNewMessage('');
-      setAttachments([]);
-      setReplyToMessage(null);
       if (data?.message) {
         setLocalMessages(prev => prev.map(m => {
           if (m.tempId === context?.tempId || m.id === context?.tempId) {
@@ -691,29 +688,36 @@ function ChatsPageContent() {
           return m;
         }));
       }
-      queryClient.invalidateQueries({ queryKey: ['messages', session?.access_token] });
+      queryClient.invalidateQueries({ queryKey: ['chats-messages', session?.access_token] });
     }
   });
 
   const handleSend = (e?: React.FormEvent) => {
     if (e) e.preventDefault();
-    if (!newMessage.trim() && attachments.length === 0) return;
+    const msgToSend = newMessage;
+    const attsToSend = attachments;
+    if (!msgToSend.trim() && attsToSend.length === 0) return;
     if (!activeChatId) return;
 
     let msgType = 'TEXT';
-    if (attachments.length > 0) {
-      const firstType = attachments[0].file_type.toUpperCase();
+    if (attsToSend.length > 0) {
+      const firstType = attsToSend[0].file_type.toUpperCase();
       if (firstType.includes('IMAGE')) msgType = 'IMAGE';
       else msgType = 'FILE';
-    } else if (newMessage.startsWith('http')) {
+    } else if (msgToSend.startsWith('http')) {
       msgType = 'LINK';
     }
 
+    // Clear input & attachments immediately for instant UI response
+    setNewMessage('');
+    setAttachments([]);
+    setReplyToMessage(null);
+
     sendMessageMutation.mutate({ 
       partnerId: activeChatId, 
-      body: newMessage,
+      body: msgToSend,
       type: msgType,
-      atts: attachments
+      atts: attsToSend
     });
   };
 
@@ -844,7 +848,7 @@ function ChatsPageContent() {
         })
       });
       // Trigger a re-fetch of messages in the background to update the name
-      queryClient.invalidateQueries({ queryKey: ['messages'] });
+      queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
       setShowRenameModal(false);
       setShowChatMenu(false);
       setNewGroupName('');
@@ -873,7 +877,7 @@ function ChatsPageContent() {
             body: reader.result as string
           })
         });
-        queryClient.invalidateQueries({ queryKey: ['messages'] });
+        queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
         setShowChatMenu(false);
       } catch (err) {
         console.error(err);

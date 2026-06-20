@@ -10,6 +10,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import PhotoEditorModal from '@/components/PhotoEditorModal';
 import '../styles/profile-page.css';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
@@ -30,6 +31,7 @@ interface Profile {
   bio: string | null;
   location: string | null;
   username: string | null;
+  cover_url?: string | null;
   created_at: string;
 }
 
@@ -141,13 +143,29 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const [tempAvatar, setTempAvatar] = useState<string | null>(null);
   const avatarInputRef = useRef<HTMLInputElement>(null);
 
+  // Cover upload states
+  const [coverUploading, setCoverUploading] = useState(false);
+  const [tempCover, setTempCover] = useState<string | null>(null);
+  const coverInputRef = useRef<HTMLInputElement>(null);
+
+  // General Image Editor states
+  const [editorOpen, setEditorOpen] = useState(false);
+  const [editorImgUrl, setEditorImgUrl] = useState('');
+  const [editorType, setEditorType] = useState<'avatar' | 'cover'>('avatar');
+
   const handleAvatarClick = () => {
     if (isOwnProfile && !avatarUploading) {
       avatarInputRef.current?.click();
     }
   };
 
-  const handleAvatarFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+  const handleCoverClick = () => {
+    if (isOwnProfile && !coverUploading) {
+      coverInputRef.current?.click();
+    }
+  };
+
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>, type: 'avatar' | 'cover') => {
     const file = e.target.files?.[0];
     if (!file) return;
 
@@ -162,19 +180,32 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       return;
     }
 
-    // Optimistic UI update
     const localUrl = URL.createObjectURL(file);
-    setTempAvatar(localUrl);
-    setAvatarUploading(true);
+    if (typeof window !== 'undefined') {
+      window.location.hash = type;
+    }
+    setEditorImgUrl(localUrl);
+    setEditorType(type);
+    setEditorOpen(true);
+    // Reset file input so same file can be selected again
+    e.target.value = '';
+  };
+
+  const handleEditorSave = async (editedBlob: Blob) => {
+    const isAvatar = editorType === 'avatar';
+    if (isAvatar) {
+      setAvatarUploading(true);
+    } else {
+      setCoverUploading(true);
+    }
 
     try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `avatar-${session.user.id}-${Date.now()}.${fileExt}`;
+      const fileName = `${editorType}-${session.user.id}-${Date.now()}.jpg`;
       const filePath = `post-images/${fileName}`;
 
       const { error: uploadErr } = await supabase.storage
         .from('post-images')
-        .upload(filePath, file, { cacheControl: '3600', upsert: true });
+        .upload(filePath, editedBlob, { cacheControl: '3600', contentType: 'image/jpeg', upsert: true });
 
       if (uploadErr) throw uploadErr;
 
@@ -182,17 +213,26 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
         .from('post-images')
         .getPublicUrl(filePath);
 
+      const updatePayload: Record<string, string> = {};
+      if (isAvatar) {
+        updatePayload.avatar_url = publicUrl;
+        setTempAvatar(publicUrl);
+      } else {
+        updatePayload.cover_url = publicUrl;
+        setTempCover(publicUrl);
+      }
+
       const res = await fetch('/api/profile', {
         method: 'PUT',
         headers: {
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ avatar_url: publicUrl }),
+        body: JSON.stringify(updatePayload),
       });
 
       if (!res.ok) {
-        throw new Error('Failed to update profile avatar');
+        throw new Error(`Failed to update profile ${editorType}`);
       }
 
       await queryClient.invalidateQueries({ queryKey: ['profile', displayUserId] });
@@ -200,13 +240,26 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       await queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
       await queryClient.invalidateQueries({ queryKey: ['messages'] });
       await queryClient.invalidateQueries({ queryKey: ['posts'] });
+      
+      // Update session metadata explicitly on auth client
+      await supabase.auth.updateUser({
+        data: updatePayload
+      });
+      // Fire event to notify SidebarLeft and Navbar
+      window.dispatchEvent(new Event('profile-updated'));
+
       refetch();
     } catch (err: any) {
       console.error(err);
-      alert(err.message || 'Failed to upload image. Reverting...');
-      setTempAvatar(null);
+      alert(err.message || 'Failed to upload image.');
+      if (isAvatar) setTempAvatar(null);
+      else setTempCover(null);
     } finally {
-      setAvatarUploading(false);
+      if (isAvatar) {
+        setAvatarUploading(false);
+      } else {
+        setCoverUploading(false);
+      }
     }
   };
 
@@ -331,8 +384,31 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       if (!res.ok) throw new Error('Failed to toggle follow');
       return res.json();
     },
-    onSuccess: () => {
-      refetchFollow();
+    onMutate: async () => {
+      const queryKey = ['follows', displayUserId, session?.user?.id];
+      await queryClient.cancelQueries({ queryKey });
+      const previousFollow = queryClient.getQueryData(queryKey);
+
+      queryClient.setQueryData(queryKey, (old: any) => {
+        if (!old) return old;
+        const nextFollowing = !old.isFollowing;
+        return {
+          ...old,
+          isFollowing: nextFollowing,
+          followersCount: Math.max(0, old.followersCount + (nextFollowing ? 1 : -1)),
+        };
+      });
+
+      return { previousFollow };
+    },
+    onError: (err, variables, context) => {
+      const queryKey = ['follows', displayUserId, session?.user?.id];
+      if (context) {
+        queryClient.setQueryData(queryKey, context.previousFollow);
+      }
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ['follows', displayUserId, session?.user?.id] });
     },
   });
 
@@ -400,13 +476,58 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const problemsList = userPosts.filter(p => p.type === 'problem');
   const ideasList = userPosts.filter(p => p.type === 'idea');
 
+  const coverSrc = tempCover || profile?.cover_url;
+
   return (
     <div className="profile-page-wrap">
       {/* ── Main Profile Header ── */}
       <div className="profile-main-card">
         {/* Cover Banner */}
-        <div className="profile-cover">
-          <div className="profile-cover-actions">
+        <div 
+          className="profile-cover" 
+          onClick={handleCoverClick} 
+          style={{ 
+            cursor: isOwnProfile ? 'pointer' : 'default',
+            backgroundImage: coverSrc ? `url(${coverSrc})` : undefined,
+            backgroundSize: 'cover',
+            backgroundPosition: 'center',
+            position: 'relative'
+          }}
+        >
+          {isOwnProfile && (
+            <div className="cover-edit-overlay" style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0, 0, 0, 0.3)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              opacity: 0,
+              transition: 'opacity 0.2s',
+            }}>
+              <Camera size={24} color="white" />
+              <span style={{ color: 'white', marginLeft: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>Change Cover</span>
+            </div>
+          )}
+          {coverUploading && (
+            <div style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              width: '100%',
+              height: '100%',
+              background: 'rgba(0, 0, 0, 0.5)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+            }}>
+              <Loader2 size={24} className="spin" color="white" />
+            </div>
+          )}
+          <div className="profile-cover-actions" onClick={(e) => e.stopPropagation()}>
             {isOwnProfile && (
               <button
                 className="profile-edit-btn"
@@ -417,6 +538,15 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               </button>
             )}
           </div>
+          {isOwnProfile && (
+            <input
+              type="file"
+              ref={coverInputRef}
+              onChange={(e) => handleFileChange(e, 'cover')}
+              accept="image/png, image/jpeg, image/gif, image/webp"
+              style={{ display: 'none' }}
+            />
+          )}
         </div>
 
         {/* Identity Section */}
@@ -473,7 +603,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               <input
                 type="file"
                 ref={avatarInputRef}
-                onChange={handleAvatarFileChange}
+                onChange={(e) => handleFileChange(e, 'avatar')}
                 accept="image/png, image/jpeg, image/gif, image/webp"
                 style={{ display: 'none' }}
               />
@@ -481,6 +611,9 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
             <style dangerouslySetInnerHTML={{
               __html: `
               .profile-full-avatar-wrap:hover .avatar-edit-overlay {
+                opacity: 1 !important;
+              }
+              .profile-cover:hover .cover-edit-overlay {
                 opacity: 1 !important;
               }
             ` }} />
@@ -701,6 +834,16 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
           )}
         </div>
       </div>
+
+      <PhotoEditorModal
+        isOpen={editorOpen}
+        onClose={() => {
+          setEditorOpen(false);
+          if (typeof window !== 'undefined') window.location.hash = '';
+        }}
+        imageUrl={editorImgUrl}
+        onSave={handleEditorSave}
+      />
     </div>
   );
 }
@@ -742,6 +885,7 @@ function AboutTab({ bio, userComments, onAddBioClick }: { bio: string; userComme
 function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSavedTab?: boolean }) {
   const { animateListEntrance, animateCardHover, animateCardHoverOut } = useMicroAnimations();
   const listRef = useRef<HTMLDivElement>(null);
+  const router = useRouter();
 
   useEffect(() => {
     if (posts.length > 0) {
@@ -766,7 +910,7 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
           className="card profile-post-card"
           onMouseEnter={animateCardHover}
           onMouseLeave={animateCardHoverOut}
-          onClick={() => window.location.href = `/?post=${post.id}`}
+          onClick={() => router.push(`/?post=${post.id}`)}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
             <span className={`sticker-tag ${post.type}`} style={{ marginLeft: 0 }}>
@@ -1058,6 +1202,7 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
    Sign Out Tab Component (Dedicated Sign Out Section)
    ───────────────────────────────────────────────────────── */
 function SignOutTab({ onLogout }: { onLogout: () => void }) {
+  const router = useRouter();
   return (
     <div className="card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
       <LogOut size={40} style={{ color: '#ef4444' }} />
@@ -1069,7 +1214,7 @@ function SignOutTab({ onLogout }: { onLogout: () => void }) {
         <button
           className="profile-action-btn"
           style={{ flex: 1 }}
-          onClick={() => window.location.href = '/'}
+          onClick={() => router.push('/')}
         >
           Cancel
         </button>

@@ -20,7 +20,8 @@ import {
   LogIn,
   Lightbulb,
   CheckCircle,
-  Clock
+  Clock,
+  PlusCircle
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -30,6 +31,7 @@ import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
 import NotificationItem from './NotificationItem';
 import MessageItem from './MessageItem';
+import SearchOverlay from './SearchOverlay';
 
 function NavbarInner() {
   const router = useRouter();
@@ -42,6 +44,7 @@ function NavbarInner() {
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
+  const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [noticeFeature, setNoticeFeature] = useState('');
   const [session, setSession] = useState<any>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
@@ -91,8 +94,7 @@ function NavbarInner() {
     return () => subscription.unsubscribe();
   }, []);
 
-  // Fetch fresh profile from DB when session changes
-  useEffect(() => {
+  const fetchNavProfile = () => {
     if (!session?.user?.id) {
       setProfile(null);
       return;
@@ -103,8 +105,22 @@ function NavbarInner() {
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => {
-        if (data) setProfile(data);
+        if (data) {
+          setProfile(data);
+          setAvatarFailed(false); // Reset failed flag on fresh fetch
+        }
       });
+  };
+
+  useEffect(() => {
+    fetchNavProfile();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    window.addEventListener('profile-updated', fetchNavProfile);
+    return () => {
+      window.removeEventListener('profile-updated', fetchNavProfile);
+    };
   }, [session?.user?.id]);
 
   // Fetch notifications counts
@@ -437,12 +453,31 @@ function NavbarInner() {
             )}
           </div>
 
-          <div className="search-bar desktop-only">
-            <input type="text" placeholder="Search for Problems" />
-            <button className="search-btn" aria-label="Submit search">
+          <div 
+            className="search-bar desktop-only" 
+            onClick={() => setIsSearchOpen(true)}
+            style={{ cursor: 'pointer' }}
+          >
+            <input 
+              type="text" 
+              placeholder="Search problems, solutions, users..." 
+              readOnly 
+              style={{ cursor: 'pointer' }}
+            />
+            <button className="search-btn" aria-label="Submit search" type="button">
               <Search size={16} />
             </button>
           </div>
+
+          <button 
+            className="search-btn mobile-only" 
+            style={{ marginRight: '8px', background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            aria-label="Open Search"
+            onClick={() => setIsSearchOpen(true)}
+            type="button"
+          >
+            <Search size={20} strokeWidth={2} />
+          </button>
 
           {session ? (
             <button 
@@ -483,7 +518,7 @@ function NavbarInner() {
         </div>
         <div className={`mobile-nav-item ${pathname === '/create-post' ? 'active' : ''}`} onClick={() => router.push('/create-post')}>
           <div className="nav-icon-wrap">
-            <Search size={20} strokeWidth={2} />
+            <PlusCircle size={20} strokeWidth={2} />
           </div>
           <span>Post</span>
         </div>
@@ -659,6 +694,7 @@ function NavbarInner() {
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
       <DevelopmentNotice isOpen={isNoticeOpen} onClose={() => setIsNoticeOpen(false)} featureName={noticeFeature} />
+      <SearchOverlay isOpen={isSearchOpen} onClose={() => setIsSearchOpen(false)} />
     </>
   );
 }

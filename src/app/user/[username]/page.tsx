@@ -121,13 +121,21 @@ export default async function UserPage({ params }: UserPageProps) {
         
         <main className="center-feed">
           {/* User Identity Header Card */}
-          <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center' }}>
-              <img
-                src={avatar}
-                alt={name}
-                style={{ width: '72px', height: '72px', borderRadius: '50%', border: '2px solid var(--border-color)', objectFit: 'cover' }}
-              />
+          <div className="card" style={{ padding: 0, marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+            {/* Cover Banner */}
+            <div 
+              style={{ 
+                height: '110px', 
+                background: profile.cover_url ? `url(${profile.cover_url}) center/cover` : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 75%, #1a1a3e 100%)' 
+              }} 
+            />
+            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', marginTop: '-3rem' }}>
+                <img
+                  src={avatar}
+                  alt={name}
+                  style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid var(--bg-card)', objectFit: 'cover', backgroundColor: '#27272a' }}
+                />
               <div style={{ flex: 1 }}>
                 <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
                   <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
@@ -169,6 +177,7 @@ export default async function UserPage({ params }: UserPageProps) {
                 <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Upvotes</span>
               </div>
             </div>
+          </div>
           </div>
 
           {/* User Posts List */}

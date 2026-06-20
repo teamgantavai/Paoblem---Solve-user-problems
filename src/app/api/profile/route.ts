@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     // Fetch profile
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, avatar_url, role, bio, location, created_at, username');
+      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url');
 
     if (userId) {
       query = query.eq('id', userId);
@@ -84,7 +84,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { full_name, role, bio, location, avatar_url, username } = body;
+    const { full_name, role, bio, location, avatar_url, username, cover_url } = body;
 
     // Validate role
     const VALID_ROLES = ['Innovator', 'Founder', 'Builder', 'Developer', 'Designer', 'Investor', 'Maker', 'Researcher'];
@@ -98,6 +98,7 @@ export async function PUT(req: NextRequest) {
     if (bio !== undefined) updates.bio = bio?.trim() || null;
     if (location !== undefined) updates.location = location?.trim() || null;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
+    if (cover_url !== undefined) updates.cover_url = cover_url;
     if (username !== undefined) {
       const cleanUsername = username?.trim().toLowerCase();
       if (!cleanUsername) {
@@ -144,14 +145,15 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: updateError.message }, { status: 500 });
     }
 
-    // Also update auth metadata so role/name/avatar/username is reflected in session
-    if (full_name !== undefined || role !== undefined || avatar_url !== undefined || username !== undefined) {
+    // Also update auth metadata so role/name/avatar/username/cover_url is reflected in session
+    if (full_name !== undefined || role !== undefined || avatar_url !== undefined || username !== undefined || cover_url !== undefined) {
       await supabaseAdmin.auth.admin.updateUserById(user.id, {
         user_metadata: {
           ...user.user_metadata,
           ...(full_name !== undefined ? { full_name: updates.full_name } : {}),
           ...(role !== undefined ? { role } : {}),
           ...(avatar_url !== undefined ? { avatar_url } : {}),
+          ...(cover_url !== undefined ? { cover_url } : {}),
           ...(username !== undefined ? { username: updates.username } : {}),
         }
       });
