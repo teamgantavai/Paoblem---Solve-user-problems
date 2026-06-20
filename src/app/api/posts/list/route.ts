@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import {
+  getPageSize,
+  getSeenPostIds,
+  getUserInterests,
+  hasEnoughInterest,
+  parseRecommendationCursor,
+  rankPosts,
+  recordPostImpressions,
+} from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey;
 
-const PAGE_SIZE = 5;
+const PAGE_SIZE = getPageSize();
 
 export async function GET(req: NextRequest) {
   try {
@@ -25,6 +35,8 @@ export async function GET(req: NextRequest) {
         userId = user.id;
       }
     }
+
+    const isDirectFilter = !!postId || type === 'mine' || type === 'saved';
 
     let query = supabase
       .from('posts')
@@ -85,7 +97,7 @@ export async function GET(req: NextRequest) {
         });
       }
       query = query.eq('id', postId);
-    } else {
+    } else if (isDirectFilter) {
       query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE + 1);
       if (cursor) {
         query = query.lt('created_at', cursor);
@@ -108,6 +120,53 @@ export async function GET(req: NextRequest) {
         }
         query = query.in('id', idsArray);
       }
+    } else {
+      const admin = createClient(supabaseUrl, supabaseServiceKey);
+      const { offset } = parseRecommendationCursor(cursor);
+
+      const baseSelect = '*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)';
+      const [recentRes, engagedRes] = await Promise.all([
+        admin
+          .from('posts')
+          .select(baseSelect)
+          .order('created_at', { ascending: false })
+          .limit(160),
+        admin
+          .from('posts')
+          .select(baseSelect)
+          .order('upvotes', { ascending: false })
+          .order('comments_count', { ascending: false })
+          .limit(160),
+      ]);
+
+      if (recentRes.error || engagedRes.error) {
+        const error = recentRes.error || engagedRes.error;
+        console.error('[posts/list] Recommendation query error:', JSON.stringify(error));
+        return NextResponse.json({ error: error?.message || 'Failed to load feed' }, { status: 500 });
+      }
+
+      const byId = new Map<string, any>();
+      [...(recentRes.data || []), ...(engagedRes.data || [])].forEach((post: any) => byId.set(post.id, post));
+      const candidates = normalizePostRows(Array.from(byId.values()));
+      const interests = await getUserInterests(admin, userId);
+      const seenIds = await getSeenPostIds(admin, userId);
+      const ranked = rankPosts(candidates, interests, {
+        offset,
+        pageSize: PAGE_SIZE,
+        newUser: !hasEnoughInterest(interests),
+        seenIds,
+        type,
+      });
+
+      const hasMore = ranked.length > PAGE_SIZE;
+      const posts = hasMore ? ranked.slice(0, PAGE_SIZE) : ranked;
+      await recordPostImpressions(admin, userId, posts);
+
+      return NextResponse.json({
+        posts,
+        nextCursor: hasMore ? `rec:${offset + PAGE_SIZE}` : null,
+        hasMore,
+      });
     }
 
     let { data, error } = await query;
@@ -151,17 +210,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    const postsWithSolvedState = (data || []).map((post: any) => {
-      const rawCount = Array.isArray(post.solutions_count)
-        ? post.solutions_count[0]?.count
-        : post.solutions_count;
-      const solutionsCount = Number(rawCount || 0);
-      return {
-        ...post,
-        solutions_count: solutionsCount,
-        solved: post.type === 'problem' && solutionsCount > 0,
-      };
-    });
+    const postsWithSolvedState = normalizePostRows(data || []);
 
     if (postId) {
       return NextResponse.json({
@@ -184,4 +233,18 @@ export async function GET(req: NextRequest) {
     console.error('[posts/list] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function normalizePostRows(rows: any[]) {
+  return rows.map((post: any) => {
+    const rawCount = Array.isArray(post.solutions_count)
+      ? post.solutions_count[0]?.count
+      : post.solutions_count;
+    const solutionsCount = Number(rawCount || 0);
+    return {
+      ...post,
+      solutions_count: solutionsCount,
+      solved: post.type === 'problem' && solutionsCount > 0,
+    };
+  });
 }

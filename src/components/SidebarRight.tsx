@@ -4,26 +4,25 @@ import React from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery } from '@tanstack/react-query';
 import { Loader2 } from 'lucide-react';
-import { Post } from '@/lib/types';
 import Avatar from './Avatar';
 
 export default function SidebarRight() {
   const router = useRouter();
 
-  // Fetch trending/recent problems from the API
-  const { data: postsData, isLoading } = useQuery<{ posts: Post[] }>({
+  // Fetch platform-wide trending posts from the API
+  const { data: postsData, isLoading } = useQuery<{ sections?: { trendingToday?: any[] }; problems?: any[] }>({
     queryKey: ['trending-sidebar'],
     queryFn: async () => {
-      const res = await fetch('/api/posts/list?type=all');
+      const res = await fetch('/api/search/trending');
       if (!res.ok) throw new Error('Failed to load trending');
       return res.json();
     },
   });
 
 
-  const trendingPosts = postsData?.posts?.slice(0, 3) || [];
+  const trendingPosts = (postsData?.sections?.trendingToday || postsData?.problems || []).slice(0, 3);
 
-  const handleNavigatePost = (post: Post) => {
+  const handleNavigatePost = (post: any) => {
     // Check if the post is a mock post
     if (post.id === 'dylan-post') {
       router.push('/post/why-designing-sucks');
@@ -85,18 +84,18 @@ export default function SidebarRight() {
         ) : (
           <div className="flex flex-col gap-4">
             {trendingPosts.map((post) => {
-              const authorName = post.profiles?.full_name || 'Member';
-              const authorAvatar = post.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`;
-              const authorRole = post.profiles?.role || 'Innovator';
+              const profile = post.profiles || post.author || null;
+              const authorName = profile?.full_name || 'Member';
+              const authorRole = profile?.role || 'Innovator';
 
-              const authorUsername = post.profiles?.username;
+              const authorUsername = profile?.username;
               const authorProfileUrl = authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`;
 
               return (
                 <div key={post.id} className="flex items-start justify-between" style={{ gap: '0.5rem' }}>
                   <div className="flex gap-3" style={{ flex: 1, minWidth: 0 }}>
                     <Avatar
-                      src={post.profiles?.avatar_url}
+                      src={profile?.avatar_url}
                       name={authorName}
                       className="avatar"
                       size={30}

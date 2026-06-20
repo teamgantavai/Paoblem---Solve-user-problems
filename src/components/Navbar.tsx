@@ -47,7 +47,6 @@ function NavbarInner() {
   const [isSearchOpen, setIsSearchOpen] = useState(false);
   const [noticeFeature, setNoticeFeature] = useState('');
   const [session, setSession] = useState<any>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
   const [theme, setTheme] = useState('dark');
   const [avatarFailed, setAvatarFailed] = useState(false);
 
@@ -248,7 +247,6 @@ function NavbarInner() {
       } catch (err) {}
     }
     await supabase.auth.signOut();
-    setDropdownOpen(false);
     setIsOpen(false);
     router.push('/');
     window.location.reload();
@@ -258,7 +256,7 @@ function NavbarInner() {
     if (!session) {
       setIsAuthOpen(true);
     } else {
-      setDropdownOpen(!dropdownOpen);
+      router.push('/profile');
     }
   };
 
@@ -390,58 +388,6 @@ function NavbarInner() {
                   {renderProfileAvatar(22)}
                 </div>
                 <span>Me</span>
-
-                {/* Dropdown Menu */}
-                {dropdownOpen && (
-                  <div 
-                    className="card"
-                    style={{ 
-                      position: 'absolute', 
-                      top: '75px', 
-                      right: '0', 
-                      width: '200px', 
-                      zIndex: 100, 
-                      display: 'flex', 
-                      flexDirection: 'column', 
-                      gap: '0.5rem',
-                      boxShadow: '0 10px 25px rgba(0,0,0,0.5)',
-                      padding: '0.75rem'
-                    }}
-                  >
-                    <div style={{ padding: '0.25rem 0.5rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.5rem', marginBottom: '0.25rem' }}>
-                      <p style={{ fontWeight: 600, fontSize: '0.85rem', color: 'var(--text-main)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {displayName}
-                      </p>
-                      <p style={{ fontSize: '0.7rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {session.user.email}
-                      </p>
-                    </div>
-                    <div 
-                      className="menu-item" 
-                      style={{ padding: '0.4rem 0.5rem', fontSize: '0.82rem' }}
-                      onClick={(e) => { e.stopPropagation(); setDropdownOpen(false); router.push('/profile'); }}
-                    >
-                      <User size={16} />
-                      <span>My Profile</span>
-                    </div>
-                    <div 
-                      className="menu-item" 
-                      style={{ padding: '0.4rem 0.5rem', fontSize: '0.82rem' }}
-                      onClick={(e) => { e.stopPropagation(); setDropdownOpen(false); router.push('/profile?tab=settings'); }}
-                    >
-                      <Settings size={16} />
-                      <span>Settings</span>
-                    </div>
-                    <div 
-                      className="menu-item" 
-                      style={{ padding: '0.4rem 0.5rem', fontSize: '0.82rem', color: '#ef4444' }}
-                      onClick={(e) => { e.stopPropagation(); handleLogout(); }}
-                    >
-                      <LogOut size={16} />
-                      <span>Sign Out</span>
-                    </div>
-                  </div>
-                )}
               </div>
             ) : (
               <div className="nav-item" onClick={() => setIsAuthOpen(true)}>

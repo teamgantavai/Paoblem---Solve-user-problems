@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { z } from 'zod';
 import { authenticateUser, getServiceClient, upsertDailyAggregation } from '@/lib/analytics-server';
+import { updateUserInterestsForContent } from '@/lib/recommendations';
 
 const trackSchema = z.object({
   post_id: z.string().uuid(),
@@ -13,6 +14,8 @@ const trackSchema = z.object({
     'POST_SHARE',
     'POST_SAVE',
     'FOLLOW_FROM_POST',
+    'CHALLENGE_ACCEPT',
+    'DWELL',
   ]),
   metadata: z.record(z.unknown()).optional(),
 });
@@ -53,6 +56,17 @@ export async function POST(req: NextRequest) {
     }
 
     await upsertDailyAggregation(supabase, post_id, event_type);
+
+    if (userId) {
+      const { data: post } = await supabase.from('posts').select('*').eq('id', post_id).maybeSingle();
+      await updateUserInterestsForContent(
+        supabase,
+        userId,
+        post,
+        event_type,
+        typeof metadata?.dwellSeconds === 'number' ? metadata.dwellSeconds : 0
+      );
+    }
 
     return NextResponse.json({ ok: true }, { status: 201 });
   } catch {

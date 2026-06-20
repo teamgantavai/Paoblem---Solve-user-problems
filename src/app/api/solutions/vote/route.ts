@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { updateUserInterestsForContent } from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -40,6 +41,7 @@ export async function POST(req: NextRequest) {
         return NextResponse.json({ action: 'removed' });
       }
       await supabase.from('solution_votes').update({ vote_type }).eq('id', existing.id);
+      if (vote_type === 'up') await trackSolutionInterest(supabase, user.id, solution_id);
       return NextResponse.json({ action: 'updated', vote_type });
     }
 
@@ -50,9 +52,27 @@ export async function POST(req: NextRequest) {
     });
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+    if (vote_type === 'up') await trackSolutionInterest(supabase, user.id, solution_id);
     return NextResponse.json({ action: 'created', vote_type }, { status: 201 });
   } catch (err) {
     console.error('[solutions/vote] error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+async function trackSolutionInterest(supabase: any, userId: string, solutionId: string) {
+  const { data: solution } = await supabase
+    .from('solutions')
+    .select('*, problem:problem_id(id, title, body, type)')
+    .eq('id', solutionId)
+    .maybeSingle();
+
+  if (!solution) return;
+  await supabase.from('solution_events').insert({
+    solution_id: solutionId,
+    problem_id: solution.problem_id,
+    user_id: userId,
+    event_type: 'SOLUTION_UPVOTE',
+  });
+  await updateUserInterestsForContent(supabase, userId, solution.problem || solution, 'SOLUTION_UPVOTE');
 }

@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { enqueueNotification } from '@/lib/queue';
+import { updateUserInterestsForContent } from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -64,6 +65,10 @@ export async function POST(req: NextRequest) {
           .from('votes')
           .update({ vote_type })
           .eq('id', existing.id);
+        if (vote_type === 'up') {
+          const { data: post } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
+          await updateUserInterestsForContent(supabaseAdmin, user.id, post, 'POST_UPVOTE');
+        }
         return NextResponse.json({ action: 'updated', vote_type });
       }
     }
@@ -77,6 +82,11 @@ export async function POST(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    if (vote_type === 'up') {
+      const { data: post } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
+      await updateUserInterestsForContent(supabaseAdmin, user.id, post, 'POST_UPVOTE');
     }
 
     // Send notification via Queue (don't block the response on this)

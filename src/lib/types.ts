@@ -153,7 +153,12 @@ export type PostEventType =
   | 'POST_COMMENT'
   | 'POST_SHARE'
   | 'POST_SAVE'
-  | 'FOLLOW_FROM_POST';
+  | 'FOLLOW_FROM_POST'
+  | 'CHALLENGE_ACCEPT'
+  | 'DWELL'
+  | 'SOLUTION_VIEW'
+  | 'SOLUTION_UPVOTE'
+  | 'SOLUTION_SAVE';
 
 export interface PostEvent {
   id: string;

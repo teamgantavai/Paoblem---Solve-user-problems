@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { ExternalLink, MessageCircle, Search, TriangleIcon, CheckCircle, SlidersHorizontal, X } from 'lucide-react';
 import Navbar from '@/components/Navbar';
@@ -35,7 +35,12 @@ export default function SolutionsPage() {
     topTags: [],
   });
   const [isLoading, setIsLoading] = useState(true);
+  const [isFetchingMore, setIsFetchingMore] = useState(false);
+  const [nextCursor, setNextCursor] = useState<string | null>(null);
+  const [hasMore, setHasMore] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const loadMoreRef = useRef<HTMLDivElement>(null);
+  const viewedSolutionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => setSession(currentSession));
@@ -43,35 +48,88 @@ export default function SolutionsPage() {
     return () => subscription.unsubscribe();
   }, []);
 
-  async function fetchSolutions() {
-    setIsLoading(true);
+  async function fetchSolutions(cursor?: string | null, append = false) {
+    if (append) {
+      setIsFetchingMore(true);
+    } else {
+      setIsLoading(true);
+    }
     try {
       const params = new URLSearchParams();
       params.set('filter', filter);
       if (search.trim()) params.set('search', search.trim());
+      if (cursor) params.set('cursor', cursor);
       const headers: Record<string, string> = {};
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
       const res = await fetch(`/api/solutions?${params.toString()}`, { headers });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to load solutions');
-      setSolutions(data.solutions || []);
-      setUnsolvedProblems(data.unsolvedProblems || []);
+      setSolutions((current) => append ? [...current, ...(data.solutions || [])] : (data.solutions || []));
+      setUnsolvedProblems((current) => append ? [...current, ...(data.unsolvedProblems || [])] : (data.unsolvedProblems || []));
       setStats(data.stats || stats);
+      setNextCursor(data.nextCursor || null);
+      setHasMore(Boolean(data.hasMore));
     } catch (err) {
       console.error(err);
-      setSolutions([]);
-      setUnsolvedProblems([]);
+      if (!append) {
+        setSolutions([]);
+        setUnsolvedProblems([]);
+      }
     } finally {
-      setIsLoading(false);
+      if (append) {
+        setIsFetchingMore(false);
+      } else {
+        setIsLoading(false);
+      }
     }
   }
 
   useEffect(() => {
     const timer = setTimeout(() => {
-      fetchSolutions();
+      fetchSolutions(null, false);
     }, 200);
     return () => clearTimeout(timer);
   }, [filter, search, session?.access_token]);
+
+  useEffect(() => {
+    if (!loadMoreRef.current || filter === 'unsolved') return;
+    const observer = new IntersectionObserver((entries) => {
+      if (entries[0].isIntersecting && hasMore && nextCursor && !isFetchingMore && !isLoading) {
+        fetchSolutions(nextCursor, true);
+      }
+    }, { threshold: 0.8 });
+    observer.observe(loadMoreRef.current);
+    return () => observer.disconnect();
+  }, [hasMore, nextCursor, isFetchingMore, isLoading, filter]);
+
+  const trackSolutionEvent = async (solutionId: string, eventType: 'SOLUTION_VIEW' | 'SOLUTION_SAVE') => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      await fetch('/api/solutions/track', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ solution_id: solutionId, event_type: eventType }),
+      });
+    } catch (err) {
+      console.warn('[solutions] Failed to track solution event', err);
+    }
+  };
+
+  useEffect(() => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-solution-id]'));
+    if (cards.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const solutionId = (entry.target as HTMLElement).dataset.solutionId;
+        if (!solutionId || !entry.isIntersecting || viewedSolutionsRef.current.has(solutionId)) return;
+        viewedSolutionsRef.current.add(solutionId);
+        trackSolutionEvent(solutionId, 'SOLUTION_VIEW');
+      });
+    }, { threshold: 0.55 });
+    cards.forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, [solutions.map((solution) => solution.id).join(','), session?.access_token]);
 
   const filteredSolutions = useMemo(() => {
     if (filter !== 'solved') return solutions;
@@ -190,7 +248,7 @@ export default function SolutionsPage() {
                 <p className="solutions-empty-text">No solutions yet. Open a problem and become the first developer to solve it.</p>
               ) : (
                 filteredSolutions.map((solution) => (
-                  <article key={solution.id} className="solution-card">
+                  <article key={solution.id} className="solution-card" data-solution-id={solution.id}>
                     <div className="solution-card-header">
                       <img
                         src={solution.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${solution.user_id}`}
@@ -224,6 +282,8 @@ export default function SolutionsPage() {
                   </article>
                 ))
               )}
+              <div ref={loadMoreRef} />
+              {isFetchingMore && <div className="solutions-loading">Loading more solutions...</div>}
             </div>
           )}
         </main>

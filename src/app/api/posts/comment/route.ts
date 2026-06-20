@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
 import { enqueueNotification } from '@/lib/queue';
+import { updateUserInterestsForContent } from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -83,6 +84,9 @@ export async function POST(req: NextRequest) {
     } catch (notifErr) {
       console.error('Failed to enqueue comment notification:', notifErr);
     }
+
+    const { data: interestPost } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
+    await updateUserInterestsForContent(supabaseAdmin, user.id, interestPost, 'POST_COMMENT');
 
     return NextResponse.json({ comment: data }, { status: 201 });
   } catch {

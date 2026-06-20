@@ -26,6 +26,9 @@ function SidebarLeftInner() {
   const pathname = usePathname();
   const searchParams = useSearchParams();
   const filter = searchParams.get('filter') || 'all';
+  const isHomeRoute = pathname === '/' || pathname === '/home';
+  const isAnalyticsRoute = pathname === '/analytics';
+  const isSolutionsRoute = pathname === '/solutions';
 
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
@@ -201,13 +204,16 @@ function SidebarLeftInner() {
       <div className="card" style={{ display: 'flex', flexDirection: 'column', gap: '0.25rem' }}>
         <Link
           href="/"
-          className={`menu-item ${filter === 'all' || filter === 'problem' || filter === 'idea' ? 'active' : ''}`}
+          className={`menu-item ${isHomeRoute && (filter === 'all' || filter === 'problem' || filter === 'idea') ? 'active' : ''}`}
           style={{ cursor: 'pointer', textDecoration: 'none' }}
         >
           <TrendingUp size={20} />
-          <span>Trending Problems</span>
+          <span>Home Feed</span>
         </Link>
-        <div className="menu-item" style={{ cursor: 'pointer' }} onClick={() => {
+        <div
+          className={`menu-item ${isAnalyticsRoute ? 'active' : ''}`}
+          style={{ cursor: 'pointer' }}
+          onClick={() => {
           if (!session) {
             setIsAuthOpen(true);
           } else {
@@ -226,7 +232,7 @@ function SidebarLeftInner() {
           <span>Saved Posts</span>
         </Link>
         <div
-          className={`menu-item ${filter === 'mine' ? 'active' : ''}`}
+          className={`menu-item ${isHomeRoute && filter === 'mine' ? 'active' : ''}`}
           style={{ cursor: 'pointer' }}
           onClick={() => {
             if (!session) {
@@ -241,17 +247,17 @@ function SidebarLeftInner() {
         </div>
       </div>
 
-      <div className="card sidebar-solutions-card">
+        <div className="card sidebar-solutions-card">
         <div className="sidebar-solutions-head">
           <span>
             <Lightbulb size={15} />
-            {pathname === '/solutions' ? 'Solution Pulse' : 'Problem Pulse'}
+            {isSolutionsRoute ? 'Solution Pulse' : 'Problem Pulse'}
           </span>
-          <button type="button" onClick={() => router.push(pathname === '/solutions' ? '/' : '/solutions')}>
-            {pathname === '/solutions' ? 'Home' : 'View'}
+          <button type="button" onClick={() => router.push(isSolutionsRoute ? '/' : '/solutions')}>
+            {isSolutionsRoute ? 'Home' : 'View'}
           </button>
         </div>
-        {pathname === '/solutions' ? (
+        {isSolutionsRoute ? (
           <>
             <div className="sidebar-solutions-grid">
               <div>

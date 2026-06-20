@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { enqueueNotification } from '@/lib/queue';
+import { sendEmail } from '@/lib/email';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -9,6 +10,50 @@ const supabaseAdmin = createClient(
   supabaseUrl,
   process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey
 );
+
+async function sendChatEmailNotifications({
+  senderId,
+  recipientIds,
+  body,
+}: {
+  senderId: string;
+  recipientIds: string[];
+  body: string;
+}) {
+  const uniqueRecipientIds = [...new Set(recipientIds.filter((id) => id && id !== senderId))];
+  if (uniqueRecipientIds.length === 0) return;
+
+  const { data: senderProfile } = await supabaseAdmin
+    .from('profiles')
+    .select('full_name, username')
+    .eq('id', senderId)
+    .maybeSingle();
+
+  const senderName = senderProfile?.full_name || senderProfile?.username || 'Someone';
+  const preview = body?.trim() ? body.trim().slice(0, 180) : 'Sent you a message on Paoblem.';
+
+  await Promise.allSettled(
+    uniqueRecipientIds.map(async (recipientId) => {
+      const { data: recipientUser, error } = await supabaseAdmin.auth.admin.getUserById(recipientId);
+      const to = recipientUser?.user?.email;
+      if (error || !to) return;
+
+      await sendEmail({
+        to,
+        subject: `${senderName} sent you a message on Paoblem`,
+        text: `${senderName}: ${preview}`,
+        html: `
+          <div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">
+            <h2>New Paoblem message</h2>
+            <p><strong>${senderName}</strong> sent you a message:</p>
+            <p style="padding:12px 14px;background:#f3f4f6;border-radius:12px">${preview}</p>
+            <p><a href="${process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'}/chats" style="display:inline-block;background:#111827;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none">Open chat</a></p>
+          </div>
+        `,
+      });
+    })
+  );
+}
 
 export async function GET(req: NextRequest) {
   try {
@@ -290,6 +335,29 @@ export async function POST(req: NextRequest) {
           .insert(attachmentsToInsert);
       }
 
+      try {
+        let emailRecipientIds: string[] = [];
+        if (recipientId) {
+          emailRecipientIds = [recipientId];
+        } else if (participantIds?.length) {
+          emailRecipientIds = participantIds;
+        } else if (activeConversationId) {
+          const { data: members } = await supabaseAdmin
+            .from('conversation_members')
+            .select('user_id')
+            .eq('conversation_id', activeConversationId);
+          emailRecipientIds = (members || []).map((member: any) => member.user_id);
+        }
+
+        await sendChatEmailNotifications({
+          senderId: user.id,
+          recipientIds: emailRecipientIds,
+          body: body || '',
+        });
+      } catch (emailErr) {
+        console.error('Failed to send chat email notification:', emailErr);
+      }
+
       // Fetch partner info
       const { data: partnerProfile } = await supabaseAdmin
         .from('profiles')
@@ -347,6 +415,16 @@ export async function POST(req: NextRequest) {
       });
     } catch (notifErr) {
       console.error('Failed to enqueue message notification:', notifErr);
+    }
+
+    try {
+      await sendChatEmailNotifications({
+        senderId: user.id,
+        recipientIds: recipientId ? [recipientId] : [],
+        body: body || '',
+      });
+    } catch (emailErr) {
+      console.error('Failed to send chat email notification:', emailErr);
     }
 
     const isSentByMe = data.sender_id === user.id;

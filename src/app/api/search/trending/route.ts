@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { buildTrendingSections } from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseKey = process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -41,27 +42,37 @@ export async function GET(req: NextRequest) {
       trendingTerms = ['ai', 'recruiting', 'design', 'developer', 'startup'];
     }
 
-    // 2. Fetch popular problems (posts with type = 'problem')
-    const { data: dbProblems, error: probErr } = await supabase
-      .from('posts')
-      .select('*, profiles:user_id(full_name, avatar_url, username)')
-      .eq('type', 'problem')
-      .order('upvotes', { ascending: false })
-      .limit(3);
+    const sinceWeek = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString();
 
-    // 3. Fetch popular ideas (posts with type = 'idea')
-    const { data: dbIdeas, error: ideaErr } = await supabase
+    // 2. Fetch platform-wide candidates and recent interactions.
+    const { data: dbPosts } = await supabase
       .from('posts')
-      .select('*, profiles:user_id(full_name, avatar_url, username)')
-      .eq('type', 'idea')
+      .select('*, profiles:user_id(full_name, avatar_url, username), solutions_count:solutions(count)')
       .order('upvotes', { ascending: false })
-      .limit(3);
+      .order('comments_count', { ascending: false })
+      .limit(120);
 
-    // 4. Fetch popular solutions
+    const { data: interactions } = await supabase
+      .from('post_events')
+      .select('post_id, event_type, metadata, created_at')
+      .gte('created_at', sinceWeek)
+      .limit(2000);
+
+    const normalizedPosts = (dbPosts || []).map((post: any) => ({
+      ...post,
+      solutions_count: Array.isArray(post.solutions_count) ? Number(post.solutions_count[0]?.count || 0) : Number(post.solutions_count || 0),
+    }));
+
+    const sections = buildTrendingSections(normalizedPosts, interactions || []);
+    const dbProblems = sections.trendingToday.filter((post: any) => post.type === 'problem').slice(0, 3);
+    const dbIdeas = sections.trendingThisWeek.filter((post: any) => post.type === 'idea').slice(0, 3);
+
+    // 3. Fetch platform-wide trending solutions.
     const { data: dbSolutions, error: solErr } = await supabase
       .from('solutions')
       .select('*, profiles:user_id(full_name, avatar_url, username), problem:problem_id(title, slug)')
       .order('upvotes', { ascending: false })
+      .order('comments_count', { ascending: false })
       .limit(3);
 
     // Map database results to frontend SearchResult types
@@ -109,10 +120,32 @@ export async function GET(req: NextRequest) {
       searches: trendingTerms,
       problems,
       ideas,
-      solutions
+      solutions,
+      sections: {
+        trendingToday: sections.trendingToday.slice(0, 10).map(toPostResult),
+        trendingThisWeek: sections.trendingThisWeek.slice(0, 10).map(toPostResult),
+        mostSolved: sections.mostSolved.slice(0, 10).map(toPostResult),
+        mostDiscussed: sections.mostDiscussed.slice(0, 10).map(toPostResult),
+      },
     });
   } catch (err: any) {
     console.error('[trending/route] Unexpected error:', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
+}
+
+function toPostResult(p: any) {
+  return {
+    id: p.id,
+    title: p.title,
+    body_snippet: (p.body || '').slice(0, 120),
+    type: p.type,
+    slug: p.slug,
+    upvotes: p.upvotes,
+    comments_count: p.comments_count,
+    views_count: p.views_count,
+    created_at: p.created_at,
+    author: p.profiles || null,
+    rank: p.recommendation_score || p.upvotes || 0,
+  };
 }

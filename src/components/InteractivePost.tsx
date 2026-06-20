@@ -71,6 +71,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const postRef = useRef<HTMLElement>(null);
   const viewTrackedRef = useRef(false);
+  const viewedSolutionIdsRef = useRef<Set<string>>(new Set());
 
   // Edit Comment State - handled by CommentThread
 
@@ -247,6 +248,37 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setIsSolutionsLoading(false);
     }
   }
+
+  const trackSolutionEvent = async (solutionId: string, eventType: 'SOLUTION_VIEW' | 'SOLUTION_SAVE') => {
+    if (!solutionId.startsWith('mock-')) {
+      try {
+        const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+        if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+        await fetch('/api/solutions/track', {
+          method: 'POST',
+          headers,
+          body: JSON.stringify({ solution_id: solutionId, event_type: eventType }),
+        });
+      } catch {
+        // Non-blocking analytics.
+      }
+    }
+  };
+
+  useEffect(() => {
+    const cards = Array.from(document.querySelectorAll<HTMLElement>('[data-solution-id]'));
+    if (cards.length === 0) return;
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const solutionId = (entry.target as HTMLElement).dataset.solutionId;
+        if (!solutionId || !entry.isIntersecting || viewedSolutionIdsRef.current.has(solutionId)) return;
+        viewedSolutionIdsRef.current.add(solutionId);
+        trackSolutionEvent(solutionId, 'SOLUTION_VIEW');
+      });
+    }, { threshold: 0.55 });
+    cards.forEach((card) => observer.observe(card));
+    return () => observer.disconnect();
+  }, [solutions.map((solution) => solution.id).join(','), session?.access_token]);
 
   const handleSubmitSolution = async () => {
     if (!session) {
@@ -1227,7 +1259,7 @@ function SolutionCard({
   };
 
   return (
-    <article className="solution-card">
+    <article className="solution-card" data-solution-id={solution.id}>
       <div className="solution-card-header">
         <Avatar src={solution.profiles?.avatar_url} name={authorName} className="solution-avatar" size={40} />
         <div>

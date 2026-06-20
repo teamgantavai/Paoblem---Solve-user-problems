@@ -34,6 +34,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [fullName, setFullName] = useState('');
+  const [verificationCode, setVerificationCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
@@ -44,6 +45,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setEmail('');
     setPassword('');
     setFullName('');
+    setVerificationCode('');
     setError(null);
     setLoading(false);
     setShowPassword(false);
@@ -65,6 +67,18 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
 
   if (!isOpen) return null;
 
+  const primaryButtonStyle: React.CSSProperties = {
+    width: '100%',
+    backgroundColor: 'var(--auth-primary-bg)',
+    color: 'var(--auth-primary-text)',
+    fontWeight: 600,
+    padding: '0.85rem',
+    borderRadius: '16px',
+    fontSize: '0.88rem',
+    border: '1px solid var(--auth-primary-border)',
+    cursor: 'pointer',
+  };
+
   // ─── Step 1: Submit email ───
   const handleEmailSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -73,41 +87,23 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setLoading(true);
 
     try {
-      // 1. Try checking if email exists using public.check_email_exists RPC
-      const { data: exists, error: rpcError } = await supabase.rpc('check_email_exists', {
-        email_to_check: email.trim().toLowerCase(),
+      const normalizedEmail = email.trim().toLowerCase();
+      setEmail(normalizedEmail);
+
+      const res = await fetch('/api/auth/email-exists', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: normalizedEmail }),
       });
 
-      if (!rpcError && typeof exists === 'boolean') {
-        if (exists) {
-          setStep('password_login');
-        } else {
-          setStep('password_signup');
-        }
-        setLoading(false);
-        return;
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Could not check this email.');
       }
 
-      // 2. Fallback: Try signing in with a dummy password to check if user exists
-      const { error: signInError } = await supabase.auth.signInWithPassword({
-        email,
-        password: '__check_user_exists__',
-      });
-
-      if (signInError) {
-        const msg = signInError.message.toLowerCase();
-        if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
-          setStep('password_login');
-        } else if (msg.includes('email not confirmed')) {
-          setStep('verification_sent');
-        } else {
-          setStep('password_login');
-        }
-      } else {
-        setStep('password_login');
-      }
-    } catch {
-      setStep('password_login');
+      setStep(data.exists ? 'password_login' : 'password_signup');
+    } catch (err: any) {
+      setError(err.message || 'Could not check this email.');
     } finally {
       setLoading(false);
     }
@@ -132,13 +128,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       if (signInError) {
         const msg = signInError.message.toLowerCase();
         if (msg.includes('invalid login credentials') || msg.includes('invalid_credentials')) {
-          setError('No account found with these credentials. Creating a new account...');
-          setTimeout(() => {
-            setError(null);
-            setStep('password_signup');
-          }, 1500);
+          setError('Incorrect password. Please try again or reset your password.');
         } else if (msg.includes('email not confirmed')) {
-          await supabase.auth.resend({ type: 'signup', email });
+          await fetch('/api/auth/resend-verification', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ email }),
+          });
           setStep('verification_sent');
         } else {
           setError(signInError.message);
@@ -177,39 +173,29 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setLoading(true);
 
     try {
-      const { data, error: signUpError } = await supabase.auth.signUp({
-        email,
-        password,
-        options: {
-          data: {
-            full_name: fullName.trim(),
-          },
-        },
+      const res = await fetch('/api/auth/signup', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password, fullName: fullName.trim() }),
       });
 
-      if (signUpError) {
-        if (signUpError.message.toLowerCase().includes('already registered')) {
-          setError('This email is already registered. Try logging in instead.');
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.error?.toLowerCase().includes('already registered')) {
+          setError(data.error);
           setTimeout(() => {
             setError(null);
             setStep('password_login');
-          }, 2000);
-        } else {
-          setError(signUpError.message);
+          }, 1600);
+          return;
         }
-      } else if (data.user) {
-        if (data.user.identities && data.user.identities.length === 0) {
-          setError('This email is already registered. Try logging in instead.');
-          setTimeout(() => {
-            setError(null);
-            setStep('password_login');
-          }, 2000);
-        } else {
-          setStep('verification_sent');
-        }
+        throw new Error(data.error || 'Could not create account.');
       }
-    } catch {
-      setError('Something went wrong. Please try again.');
+
+      setVerificationCode('');
+      setStep('verification_sent');
+    } catch (err: any) {
+      setError(err.message || 'Something went wrong. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -220,18 +206,48 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setError(null);
     setLoading(true);
     try {
-      const { error: resendError } = await supabase.auth.resend({
-        type: 'signup',
-        email,
+      const res = await fetch('/api/auth/resend-verification', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email }),
       });
-      if (resendError) {
-        setError(resendError.message);
-      } else {
-        setError('✓ A new verification link has been sent to your email');
-        setTimeout(() => setError(null), 3000);
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to resend verification email.');
       }
-    } catch {
-      setError('Failed to resend verification link.');
+
+      setError('✓ A new verification email has been sent');
+      setTimeout(() => setError(null), 3000);
+    } catch (err: any) {
+      setError(err.message || 'Failed to resend verification email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleVerifyEmailOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = verificationCode.trim();
+    if (token.length < 6) {
+      setError('Enter the 6-digit code from your email.');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      let result = await supabase.auth.verifyOtp({ email, token, type: 'signup' });
+      if (result.error) {
+        result = await supabase.auth.verifyOtp({ email, token, type: 'magiclink' });
+      }
+      if (result.error) {
+        throw new Error(result.error.message);
+      }
+
+      setStep('success');
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code.');
     } finally {
       setLoading(false);
     }
@@ -264,16 +280,20 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setError(null);
     setLoading(true);
     try {
-      const { error: resetError } = await supabase.auth.resetPasswordForEmail(email, {
-        redirectTo: `${window.location.origin}`,
+      const res = await fetch('/api/auth/forgot-password', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: email.trim().toLowerCase() }),
       });
-      if (resetError) {
-        setError(resetError.message);
-      } else {
-        setStep('forgot_sent');
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to send reset email.');
       }
-    } catch {
-      setError('Failed to send reset email.');
+
+      setStep('forgot_sent');
+    } catch (err: any) {
+      setError(err.message || 'Failed to send reset email.');
     } finally {
       setLoading(false);
     }
@@ -399,13 +419,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
                   fontSize: '0.88rem',
-                  border: 'none',
+                  border: '1px solid var(--auth-primary-border)',
                   cursor: 'pointer',
                   display: 'flex',
                   alignItems: 'center',
@@ -478,13 +498,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
                   fontSize: '0.88rem',
-                  border: 'none',
+                  border: '1px solid var(--auth-primary-border)',
                   cursor: 'pointer',
                 }}
               >
@@ -558,13 +578,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
                   fontSize: '0.88rem',
-                  border: 'none',
+                  border: '1px solid var(--auth-primary-border)',
                   cursor: 'pointer',
                 }}
               >
@@ -617,13 +637,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
                   fontSize: '0.88rem',
-                  border: 'none',
+                  border: '1px solid var(--auth-primary-border)',
                   cursor: 'pointer',
                 }}
               >
@@ -651,11 +671,43 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             <div className="space-y-2">
               <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Verify your email</h3>
               <p className="text-neutral-500 text-sm leading-relaxed px-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
-                We sent a verification link to <span className="font-semibold text-neutral-800" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{email}</span>. Click the link in the email to activate your account.
+                We sent a verification code and secure link to <span className="font-semibold text-neutral-800" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{email}</span>.
               </p>
             </div>
 
             <div className="space-y-3 pt-2" style={{ width: '100%', display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <form onSubmit={handleVerifyEmailOtp} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+                <input
+                  type="text"
+                  inputMode="numeric"
+                  autoComplete="one-time-code"
+                  value={verificationCode}
+                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
+                  placeholder="Enter 6-digit code"
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--search-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '16px',
+                    padding: '0.85rem 1rem',
+                    fontSize: '1rem',
+                    color: 'var(--text-main)',
+                    outline: 'none',
+                    textAlign: 'center',
+                    letterSpacing: '0.18em',
+                    fontWeight: 800,
+                  }}
+                />
+                <button
+                  type="submit"
+                  disabled={loading || verificationCode.length < 6}
+                  className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
+                  style={primaryButtonStyle}
+                >
+                  {loading ? 'Verifying...' : 'Verify email'}
+                </button>
+              </form>
+
               <a
                 href="https://mail.google.com"
                 target="_blank"
@@ -663,8 +715,8 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full flex items-center justify-center gap-2 bg-neutral-900 hover:bg-neutral-800 text-white font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer shadow-md"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
@@ -696,7 +748,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                   cursor: 'pointer',
                 }}
               >
-                {loading ? 'Sending...' : 'Resend verification link'}
+                {loading ? 'Sending...' : 'Resend verification email'}
               </button>
             </div>
 
@@ -746,13 +798,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
                 style={{
                   width: '100%',
-                  backgroundColor: '#ffffff',
-                  color: '#000000',
+                  backgroundColor: 'var(--auth-primary-bg)',
+                  color: 'var(--auth-primary-text)',
                   fontWeight: 600,
                   padding: '0.85rem',
                   borderRadius: '16px',
                   fontSize: '0.88rem',
-                  border: 'none',
+                  border: '1px solid var(--auth-primary-border)',
                   cursor: 'pointer',
                 }}
               >
@@ -821,13 +873,13 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
               onClick={handleSuccessClose}
               className="mt-4 px-6 py-2.5 bg-neutral-900 hover:bg-neutral-800 text-white font-medium rounded-2xl text-sm transition-all cursor-pointer"
               style={{
-                backgroundColor: '#ffffff',
-                color: '#000000',
+                backgroundColor: 'var(--auth-primary-bg)',
+                color: 'var(--auth-primary-text)',
                 fontWeight: 600,
                 padding: '0.65rem 1.5rem',
                 borderRadius: '12px',
                 fontSize: '0.82rem',
-                border: 'none',
+                border: '1px solid var(--auth-primary-border)',
                 cursor: 'pointer',
               }}
             >

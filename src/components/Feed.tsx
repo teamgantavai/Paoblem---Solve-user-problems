@@ -57,6 +57,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [showSubSharePostId, setShowSubSharePostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
+  const dwellStartRef = useRef<Record<string, number>>({});
+  const viewedPostIdsRef = useRef<Set<string>>(new Set());
 
   // Synchronize URL query parameter with component state
   useEffect(() => {
@@ -86,6 +88,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     }
     setSavedIds(nextSaved);
     localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
+    if (!savedIds.includes(postId)) {
+      trackPostEvent(postId, 'POST_SAVE');
+    }
 
     // Invalidate react-query cache if we are in the saved list tab to instantly remove the post visually
     if (filterType === 'saved') {
@@ -304,7 +309,22 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   };
 
   const openCommentsModal = (postId: string) => {
+    trackPostEvent(postId, 'POST_OPEN');
     setCommentsModalPostId(postId);
+  };
+
+  const trackPostEvent = async (postId: string, eventType: string, metadata: Record<string, unknown> = {}) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      await fetch('/api/analytics/track', {
+        method: 'POST',
+        headers,
+        body: JSON.stringify({ post_id: postId, event_type: eventType, metadata }),
+      });
+    } catch (err) {
+      console.warn('[feed] Failed to track event', err);
+    }
   };
 
   // Render list of posts
@@ -334,6 +354,44 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       animateListEntrance(feedListRef, '.post-card-animate');
     }
   }, [isLoading, filterType, displayedPosts.length]);
+
+  useEffect(() => {
+    if (!feedListRef.current || displayedPosts.length === 0) return;
+    const cards = Array.from(feedListRef.current.querySelectorAll<HTMLElement>('[data-post-id]'));
+    const observer = new IntersectionObserver((entries) => {
+      entries.forEach((entry) => {
+        const postId = (entry.target as HTMLElement).dataset.postId;
+        if (!postId) return;
+
+        if (entry.isIntersecting) {
+          dwellStartRef.current[postId] = Date.now();
+          if (!viewedPostIdsRef.current.has(postId)) {
+            viewedPostIdsRef.current.add(postId);
+            trackPostEvent(postId, 'POST_VIEW');
+          }
+        } else if (dwellStartRef.current[postId]) {
+          const dwellSeconds = Math.round((Date.now() - dwellStartRef.current[postId]) / 1000);
+          delete dwellStartRef.current[postId];
+          if (dwellSeconds >= 3) {
+            trackPostEvent(postId, 'DWELL', { dwellSeconds });
+          }
+        }
+      });
+    }, { threshold: 0.55 });
+
+    cards.forEach((card) => observer.observe(card));
+    return () => {
+      cards.forEach((card) => {
+        const postId = card.dataset.postId;
+        if (postId && dwellStartRef.current[postId]) {
+          const dwellSeconds = Math.round((Date.now() - dwellStartRef.current[postId]) / 1000);
+          delete dwellStartRef.current[postId];
+          if (dwellSeconds >= 3) trackPostEvent(postId, 'DWELL', { dwellSeconds });
+        }
+      });
+      observer.disconnect();
+    };
+  }, [displayedPosts.map((post) => post.id).join(','), session?.access_token]);
 
   return (
     <main className="center-feed">
@@ -463,6 +521,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
             <ErrorBoundary key={post.id}>
               <div
                 className="card post-card-animate"
+                data-post-id={post.id}
                 onMouseEnter={animateCardHover}
                 onMouseLeave={animateCardHoverOut}
               >
@@ -591,6 +650,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                                 setActiveShareMenuPostId(null);
                                 setShowSubSharePostId(null);
                                 window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank');
+                                trackPostEvent(post.id, 'POST_SHARE', { destination: 'whatsapp' });
                               }}
                             >
                               💬 WhatsApp
@@ -601,6 +661,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                                 setActiveShareMenuPostId(null);
                                 setShowSubSharePostId(null);
                                 window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank');
+                                trackPostEvent(post.id, 'POST_SHARE', { destination: 'linkedin' });
                               }}
                             >
                               💼 LinkedIn
@@ -611,6 +672,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                                 setActiveShareMenuPostId(null);
                                 setShowSubSharePostId(null);
                                 window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}&title=${encodeURIComponent(post.title)}`, '_blank');
+                                trackPostEvent(post.id, 'POST_SHARE', { destination: 'reddit' });
                               }}
                             >
                               👽 Reddit
@@ -622,6 +684,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                                 setShowSubSharePostId(null);
                                 const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`;
                                 navigator.clipboard.writeText(shareUrl);
+                                trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' });
                                 showToast('Link copied!');
                               }}
                             >

@@ -11,6 +11,9 @@
   --nav-bg: #070708;
   --search-bg: #1a1a1e;
   --card-shadow: rgba(0, 0, 0, 0.4);
+  --auth-primary-bg: #ffffff;
+  --auth-primary-text: #050505;
+  --auth-primary-border: rgba(255, 255, 255, 0.12);
 }
 
 .light-theme {
@@ -26,4 +29,7 @@
   --nav-bg: #ffffff;
   --search-bg: #f3f4f6;
   --card-shadow: rgba(0, 0, 0, 0.05);
+  --auth-primary-bg: #111827;
+  --auth-primary-text: #ffffff;
+  --auth-primary-border: #111827;
 }

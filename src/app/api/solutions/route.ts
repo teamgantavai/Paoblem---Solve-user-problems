@@ -1,10 +1,20 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import {
+  getPageSize,
+  getSeenPostIds,
+  getUserInterests,
+  hasEnoughInterest,
+  parseRecommendationCursor,
+  rankSolutions,
+  updateUserInterestsForContent,
+} from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
 const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+const PAGE_SIZE = getPageSize();
 
 const solutionSchema = z.object({
   problem_id: z.string().uuid(),
@@ -82,6 +92,7 @@ export async function GET(req: NextRequest) {
     const problemId = searchParams.get('problemId');
     const filter = searchParams.get('filter') || 'all';
     const search = (searchParams.get('search') || '').trim();
+    const cursor = searchParams.get('cursor');
 
     const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -133,13 +144,17 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('solutions')
-      .select('*, problem:problem_id(id, title, slug, body, type)')
-      .order('created_at', { ascending: false });
+      .select('*, problem:problem_id(id, title, slug, body, type)');
 
     if (problemId) query = query.eq('problem_id', problemId);
     if (filter === 'mine') {
       if (!userId) return NextResponse.json({ solutions: [], stats: emptyStats() });
       query = query.eq('user_id', userId);
+    }
+    if (problemId || filter === 'mine') {
+      query = query.order('created_at', { ascending: false });
+    } else {
+      query = query.order('upvotes', { ascending: false }).order('comments_count', { ascending: false }).limit(220);
     }
     const { data: rawSolutions, error } = await query;
     if (error) {
@@ -155,10 +170,10 @@ export async function GET(req: NextRequest) {
       .select('id, title, body, solutions_count:solutions(count)')
       .eq('type', 'problem');
 
-    const solutions = await attachProfiles(supabase, rawSolutions || []);
+    const solutionsWithProfiles = await attachProfiles(supabase, rawSolutions || []);
     const normalizedSearch = search.toLowerCase();
-    const visibleSolutions = normalizedSearch
-      ? (solutions as SolutionListRow[]).filter((solution) => {
+    const searchedSolutions = normalizedSearch
+      ? (solutionsWithProfiles as SolutionListRow[]).filter((solution) => {
           const haystack = [
             solution.title,
             solution.body,
@@ -170,7 +185,26 @@ export async function GET(req: NextRequest) {
           ].filter(Boolean).join(' ').toLowerCase();
           return haystack.includes(normalizedSearch);
         })
-      : solutions;
+      : solutionsWithProfiles;
+
+    let visibleSolutions = searchedSolutions;
+    let nextCursor: string | null = null;
+    let hasMore = false;
+    if (!problemId && filter !== 'mine') {
+      const admin = createClient(supabaseUrl, supabaseServiceKey);
+      const interests = await getUserInterests(admin, userId);
+      const seenIds = await getSeenPostIds(admin, userId);
+      const { offset } = parseRecommendationCursor(cursor);
+      const ranked = rankSolutions(searchedSolutions as any[], interests, {
+        offset,
+        pageSize: PAGE_SIZE,
+        newUser: !hasEnoughInterest(interests),
+        seenIds,
+      });
+      hasMore = ranked.length > PAGE_SIZE;
+      visibleSolutions = hasMore ? ranked.slice(0, PAGE_SIZE) : ranked;
+      nextCursor = hasMore ? `rec:${offset + PAGE_SIZE}` : null;
+    }
 
     const totalSolutions = allSolutions?.length || 0;
     const problemsSolved = new Set((allSolutions || []).map((s) => s.problem_id)).size;
@@ -182,6 +216,8 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({
       solutions: visibleSolutions,
+      nextCursor,
+      hasMore,
       stats: {
         totalSolutions,
         problemsSolved,
@@ -235,6 +271,7 @@ export async function POST(req: NextRequest) {
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const [solution] = await attachProfiles(supabase, data ? [data] : []);
+    await updateUserInterestsForContent(supabase, user.id, solution?.problem || data, 'CHALLENGE_ACCEPT');
     return NextResponse.json({ solution }, { status: 201 });
   } catch (err) {
     console.error('[solutions] POST error:', err);
