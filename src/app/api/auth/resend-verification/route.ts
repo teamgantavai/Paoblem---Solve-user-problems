@@ -37,13 +37,14 @@ export async function POST(req: NextRequest) {
     await sendEmail({
       to: normalizedEmail,
       subject: 'Your Paoblem verification code',
-      text: `Your Paoblem code is ${otp}. You can also continue here: ${actionLink}`,
+      text: `Your Paoblem code is ${otp}. This code is valid for 15 minutes. You can also continue here: ${actionLink}`,
       html: `
         <div style="font-family:Inter,Arial,sans-serif;line-height:1.6;color:#111827">
           <h2>Your Paoblem code</h2>
-          <p>Use this one-time code to continue:</p>
+          <p>Use this one-time code to continue (valid for 15 minutes):</p>
           <p style="font-size:28px;font-weight:800;letter-spacing:6px">${otp}</p>
           <p><a href="${actionLink}" style="display:inline-block;background:#111827;color:#fff;padding:12px 18px;border-radius:12px;text-decoration:none">Continue to Paoblem</a></p>
+          <p style="color:#6b7280;font-size:13px">This code and link will expire in 15 minutes.</p>
         </div>
       `,
     });

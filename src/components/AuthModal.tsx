@@ -26,6 +26,8 @@ type AuthStep =
   | 'verification_sent'
   | 'forgot_password'
   | 'forgot_sent'
+  | 'forgot_verify'
+  | 'forgot_reset_password'
   | 'success';
 
 export default function AuthModal({ isOpen, onClose, onAuthenticated, initialStep }: AuthModalProps) {
@@ -38,6 +40,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showPassword, setShowPassword] = useState(false);
+  const [resendCooldown, setResendCooldown] = useState(0);
 
   // Reset state when modal closes
   const resetState = useCallback(() => {
@@ -49,6 +52,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
     setError(null);
     setLoading(false);
     setShowPassword(false);
+    setResendCooldown(0);
   }, []);
 
   const handleClose = () => {
@@ -61,6 +65,26 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       setStep(initialStep);
     }
   }, [isOpen, initialStep]);
+
+  // Disable background scrolling when modal is open
+  useEffect(() => {
+    if (isOpen) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = '';
+    }
+    return () => {
+      document.body.style.overflow = '';
+    };
+  }, [isOpen]);
+
+  // OTP resend cooldown countdown
+  useEffect(() => {
+    if (resendCooldown > 0) {
+      const timer = setTimeout(() => setResendCooldown(resendCooldown - 1), 1000);
+      return () => clearTimeout(timer);
+    }
+  }, [resendCooldown]);
 
   const [mounted, setMounted] = useState(false);
   useEffect(() => { setMounted(true); }, []);
@@ -218,6 +242,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
       }
 
       setError('✓ A new verification email has been sent');
+      setResendCooldown(60);
       setTimeout(() => setError(null), 3000);
     } catch (err: any) {
       setError(err.message || 'Failed to resend verification email.');
@@ -229,20 +254,31 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
   const handleVerifyEmailOtp = async (e: React.FormEvent) => {
     e.preventDefault();
     const token = verificationCode.trim();
-    if (token.length < 6) {
-      setError('Enter the 6-digit code from your email.');
+    if (!token) {
+      setError('Enter the verification code from your email.');
       return;
     }
 
     setError(null);
     setLoading(true);
     try {
-      let result = await supabase.auth.verifyOtp({ email, token, type: 'signup' });
-      if (result.error) {
-        result = await supabase.auth.verifyOtp({ email, token, type: 'magiclink' });
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token, type: 'signup' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid verification code.');
       }
-      if (result.error) {
-        throw new Error(result.error.message);
+
+      if (data.session) {
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        if (setSessionError) throw setSessionError;
       }
 
       setStep('success');
@@ -291,9 +327,74 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
         throw new Error(data.error || 'Failed to send reset email.');
       }
 
-      setStep('forgot_sent');
+      setVerificationCode('');
+      setStep('forgot_verify');
     } catch (err: any) {
       setError(err.message || 'Failed to send reset email.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Verify Forgot Password OTP ───
+  const handleVerifyForgotPasswordOtp = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const token = verificationCode.trim();
+    if (!token) {
+      setError('Enter the verification code from your email.');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      const res = await fetch('/api/auth/verify-otp', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, token, type: 'recovery' }),
+      });
+
+      const data = await res.json();
+      if (!res.ok) {
+        throw new Error(data.error || 'Invalid verification code.');
+      }
+
+      if (data.session) {
+        const { error: setSessionError } = await supabase.auth.setSession({
+          access_token: data.session.access_token,
+          refresh_token: data.session.refresh_token,
+        });
+        if (setSessionError) throw setSessionError;
+      }
+
+      setPassword('');
+      setStep('forgot_reset_password');
+    } catch (err: any) {
+      setError(err.message || 'Invalid verification code.');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // ─── Submit Reset Password ───
+  const handleResetPasswordSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password || password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
+
+    setError(null);
+    setLoading(true);
+    try {
+      const { error: updateError } = await supabase.auth.updateUser({ password });
+      if (updateError) {
+        throw new Error(updateError.message);
+      }
+
+      setStep('success');
+    } catch (err: any) {
+      setError(err.message || 'Failed to update password.');
     } finally {
       setLoading(false);
     }
@@ -691,11 +792,10 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
               <form onSubmit={handleVerifyEmailOtp} style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <input
                   type="text"
-                  inputMode="numeric"
                   autoComplete="one-time-code"
                   value={verificationCode}
-                  onChange={(e) => setVerificationCode(e.target.value.replace(/\D/g, '').slice(0, 6))}
-                  placeholder="Enter 6-digit code"
+                  onChange={(e) => setVerificationCode(e.target.value)}
+                  placeholder="Enter verification code"
                   style={{
                     width: '100%',
                     backgroundColor: 'var(--search-bg)',
@@ -706,13 +806,12 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                     color: 'var(--text-main)',
                     outline: 'none',
                     textAlign: 'center',
-                    letterSpacing: '0.18em',
-                    fontWeight: 800,
+                    fontWeight: 600,
                   }}
                 />
                 <button
                   type="submit"
-                  disabled={loading || verificationCode.length < 6}
+                  disabled={loading || !verificationCode.trim()}
                   className="w-full bg-neutral-900 hover:bg-neutral-800 text-white font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
                   style={primaryButtonStyle}
                 >
@@ -746,7 +845,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
               <button
                 type="button"
                 onClick={handleResendVerificationLink}
-                disabled={loading}
+                disabled={loading || resendCooldown > 0}
                 className="w-full bg-neutral-100 hover:bg-neutral-200 text-neutral-700 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
                 style={{
                   width: '100%',
@@ -760,7 +859,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                   cursor: 'pointer',
                 }}
               >
-                {loading ? 'Sending...' : 'Resend verification email'}
+                {loading ? 'Sending...' : resendCooldown > 0 ? `Resend code in ${resendCooldown}s` : 'Resend verification email'}
               </button>
             </div>
 
@@ -863,6 +962,114 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             >
               Got it
             </button>
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════ */}
+        {/* Step: Forgot Verify (Enter OTP)         */}
+        {/* ═══════════════════════════════════════ */}
+        {step === 'forgot_verify' && (
+          <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <BackButton to="forgot_password" />
+            <div className="pt-1">
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Enter recovery code</h3>
+              <p className="text-neutral-500 text-sm mt-2 leading-relaxed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                We sent a 6-digit recovery code to <span className="font-semibold text-neutral-800" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{email}</span>.
+              </p>
+            </div>
+
+            <form onSubmit={handleVerifyForgotPasswordOtp} className="space-y-3" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <input
+                type="text"
+                autoComplete="one-time-code"
+                required
+                value={verificationCode}
+                onChange={(e) => setVerificationCode(e.target.value)}
+                placeholder="Enter verification code"
+                style={{
+                  width: '100%',
+                  backgroundColor: 'var(--search-bg)',
+                  border: '1px solid var(--border-color)',
+                  borderRadius: '16px',
+                  padding: '0.85rem 1rem',
+                  fontSize: '1rem',
+                  color: 'var(--text-main)',
+                  outline: 'none',
+                  textAlign: 'center',
+                  fontWeight: 600,
+                }}
+              />
+              <button
+                type="submit"
+                disabled={loading || !verificationCode.trim()}
+                className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
+                style={primaryButtonStyle}
+              >
+                {loading ? 'Verifying...' : 'Verify code'}
+              </button>
+            </form>
+
+            {error && (
+              <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
+            )}
+          </div>
+        )}
+
+        {/* ═══════════════════════════════════════ */}
+        {/* Step: Forgot Reset Password             */}
+        {/* ═══════════════════════════════════════ */}
+        {step === 'forgot_reset_password' && (
+          <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+            <div className="pt-1">
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Reset password</h3>
+              <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
+                Enter your new password below (minimum 6 characters).
+              </p>
+            </div>
+
+            <form onSubmit={handleResetPasswordSubmit} className="space-y-3" style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
+              <div className="relative" style={{ position: 'relative' }}>
+                <input
+                  type={showPassword ? 'text' : 'password'}
+                  required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  placeholder="New password"
+                  minLength={6}
+                  className="w-full bg-white border border-neutral-200 hover:border-neutral-300 focus:border-indigo-500 focus:ring-2 focus:ring-indigo-100 rounded-2xl px-4 py-3.5 text-sm outline-none transition-all placeholder:text-neutral-400 pr-12"
+                  style={{
+                    width: '100%',
+                    backgroundColor: 'var(--search-bg)',
+                    border: '1px solid var(--border-color)',
+                    borderRadius: '16px',
+                    padding: '0.85rem 3rem 0.85rem 1rem',
+                    fontSize: '0.88rem',
+                    color: 'var(--text-main)',
+                    outline: 'none',
+                  }}
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer p-1"
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                >
+                  {showPassword ? 'Hide' : 'Show'}
+                </button>
+              </div>
+              <button
+                type="submit"
+                disabled={loading}
+                className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50"
+                style={primaryButtonStyle}
+              >
+                {loading ? 'Updating...' : 'Update password'}
+              </button>
+            </form>
+
+            {error && (
+              <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
+            )}
           </div>
         )}
 
