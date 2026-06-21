@@ -1704,8 +1704,8 @@ function ChatsPageContent() {
                                 style={{
                                   padding: '0.65rem 1rem',
                                   borderRadius: getBorderRadius(),
-                                  backgroundColor: isMe ? 'var(--accent-blue)' : 'var(--bg-card)',
-                                  color: isMe ? '#ffffff' : 'var(--text-main)',
+                                  backgroundColor: isMe ? 'var(--text-main)' : 'var(--bg-card)',
+                                  color: isMe ? 'var(--bg-card)' : 'var(--text-main)',
                                   fontSize: '0.95rem',
                                   lineHeight: '1.4',
                                   wordBreak: 'break-word',

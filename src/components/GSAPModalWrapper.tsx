@@ -16,8 +16,8 @@ export default function GSAPModalWrapper({ children, className, style, onClick }
       const modalBox = containerRef.current.querySelector('.modal-box') || containerRef.current.children[0];
       if (modalBox) {
         gsap.fromTo(modalBox, 
-          { scale: 0.95, y: 10 }, 
-          { scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.2)', clearProps: 'transform' }
+          { scale: 0.95, y: 15 }, 
+          { scale: 1, y: 0, duration: 0.4, ease: 'power3.out', clearProps: 'transform' }
         );
       }
     }

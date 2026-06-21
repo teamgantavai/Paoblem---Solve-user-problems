@@ -14,7 +14,7 @@ export function useMicroAnimations() {
   });
 
   const animateButtonRelease = contextSafe((e: React.MouseEvent<HTMLElement>) => {
-    gsap.to(e.currentTarget, { scale: 1, duration: 0.4, ease: 'elastic.out(1, 0.3)' });
+    gsap.to(e.currentTarget, { scale: 1, duration: 0.35, ease: 'power3.out' });
   });
   
   const animateButtonHover = contextSafe((e: React.MouseEvent<HTMLElement>) => {
@@ -60,7 +60,7 @@ export function useMicroAnimations() {
       y: 0,
       duration: 0.5,
       stagger: 0.05,
-      ease: 'back.out(1.2)',
+      ease: 'power3.out',
       clearProps: 'opacity,transform' // Only clean up animated properties to preserve inline styles
     });
   });
@@ -73,8 +73,8 @@ export function useMicroAnimations() {
     
     if (modalRef.current) {
       gsap.fromTo(modalRef.current, 
-        { opacity: 0, scale: 0.95, y: 10 }, 
-        { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'back.out(1.2)' }
+        { opacity: 0, scale: 0.95, y: 15 }, 
+        { opacity: 1, scale: 1, y: 0, duration: 0.4, ease: 'power3.out' }
       );
     }
   });
@@ -84,8 +84,8 @@ export function useMicroAnimations() {
     if (!messageRef.current) return;
     
     gsap.fromTo(messageRef.current,
-      { opacity: 0, scale: 0.9, x: isSelf ? 20 : -20, transformOrigin: isSelf ? 'right bottom' : 'left bottom' },
-      { opacity: 1, scale: 1, x: 0, duration: 0.35, ease: 'back.out(1.5)', clearProps: 'opacity,transform' }
+      { opacity: 0, scale: 0.95, x: isSelf ? 20 : -20, transformOrigin: isSelf ? 'right bottom' : 'left bottom' },
+      { opacity: 1, scale: 1, x: 0, duration: 0.4, ease: 'power3.out', clearProps: 'opacity,transform' }
     );
   });
 
@@ -94,8 +94,8 @@ export function useMicroAnimations() {
     const icon = target.querySelector('svg') || target;
     gsap.set(icon, { transformOrigin: 'center center' });
     gsap.timeline()
-      .to(icon, { y: -6, scale: 1.3, duration: 0.12, ease: 'power2.out' })
-      .to(icon, { y: 0, scale: 1, duration: 0.2, ease: 'back.out(2)' });
+      .to(icon, { y: -4, scale: 1.15, duration: 0.15, ease: 'power2.out' })
+      .to(icon, { y: 0, scale: 1, duration: 0.25, ease: 'power4.out' });
   });
 
   return {
