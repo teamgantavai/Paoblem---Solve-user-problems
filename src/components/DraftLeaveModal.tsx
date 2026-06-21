@@ -17,7 +17,7 @@ export default function DraftLeaveModal({ isOpen, onClose, onSaveDraft, onDiscar
     <div className="modal-overlay" style={{ display: 'flex' }}>
       <div className="modal-panel" style={{ maxWidth: '400px' }}>
         <div className="modal-header" style={{ borderBottom: 'none' }}>
-          <h3 className="flex items-center gap-2" style={{ color: 'var(--accent-yellow)' }}>
+          <h3 className="flex items-center gap-2" style={{ color: 'rgba(255, 255, 255, 0.9)' }}>
             <AlertTriangle size={18} />
             Unsaved Changes
           </h3>
@@ -34,9 +34,9 @@ export default function DraftLeaveModal({ isOpen, onClose, onSaveDraft, onDiscar
           <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             <button
               type="button"
-              className="btn btn-primary"
+              className="btn"
               onClick={onSaveDraft}
-              style={{ width: '100%', padding: '0.7rem', borderRadius: '12px' }}
+              style={{ width: '100%', padding: '0.7rem', borderRadius: '12px', background: 'rgba(255, 255, 255, 0.9)', color: '#000', fontWeight: 600, border: 'none' }}
             >
               Save Draft
             </button>
@@ -48,9 +48,10 @@ export default function DraftLeaveModal({ isOpen, onClose, onSaveDraft, onDiscar
                 width: '100%',
                 padding: '0.7rem',
                 borderRadius: '12px',
-                backgroundColor: 'rgba(239, 68, 68, 0.1)',
-                color: '#ef4444',
-                border: '1px solid rgba(239, 68, 68, 0.2)',
+                backgroundColor: 'rgba(255, 255, 255, 0.03)',
+                color: 'rgba(255, 255, 255, 0.8)',
+                border: '1px solid rgba(255, 255, 255, 0.1)',
+                transition: 'all 0.2s ease',
               }}
             >
               Discard Post

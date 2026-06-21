@@ -2706,7 +2706,7 @@
   position: relative;
   display: flex;
   flex-direction: column;
-  width: min(600px, calc(100vw - 32px));
+  width: min(760px, calc(100vw - 32px));
   max-height: calc(100vh - 108px);
   overflow: hidden;
   border-radius: var(--cpm-radius-lg);
@@ -2810,7 +2810,34 @@
   color: var(--cpm-text);
 }
 
-/* ---------- Alert ---------- */
+.cp-thread-post-btn.disabled:hover {
+  background: var(--cpm-btn-disabled);
+}
+
+.cp-thread-draft-btn {
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: transparent;
+  color: var(--cpm-text-muted);
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 0 20px;
+  border-radius: 999px;
+  height: 40px;
+  transition: all 0.15s ease;
+}
+
+.cp-thread-draft-btn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.05);
+  color: var(--cpm-text);
+}
+
+.cp-thread-draft-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/* ---------- Editor Stats ---------- */
 .cp-thread-alert {
   display: flex;
   align-items: center;
@@ -2853,8 +2880,8 @@
 .cp-thread-body {
   display: grid;
   grid-template-columns: 44px minmax(0, 1fr);
-  gap: 20px;
-  padding: 24px 24px 0;
+  gap: 24px;
+  padding: 32px 32px 0;
 }
 
 .cp-thread-avatar-column {
@@ -3209,19 +3236,17 @@
 }
 
 .cp-thread-type-row button.active {
-  color: #0c0c0e;
+  color: #000;
+  background: rgba(255, 255, 255, 0.9);
   border-color: transparent;
   transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(255, 255, 255, 0.1);
 }
 
-.cp-thread-type-problem.active {
-  background: var(--cpm-problem);
-  box-shadow: 0 10px 24px rgba(255, 200, 61, 0.22);
-}
-
+/* Specific colors removed to enforce monochromatic aesthetic */
+.cp-thread-type-problem.active,
 .cp-thread-type-idea.active {
-  background: var(--cpm-idea);
-  box-shadow: 0 10px 24px rgba(95, 219, 134, 0.22);
+  /* Using shared base active style above */
 }
 
 .cp-thread-chip-scroll {
@@ -3304,19 +3329,20 @@
 }
 
 .cp-thread-tags input {
-  min-height: 38px;
-  border-radius: var(--cpm-radius-sm);
-  border: 1px solid var(--cpm-border);
-  background: var(--cpm-bg-raised);
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
   color: var(--cpm-text);
   outline: 0;
-  padding: 0 12px;
-  font-size: 0.84rem;
-  transition: border-color 0.15s ease;
+  padding: 0 14px;
+  font-size: 0.88rem;
+  transition: all 0.2s ease;
 }
 
 .cp-thread-tags input:focus {
-  border-color: var(--cpm-accent);
+  border-color: rgba(255, 255, 255, 0.3);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .cp-thread-tags input:disabled {
@@ -3324,39 +3350,62 @@
 }
 
 .cp-thread-tags button {
-  min-height: 38px;
-  border-radius: var(--cpm-radius-sm);
-  border: 0;
-  background: var(--cpm-accent);
-  color: #06121f;
-  font-weight: 800;
-  font-size: 0.82rem;
-  padding: 0 16px;
+  min-height: 40px;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  font-weight: 700;
+  font-size: 0.85rem;
+  padding: 0 20px;
   cursor: pointer;
-  transition: opacity 0.15s ease;
+  transition: all 0.15s ease;
 }
 
 .cp-thread-tags button:hover:not(:disabled) {
-  opacity: 0.88;
+  background: #fff;
+  transform: translateY(-1px);
 }
 
 .cp-thread-tags button:disabled {
   opacity: 0.4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .cp-thread-custom-tags {
   margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }
 
 .cp-thread-modal .cp-custom-tag-chip {
-  background: var(--cpm-accent-soft);
-  border: 1px solid rgba(77, 163, 255, 0.38);
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
   color: var(--cpm-text);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
 }
 
 .cp-thread-modal .cp-custom-tag-chip button {
-  color: var(--cpm-text-dim);
+  color: var(--cpm-text-muted);
+  background: transparent;
+  border: none;
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.cp-thread-modal .cp-custom-tag-chip button:hover {
+  color: var(--cpm-text);
 }
 
 /* ---------- AI enhancement preview (scoped polish) ---------- */
@@ -3620,46 +3669,40 @@
 /* ── Type-tag pills (right of identity row) ─────────────────────────────── */
 .cp-type-tag-row {
   display: flex;
-  gap: 4px;
   margin-left: auto;
+  background: rgba(0, 0, 0, 0.25);
+  border-radius: 10px;
+  padding: 4px;
+  border: 1px solid rgba(255, 255, 255, 0.03);
+  box-shadow: inset 0 1px 4px rgba(0, 0, 0, 0.4);
 }
 
 .cp-type-tag {
   display: inline-flex;
   align-items: center;
-  gap: 3px;
-  padding: 2px 9px;
-  border-radius: 999px;
-  font-size: 0.65rem;
-  font-weight: 700;
+  gap: 6px;
+  padding: 6px 16px;
+  border-radius: 7px;
+  font-size: 0.75rem;
+  font-weight: 600;
   cursor: pointer;
   border: 1px solid transparent;
-  transition: all 0.15s ease;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
   background: transparent;
+  color: var(--cpm-text-muted);
 }
 
-.cp-type-tag--problem {
-  color: rgba(255, 200, 61, 0.7);
-  border-color: rgba(255, 200, 61, 0.25);
-  background: rgba(255, 200, 61, 0.08);
+.cp-type-tag:hover:not(.active) {
+  color: var(--cpm-text);
+  background: rgba(255, 255, 255, 0.03);
 }
 
-.cp-type-tag--problem.active {
-  background: #ffc83d;
-  color: #0d0d0f;
-  border-color: #ffc83d;
-}
-
-.cp-type-tag--idea {
-  color: rgba(95, 219, 134, 0.7);
-  border-color: rgba(95, 219, 134, 0.2);
-  background: rgba(95, 219, 134, 0.07);
-}
-
+.cp-type-tag--problem.active,
 .cp-type-tag--idea.active {
-  background: #5fdb86;
-  color: #0d0d0f;
-  border-color: #5fdb86;
+  background: rgba(255, 255, 255, 0.9);
+  color: #000;
+  box-shadow: 0 2px 10px rgba(255, 255, 255, 0.15), inset 0 1px 1px rgba(255, 255, 255, 0.1);
+  border-color: rgba(255, 255, 255, 0.5);
 }
 
 /* ── Rich text editor wrapper ───────────────────────────────────────────── */
@@ -3875,19 +3918,13 @@
 /* ── Category chip scroll row ───────────────────────────────────────────── */
 .cp-thread-cat-row {
   display: flex;
+  flex-wrap: wrap;
   gap: 7px;
-  overflow-x: auto;
   padding: 10px 20px;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
-  scrollbar-width: none;
-}
-
-.cp-thread-cat-row::-webkit-scrollbar {
-  display: none;
 }
 
 .cp-thread-cat-chip {
-  flex: 0 0 auto;
   min-height: 30px;
   padding: 0 12px;
   border-radius: 999px;
@@ -3898,18 +3935,13 @@
   font-weight: 700;
   cursor: pointer;
   transition: all 0.15s ease;
-  white-space: nowrap;
-}
-
-.cp-thread-cat-chip:hover:not(:disabled) {
-  background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.75);
 }
 
 .cp-thread-cat-chip.active {
-  background: rgba(77, 163, 255, 0.12);
-  border-color: rgba(77, 163, 255, 0.4);
-  color: #4da3ff;
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.4);
+  color: #fff;
 }
 
 /* ── Draft icon dot ─────────────────────────────────────────────────────── */
@@ -4545,18 +4577,6 @@
   background: rgba(15, 23, 42, 0.04);
   border-color: rgba(15, 23, 42, 0.1);
   color: rgba(15, 23, 42, 0.35);
-}
-
-.light-theme .cp-type-tag--problem {
-  color: rgba(180, 120, 0, 0.85);
-  border-color: rgba(255, 200, 61, 0.3);
-  background: rgba(255, 200, 61, 0.08);
-}
-
-.light-theme .cp-type-tag--idea {
-  color: rgba(30, 130, 70, 0.85);
-  border-color: rgba(95, 219, 134, 0.3);
-  background: rgba(95, 219, 134, 0.08);
 }
 
 .light-theme .cp-draft-dot {

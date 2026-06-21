@@ -29,6 +29,8 @@ import {
   Users,
   X,
   Zap,
+  AlertTriangle,
+  Lightbulb
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -344,6 +346,7 @@ function PollModal({ isOpen, onClose, onCreatePoll, disabled }: PollModalProps) 
 
 /* ─── Draft Sidebar ─────────────────────────────────────────── */
 interface Draft {
+  id: string;
   title: string;
   body: string;
   type: PostType;
@@ -401,6 +404,12 @@ export default function CreatePost() {
   /* ── State ── */
   const [title, setTitle] = useState('');
   const [type, setType] = useState<PostType>('problem');
+  const [draftId, setDraftId] = useState<string>('');
+
+  // Set initial draft ID
+  useEffect(() => {
+    setDraftId(crypto.randomUUID());
+  }, []);
   const [externalLink, setExternalLink] = useState('');
   const [linkName, setLinkName] = useState('');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
@@ -409,6 +418,7 @@ export default function CreatePost() {
   const [pollQuestion, setPollQuestion] = useState('');
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [showTagInput, setShowTagInput] = useState(false);
   const [bodyText, setBodyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -470,7 +480,11 @@ export default function CreatePost() {
   const saveDraft = useCallback(() => {
     const currentBody = bodyText;
     if (!title && !currentBody) return;
+    const currentDraftId = draftId || crypto.randomUUID();
+    if (!draftId) setDraftId(currentDraftId);
+
     const draft: Draft = {
+      id: currentDraftId,
       title,
       body: currentBody,
       type,
@@ -479,13 +493,13 @@ export default function CreatePost() {
     const existing: Draft[] = (() => {
       try { return JSON.parse(localStorage.getItem('paoblem-drafts') ?? '[]'); } catch { return []; }
     })();
-    // Replace newest duplicate title, or prepend
-    const idx = existing.findIndex((d) => d.title === title);
+    // Replace current draft by id, or prepend
+    const idx = existing.findIndex((d) => d.id === currentDraftId);
     if (idx >= 0) existing[idx] = draft; else existing.unshift(draft);
     localStorage.setItem('paoblem-drafts', JSON.stringify(existing.slice(0, 10)));
     setSavedDrafts(existing.slice(0, 10));
     setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-  }, [title, type, bodyText]);
+  }, [title, type, bodyText, draftId]);
 
   useEffect(() => {
     const timer = setTimeout(saveDraft, 1500);
@@ -510,6 +524,7 @@ export default function CreatePost() {
   }
 
   function handleLoadDraft(draft: Draft) {
+    setDraftId(draft.id || crypto.randomUUID());
     setTitle(draft.title);
     setType(draft.type);
     if (bodyEditorRef.current) bodyEditorRef.current.innerText = draft.body;
@@ -585,7 +600,8 @@ export default function CreatePost() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong.');
       setSuccess(true);
-      localStorage.removeItem('paoblem-drafts');
+      const remainingDrafts = savedDrafts.filter(d => d.id !== draftId);
+      localStorage.setItem('paoblem-drafts', JSON.stringify(remainingDrafts));
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       setTimeout(() => { router.push('/'); router.refresh(); }, 900);
     } catch (err: any) {
@@ -709,7 +725,7 @@ export default function CreatePost() {
                         onClick={() => setType('problem')}
                         disabled={submitting}
                       >
-                        ⚠ Problem
+                        <AlertTriangle size={14} /> Problem
                       </button>
                       <button
                         type="button"
@@ -717,7 +733,7 @@ export default function CreatePost() {
                         onClick={() => setType('idea')}
                         disabled={submitting}
                       >
-                        💡 Idea
+                        <Lightbulb size={14} /> Idea
                       </button>
                     </div>
                   </div>
@@ -853,7 +869,7 @@ export default function CreatePost() {
                 </div>
               )}
 
-              {/* ── Category chips ── */}
+              {/* ── Category chips & Custom Tags ── */}
               <div className="cp-thread-cat-row">
                 {CATEGORY_CHIPS.map((cat) => (
                   <button
@@ -866,22 +882,80 @@ export default function CreatePost() {
                     {cat}
                   </button>
                 ))}
-              </div>
 
-              {/* ── Custom tags ── */}
-              <div className="cp-thread-tags">
-                <input
-                  type="text"
-                  placeholder="Add tag"
-                  value={tagInput}
-                  onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
-                  maxLength={24}
-                  disabled={submitting}
-                />
-                <button type="button" onClick={addCustomTag} disabled={!tagInput.trim() || submitting}>
-                  Add
-                </button>
+                {!showTagInput ? (
+                  <button 
+                    type="button" 
+                    className="cp-add-tag-toggle-btn cp-thread-cat-chip"
+                    onClick={() => setShowTagInput(true)}
+                    disabled={submitting}
+                    style={{
+                      background: 'rgba(255, 255, 255, 0.02)',
+                      border: '1px dashed rgba(255, 255, 255, 0.2)',
+                      color: 'rgba(255, 255, 255, 0.6)',
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                      padding: '0 12px',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.05)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.4)';
+                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.9)';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = 'rgba(255, 255, 255, 0.02)';
+                      e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+                      e.currentTarget.style.color = 'rgba(255, 255, 255, 0.6)';
+                    }}
+                  >
+                    <Plus size={12} /> Add tag
+                  </button>
+                ) : (
+                  <div className="cp-thread-tags" style={{ margin: 0, display: 'flex', gap: '6px' }}>
+                    <input
+                      type="text"
+                      placeholder="Type tag..."
+                      value={tagInput}
+                      onChange={(e) => setTagInput(e.target.value)}
+                      onKeyDown={(e) => { 
+                        if (e.key === 'Enter') { 
+                          e.preventDefault(); 
+                          addCustomTag(); 
+                        } else if (e.key === 'Escape') {
+                          setShowTagInput(false);
+                          setTagInput('');
+                        }
+                      }}
+                      maxLength={24}
+                      disabled={submitting}
+                      autoFocus
+                      style={{
+                        minHeight: '30px',
+                        padding: '0 10px',
+                        fontSize: '0.75rem',
+                        borderRadius: '999px',
+                        width: '120px'
+                      }}
+                    />
+                    <button 
+                      type="button" 
+                      onClick={() => {
+                        addCustomTag();
+                        setShowTagInput(false);
+                      }} 
+                      disabled={!tagInput.trim() || submitting}
+                      style={{
+                        minHeight: '30px',
+                        padding: '0 12px',
+                        fontSize: '0.75rem',
+                        borderRadius: '999px'
+                      }}
+                    >
+                      Add
+                    </button>
+                  </div>
+                )}
               </div>
               {customTags.length > 0 && (
                 <div className="cp-custom-tags-list cp-thread-custom-tags">
@@ -939,7 +1013,18 @@ export default function CreatePost() {
             </div>
 
             {/* ── Footer ── */}
-            <footer className="cp-thread-footer">
+            <footer className="cp-thread-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button
+                type="button"
+                onClick={() => {
+                  saveDraft();
+                  router.push('/');
+                }}
+                disabled={submitting || (!title.trim() && !bodyText.trim())}
+                className="cp-thread-draft-btn"
+              >
+                Save as draft
+              </button>
               <button
                 type="submit"
                 disabled={!isFormValid || submitting}
@@ -967,7 +1052,12 @@ export default function CreatePost() {
         isOpen={isDraftLeaveOpen}
         onClose={() => setIsDraftLeaveOpen(false)}
         onSaveDraft={() => { saveDraft(); setIsDraftLeaveOpen(false); router.push('/'); }}
-        onDiscard={() => { localStorage.removeItem('paoblem-drafts'); setIsDraftLeaveOpen(false); router.push('/'); }}
+        onDiscard={() => { 
+          const remainingDrafts = savedDrafts.filter(d => d.id !== draftId);
+          localStorage.setItem('paoblem-drafts', JSON.stringify(remainingDrafts));
+          setIsDraftLeaveOpen(false); 
+          router.push('/'); 
+        }}
       />
     </div>
   );
