@@ -714,9 +714,6 @@ export default function CreatePost() {
                   {/* Identity row with type tags */}
                   <div className="cp-thread-identity">
                     <strong>{session?.user?.user_metadata?.full_name || 'You'}</strong>
-                    <span className="cp-thread-community">
-                      Community or topic <ChevronRight size={12} />
-                    </span>
                     {/* Problem / Idea tags – right side of identity row */}
                     <div className="cp-type-tag-row">
                       <button

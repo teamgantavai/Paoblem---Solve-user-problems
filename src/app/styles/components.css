@@ -42,9 +42,9 @@ body {
 }
 
 .btn-primary {
-  background: linear-gradient(135deg, #6366f1, #3b82f6);
-  color: white;
-  font-weight: 500;
+  background: var(--text-main);
+  color: var(--bg-card);
+  font-weight: 600;
 }
 
 .comment-avatar {
@@ -83,13 +83,13 @@ body {
 }
 
 .promo-card-premium {
-  background: linear-gradient(135deg, #1b1c25 0%, #171c35 100%);
-  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: linear-gradient(135deg, #1f1f22 0%, #111113 100%);
+  border: 1px solid var(--border-color);
 }
 
 .promo-card-reddit {
-  background: linear-gradient(135deg, #1f2535 0%, #151a24 100%);
-  border: 1px solid rgba(59, 130, 246, 0.2);
+  background: linear-gradient(135deg, #2a2a2e 0%, #161619 100%);
+  border: 1px solid var(--border-color);
 }
 
 .promo-tag {
@@ -146,7 +146,7 @@ body {
 
 .profile-banner {
   height: 64px;
-  background: linear-gradient(135deg, #1a1a2e 0%, #16213e 45%, #0f3460 100%);
+  background: linear-gradient(135deg, #2a2a2e 0%, #1a1a1e 45%, #121214 100%);
 }
 
 .profile-body {
@@ -330,7 +330,7 @@ body {
 
 .auth-input-wrap input:focus {
   border-color: var(--accent-blue);
-  box-shadow: 0 0 0 2px rgba(0, 132, 255, 0.15);
+  box-shadow: 0 0 0 2px var(--border-color);
 }
 
 .auth-submit-btn {
@@ -632,14 +632,14 @@ body {
   bottom: 80px;
   left: 50%;
   transform: translateX(-50%);
-  background-color: rgba(99, 102, 241, 0.95);
-  color: white;
+  background-color: var(--text-main);
+  color: var(--bg-card);
   padding: 0.5rem 1.25rem;
   border-radius: 20px;
   font-size: 0.85rem;
   font-weight: 500;
   z-index: 999;
-  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
+  box-shadow: 0 5px 15px rgba(255, 255, 255, 0.1);
   animation: fadeInUp 0.2s ease;
 }
 

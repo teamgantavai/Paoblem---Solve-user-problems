@@ -480,7 +480,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
               style={{
                 background: filterType === tab.id ? undefined : 'var(--bg-card)',
-                color: 'var(--text-main)',
+                color: filterType === tab.id ? undefined : 'var(--text-main)',
                 border: filterType === tab.id ? 'none' : '1px solid var(--border-color)',
                 flexShrink: 0
               }}
@@ -802,9 +802,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           style={{
             textAlign: 'center',
             padding: '3rem 2rem',
-            background: 'linear-gradient(180deg, var(--bg-card) 0%, rgba(99, 102, 241, 0.15) 100%)',
-            borderColor: 'rgba(99, 102, 241, 0.3)',
-            boxShadow: '0 8px 32px rgba(99, 102, 241, 0.1)',
+            background: 'linear-gradient(180deg, var(--bg-card) 0%, var(--bg-hover) 100%)',
+            borderColor: 'var(--border-color)',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
             position: 'relative',
             overflow: 'hidden',
             marginTop: '1.5rem',
@@ -817,8 +817,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         >
           <div style={{
             position: 'absolute',
-            top: 0, left: 0, right: 0, height: '4px',
-            background: 'linear-gradient(90deg, #6366f1, #3b82f6)'
+            top: 0, left: 0, right: 0, height: '2px',
+            background: 'var(--text-main)'
           }} />
           <h3 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-main)' }}>
             Want to see more problems & solutions?

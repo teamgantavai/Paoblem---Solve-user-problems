@@ -9,8 +9,8 @@ export default function ProfileLayout({ children }: { children: React.ReactNode 
   return (
     <div className="app-container">
       <Navbar />
-      <div className="main-content" style={{ justifyContent: 'center' }}>
-        <div style={{ width: '100%', maxWidth: '860px', padding: '1.5rem 1rem' }}>
+      <div className="main-content profile-main-wrapper" style={{ justifyContent: 'center' }}>
+        <div className="profile-inner-wrapper">
           {children}
         </div>
       </div>

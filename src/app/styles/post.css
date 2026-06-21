@@ -152,12 +152,12 @@
 
 /* Role badge: flex-shrink:0 so it never gets squished */
 .post-author-role {
-  background-color: #3c11eb;
+  background-color: var(--text-main);
   padding: 1px 6px;
   border-radius: 12px;
-  font-weight: 500;
+  font-weight: 600;
   font-size: 0.65rem;
-  color: #ffffff;
+  color: var(--bg-card);
   white-space: nowrap;
   flex-shrink: 0;     /* never compress */
   display: inline-block;
@@ -469,8 +469,8 @@
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: var(--accent-blue);
-  color: white;
+  background: var(--text-main);
+  color: var(--bg-card);
   border: none;
   border-radius: 20px;
   padding: 0.42rem 1.1rem;
@@ -570,13 +570,13 @@
 }
 
 .sticker-tag.problem {
-  background-color: #FFD000 !important;
-  color: #000000 !important;
+  background-color: var(--text-main) !important;
+  color: var(--bg-card) !important;
 }
 
 .sticker-tag.idea {
-  background-color: #9BE13A !important;
-  color: #000000 !important;
+  background-color: var(--text-muted) !important;
+  color: var(--bg-card) !important;
 }
 
 .solution-status-chip {

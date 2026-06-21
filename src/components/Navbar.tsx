@@ -528,9 +528,9 @@ function NavbarInner() {
                     <span className="drawer-profile-name">{displayName}</span>
                     <span style={{
                       fontSize: '0.65rem',
-                      fontWeight: 500,
-                      backgroundColor: '#3c11eb',
-                      color: 'white',
+                      fontWeight: 600,
+                      backgroundColor: 'var(--text-main)',
+                      color: 'var(--bg-card)',
                       padding: '1px 6px',
                       borderRadius: '12px',
                       whiteSpace: 'nowrap'
