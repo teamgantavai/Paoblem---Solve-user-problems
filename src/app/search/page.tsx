@@ -130,7 +130,7 @@ function SearchResultsContent() {
               <Search className="search-icon" size={18} />
               <input
                 type="text"
-                placeholder="Search problems, solutions, ideas, or users..."
+                placeholder="Search anything..."
                 value={inputVal}
                 onChange={(e) => setInputVal(e.target.value)}
                 className="search-input"

@@ -1,22 +1,31 @@
 'use client';
 
-import React, { useEffect, useRef, useState } from 'react';
+import React, { useCallback, useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import {
-  AlertTriangle,
+  AlignCenter,
+  AlignLeft,
   BarChart3,
+  Bold,
   CheckCircle,
+  ChevronRight,
+  Clock,
+  FileText,
   Globe,
   Handshake,
   Image as ImageIcon,
-  Lightbulb,
+  Italic,
   Link2,
-  ListChecks,
+  List,
+  ListOrdered,
   Loader2,
+  MoreHorizontal,
   Plus,
+  RemoveFormatting,
   Save,
-  ShieldAlert,
   Sparkles,
+  Strikethrough,
+  Underline,
   Users,
   X,
   Zap,
@@ -30,25 +39,12 @@ import ImageUploader from '@/components/ImageUploader';
 type PostType = 'problem' | 'idea';
 type ComposePanel = 'media' | 'link' | 'poll' | null;
 
-const FLAIR_OPTIONS = [
-  { value: 'problem', label: 'Problem', icon: AlertTriangle },
-  { value: 'idea', label: 'Idea', icon: Lightbulb },
-] as const;
-
 const CATEGORY_CHIPS = [
-  'AI',
-  'SaaS',
-  'Education',
-  'Healthcare',
-  'Fintech',
-  'Developer Tools',
-  'Consumer',
-  'Marketplace',
-  'Design',
-  'Productivity',
+  'AI', 'SaaS', 'Education', 'Healthcare', 'Fintech',
+  'Developer Tools', 'Consumer', 'Marketplace', 'Design', 'Productivity',
 ];
 
-const SEVERITY_OPTIONS = ['Minor', 'Moderate', 'Critical'] as const;
+const POLL_DURATIONS = ['1 day', '3 days', '7 days', '14 days'];
 
 const VALIDATION_GOALS = [
   { value: 'Looking for validation', icon: BarChart3 },
@@ -57,23 +53,363 @@ const VALIDATION_GOALS = [
   { value: 'Need co-founder', icon: Handshake },
 ] as const;
 
+/* ─── Rich Text Toolbar ─────────────────────────────────────── */
+interface RichToolbarProps {
+  editorRef: React.RefObject<HTMLDivElement | null>;
+  onUpdate?: () => void;
+}
+
+function RichToolbar({ editorRef, onUpdate }: RichToolbarProps) {
+  const [activeFormats, setActiveFormats] = useState<Record<string, boolean>>({});
+
+  const exec = (cmd: string, value?: string) => {
+    editorRef.current?.focus();
+    document.execCommand(cmd, false, value ?? undefined);
+    refreshState();
+    onUpdate?.();
+  };
+
+  const refreshState = () => {
+    setActiveFormats({
+      bold: document.queryCommandState('bold'),
+      italic: document.queryCommandState('italic'),
+      underline: document.queryCommandState('underline'),
+      strikeThrough: document.queryCommandState('strikeThrough'),
+      insertOrderedList: document.queryCommandState('insertOrderedList'),
+      insertUnorderedList: document.queryCommandState('insertUnorderedList'),
+    });
+  };
+
+  const [isLinkPanelOpen, setIsLinkPanelOpen] = useState(false);
+  const [linkHref, setLinkHref] = useState('');
+  const [linkText, setLinkText] = useState('');
+  const [linkError, setLinkError] = useState('');
+
+  const showLinkPopup = () => {
+    const selection = document.getSelection()?.toString() ?? '';
+    setLinkText(selection);
+    setLinkHref('');
+    setLinkError('');
+    setIsLinkPanelOpen(true);
+  };
+
+  const applyLink = () => {
+    const trimmed = linkHref.trim();
+    if (!trimmed) {
+      setLinkError('Please enter a valid URL.');
+      return;
+    }
+    const normalizedUrl = /^https?:\/\//i.test(trimmed) ? trimmed : `https://${trimmed}`;
+    if (linkText.trim()) {
+      editorRef.current?.focus();
+      document.execCommand('insertHTML', false, `<a href="${normalizedUrl}" target="_blank" rel="noreferrer noopener">${linkText.trim()}</a>`);
+      refreshState();
+      onUpdate?.();
+    } else {
+      exec('createLink', normalizedUrl);
+    }
+    setIsLinkPanelOpen(false);
+    setLinkHref('');
+    setLinkText('');
+    setLinkError('');
+  };
+
+  useEffect(() => {
+    const el = editorRef.current;
+    if (!el) return;
+    const handler = () => refreshState();
+    el.addEventListener('keyup', handler);
+    el.addEventListener('mouseup', handler);
+    el.addEventListener('selectionchange', handler);
+    return () => {
+      el.removeEventListener('keyup', handler);
+      el.removeEventListener('mouseup', handler);
+      el.removeEventListener('selectionchange', handler);
+    };
+  }, [editorRef]);
+
+  const ToolBtn = ({
+    cmd, label, children, onClick,
+  }: { cmd?: string; label: string; children: React.ReactNode; onClick?: () => void }) => (
+    <button
+      type="button"
+      title={label}
+      aria-label={label}
+      className={`cp-rt-btn ${cmd && activeFormats[cmd] ? 'active' : ''}`}
+      onMouseDown={(e) => {
+        e.preventDefault();
+        onClick ? onClick() : cmd && exec(cmd);
+      }}
+    >
+      {children}
+    </button>
+  );
+
+  return (
+    <>
+      <div className="cp-rt-toolbar" role="toolbar" aria-label="Text formatting">
+        <ToolBtn cmd="bold" label="Bold"><Bold size={13} /></ToolBtn>
+        <ToolBtn cmd="italic" label="Italic"><Italic size={13} /></ToolBtn>
+        <ToolBtn cmd="underline" label="Underline"><Underline size={13} /></ToolBtn>
+        <ToolBtn cmd="strikeThrough" label="Strikethrough"><Strikethrough size={13} /></ToolBtn>
+        <span className="cp-rt-sep" aria-hidden="true" />
+        <ToolBtn cmd="insertOrderedList" label="Numbered list"><ListOrdered size={13} /></ToolBtn>
+        <ToolBtn cmd="insertUnorderedList" label="Bullet list"><List size={13} /></ToolBtn>
+        <span className="cp-rt-sep" aria-hidden="true" />
+        <ToolBtn cmd="justifyLeft" label="Align left"><AlignLeft size={13} /></ToolBtn>
+        <ToolBtn cmd="justifyCenter" label="Align centre"><AlignCenter size={13} /></ToolBtn>
+        <span className="cp-rt-sep" aria-hidden="true" />
+        <ToolBtn label="Insert link" onClick={showLinkPopup}><Link2 size={13} /></ToolBtn>
+        <ToolBtn label="Clear formatting" onClick={() => exec('removeFormat')}><RemoveFormatting size={13} /></ToolBtn>
+      </div>
+      {isLinkPanelOpen && (
+        <div className="cp-rich-link-panel">
+          <div className="cp-rich-link-row">
+            <input
+              type="text"
+              className="cp-rich-link-input"
+              placeholder="URL — https://example.com"
+              value={linkHref}
+              onChange={(e) => setLinkHref(e.target.value)}
+            />
+          </div>
+          <div className="cp-rich-link-row">
+            <input
+              type="text"
+              className="cp-rich-link-input"
+              placeholder="Link text (optional)"
+              value={linkText}
+              onChange={(e) => setLinkText(e.target.value)}
+            />
+          </div>
+          {linkError && <div className="cp-rich-link-error">{linkError}</div>}
+          <div className="cp-rich-link-actions">
+            <button type="button" className="cp-rich-link-cancel" onClick={() => { setIsLinkPanelOpen(false); setLinkHref(''); setLinkText(''); setLinkError(''); }}>
+              Cancel
+            </button>
+            <button type="button" className="cp-rich-link-apply" onClick={applyLink}>
+              Insert link
+            </button>
+          </div>
+        </div>
+      )}
+    </>
+  );
+}
+
+/* ─── Poll Modal ────────────────────────────────────────────── */
+interface PollModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  onCreatePoll: (question: string, options: string[]) => void;
+  disabled?: boolean;
+}
+
+function PollModal({ isOpen, onClose, onCreatePoll, disabled }: PollModalProps) {
+  const [question, setQuestion] = useState('');
+  const [options, setOptions] = useState(['Yes', 'No', '']);
+  const [duration, setDuration] = useState('3 days');
+  const [questionErr, setQuestionErr] = useState(false);
+  const descEditorRef = useRef<HTMLDivElement>(null);
+
+  if (!isOpen) return null;
+
+  const addOption = () => {
+    if (options.length < 4) setOptions((o) => [...o, '']);
+  };
+
+  const setOption = (idx: number, val: string) => {
+    setOptions((o) => o.map((x, i) => (i === idx ? val : x)));
+  };
+
+  const handleCreate = () => {
+    if (!question.trim()) { setQuestionErr(true); return; }
+    const filled = options.filter((o) => o.trim());
+    onCreatePoll(question.trim(), filled);
+    setQuestion('');
+    setOptions(['Yes', 'No', '']);
+    onClose();
+  };
+
+  return (
+    <div className="cp-poll-overlay" role="dialog" aria-modal="true" aria-label="Create a poll">
+      <div className="cp-poll-modal">
+        {/* Header */}
+        <div className="cp-poll-header">
+          <div className="cp-poll-header-left">
+            <BarChart3 size={15} className="cp-poll-icon" />
+            <span>Create a Poll</span>
+          </div>
+          <button type="button" className="cp-poll-close" onClick={onClose} disabled={disabled}>
+            <X size={14} />
+          </button>
+        </div>
+
+        <div className="cp-poll-body">
+          {/* Question – required */}
+          <div className="cp-poll-field">
+            <label className="cp-poll-label">
+              Question <span className="cp-poll-req">*</span>
+            </label>
+            <input
+              className={`cp-poll-input ${questionErr ? 'cp-poll-input--err' : ''}`}
+              placeholder="e.g. Which solution do you prefer?"
+              value={question}
+              onChange={(e) => { setQuestion(e.target.value); setQuestionErr(false); }}
+              disabled={disabled}
+            />
+            {questionErr && <p className="cp-poll-err-msg">Question is required</p>}
+          </div>
+
+          {/* Description – optional with rich text */}
+          <div className="cp-poll-field">
+            <label className="cp-poll-label">
+              Description <span className="cp-poll-optional">(optional)</span>
+            </label>
+            <div className="cp-rich-wrap">
+              <RichToolbar editorRef={descEditorRef} />
+              <div
+                ref={descEditorRef}
+                className="cp-rich-editor cp-rich-editor--poll"
+                contentEditable={!disabled}
+                suppressContentEditableWarning
+                data-placeholder="Add context for your question…"
+                aria-label="Poll description"
+              />
+            </div>
+          </div>
+
+          {/* Options */}
+          <div className="cp-poll-field">
+            <label className="cp-poll-label">Options</label>
+            <div className="cp-poll-options">
+              {options.map((opt, i) => (
+                <div key={i} className="cp-poll-opt-row">
+                  <span className="cp-poll-opt-num">{i + 1}</span>
+                  <input
+                    className="cp-poll-input cp-poll-input--opt"
+                    placeholder={`Option ${i + 1}${i >= 2 ? ' (optional)' : ''}`}
+                    value={opt}
+                    onChange={(e) => setOption(i, e.target.value)}
+                    disabled={disabled}
+                  />
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Duration */}
+          <div className="cp-poll-field">
+            <label className="cp-poll-label">
+              <Clock size={11} style={{ display: 'inline', marginRight: 4 }} />
+              Duration
+            </label>
+            <div className="cp-poll-duration-row">
+              {POLL_DURATIONS.map((d) => (
+                <button
+                  key={d}
+                  type="button"
+                  className={`cp-poll-dur-chip ${duration === d ? 'active' : ''}`}
+                  onClick={() => setDuration(d)}
+                  disabled={disabled}
+                >
+                  {d}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div className="cp-poll-footer">
+          {options.length < 4 && (
+            <button type="button" className="cp-poll-add-opt" onClick={addOption} disabled={disabled}>
+              <Plus size={12} />
+              Add option
+            </button>
+          )}
+          <div className="cp-poll-footer-right">
+            <button type="button" className="cp-poll-cancel-btn" onClick={onClose} disabled={disabled}>
+              Cancel
+            </button>
+            <button type="button" className="cp-poll-create-btn" onClick={handleCreate} disabled={disabled}>
+              Create Poll
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ─── Draft Sidebar ─────────────────────────────────────────── */
+interface Draft {
+  title: string;
+  body: string;
+  type: PostType;
+  timestamp: string;
+}
+
+interface DraftSidebarProps {
+  drafts: Draft[];
+  onLoad: (draft: Draft) => void;
+  onDiscard: (idx: number) => void;
+}
+
+function DraftSidebar({ drafts, onLoad, onDiscard }: DraftSidebarProps) {
+  if (drafts.length === 0) {
+    return (
+      <div className="cp-draft-empty">
+        <FileText size={22} className="cp-draft-empty-icon" />
+        <p>No saved drafts</p>
+      </div>
+    );
+  }
+  return (
+    <div className="cp-draft-list">
+      {drafts.map((d, i) => (
+        <div key={i} className="cp-draft-item" onClick={() => onLoad(d)}>
+          <div className="cp-draft-item-top">
+            <p className="cp-draft-item-title">{d.title || 'Untitled draft'}</p>
+            <span className={`cp-draft-item-badge cp-draft-item-badge--${d.type}`}>
+              {d.type === 'problem' ? '⚠ Problem' : '💡 Idea'}
+            </span>
+          </div>
+          <p className="cp-draft-item-body">{d.body}</p>
+          <div className="cp-draft-item-foot">
+            <span className="cp-draft-item-time">{d.timestamp}</span>
+            <button
+              type="button"
+              className="cp-draft-item-discard"
+              onClick={(e) => { e.stopPropagation(); onDiscard(i); }}
+              aria-label="Discard draft"
+            >
+              <X size={11} />
+            </button>
+          </div>
+        </div>
+      ))}
+    </div>
+  );
+}
+
+/* ─── Main Page ─────────────────────────────────────────────── */
 export default function CreatePost() {
   const router = useRouter();
   const queryClient = useQueryClient();
 
+  /* ── State ── */
   const [title, setTitle] = useState('');
   const [type, setType] = useState<PostType>('problem');
-  const [body, setBody] = useState('');
-  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [externalLink, setExternalLink] = useState('');
   const [linkName, setLinkName] = useState('');
+  const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [selectedCategory, setSelectedCategory] = useState('AI');
-  const [severity, setSeverity] = useState<(typeof SEVERITY_OPTIONS)[number]>('Moderate');
-  const [validationGoal, setValidationGoal] = useState<(typeof VALIDATION_GOALS)[number]['value']>('Looking for validation');
   const [openPanel, setOpenPanel] = useState<ComposePanel>(null);
-  const [pollOptions, setPollOptions] = useState(['Yes', 'No']);
+  const [pollQuestion, setPollQuestion] = useState('');
   const [customTags, setCustomTags] = useState<string[]>([]);
   const [tagInput, setTagInput] = useState('');
+  const [bodyText, setBodyText] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
@@ -85,119 +421,112 @@ export default function CreatePost() {
   const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
   const [originalBody, setOriginalBody] = useState<string | null>(null);
   const [enhancedBody, setEnhancedBody] = useState<string | null>(null);
+  const [showDraftPanel, setShowDraftPanel] = useState(false);
+  const [showPollModal, setShowPollModal] = useState(false);
+  const [savedDrafts, setSavedDrafts] = useState<Draft[]>([]);
 
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  /* Rich text editor refs */
+  const bodyEditorRef = useRef<HTMLDivElement>(null);
   const titleInputRef = useRef<HTMLInputElement>(null);
 
+  /* ── Auth ── */
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      setSession(currentSession);
-      if (!currentSession) setError('You must be logged in to create a post.');
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      if (!s) setError('You must be logged in to create a post.');
     });
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
-      setSession(currentSession);
-      if (currentSession) setError(null);
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      if (s) setError(null);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
+  /* ── Focus ── */
+  useEffect(() => { bodyEditorRef.current?.focus(); }, []);
+
+  /* ── Track body editor text for live counters and validation ─ */
   useEffect(() => {
-    textareaRef.current?.focus();
+    const editor = bodyEditorRef.current;
+    if (!editor) return;
+    const updateText = () => setBodyText(editor.innerText);
+    updateText();
+    editor.addEventListener('input', updateText);
+    return () => editor.removeEventListener('input', updateText);
   }, []);
 
+  /* ── Load drafts from localStorage ── */
   useEffect(() => {
-    if (!textareaRef.current) return;
-    textareaRef.current.style.height = 'auto';
-    textareaRef.current.style.height = `${textareaRef.current.scrollHeight}px`;
-  }, [body]);
-
-  useEffect(() => {
-    const savedDraft = localStorage.getItem('paoblem-post-draft');
-    if (!savedDraft) return;
     try {
-      const parsed = JSON.parse(savedDraft);
-      if (parsed.title) setTitle(parsed.title);
-      if (parsed.type) setType(parsed.type);
-      if (parsed.body) setBody(parsed.body);
-      if (parsed.externalLink) setExternalLink(parsed.externalLink);
-      if (parsed.linkName) setLinkName(parsed.linkName);
-      if (parsed.imageUrls) setImageUrls(parsed.imageUrls);
-      else if (parsed.imageUrl) setImageUrls([parsed.imageUrl]);
-      if (parsed.selectedCategory) setSelectedCategory(parsed.selectedCategory);
-      if (parsed.severity) setSeverity(parsed.severity);
-      if (parsed.validationGoal) setValidationGoal(parsed.validationGoal);
-      if (parsed.pollOptions) setPollOptions(parsed.pollOptions);
-      if (parsed.customTags) setCustomTags(parsed.customTags);
-      if (parsed.openPanel) setOpenPanel(parsed.openPanel);
-      if (parsed.timestamp) {
-        setLastSaved(new Date(parsed.timestamp).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-      }
-    } catch (err) {
-      console.error('Failed to parse saved draft', err);
-    }
+      const raw = localStorage.getItem('paoblem-drafts');
+      if (raw) setSavedDrafts(JSON.parse(raw));
+    } catch { /* ignore */ }
   }, []);
 
-  useEffect(() => {
-    if (!title && !body && !externalLink && imageUrls.length === 0) return;
-    const timer = setTimeout(() => {
-      localStorage.setItem('paoblem-post-draft', JSON.stringify(getDraftPayload()));
-      setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
-    }, 1000);
-    return () => clearTimeout(timer);
-  }, [title, type, body, externalLink, linkName, imageUrls, selectedCategory, severity, validationGoal, pollOptions, customTags, openPanel]);
+  /* ── Auto-save ── */
+  const getBodyHtml = () => bodyEditorRef.current?.innerHTML ?? '';
+  const getBodyText = () => bodyEditorRef.current?.innerText ?? '';
 
-  const wordCount = body.trim().split(/\s+/).filter(Boolean).length;
-  const isEnhanceEnabled = wordCount >= 15;
-  const isFormValid = Boolean(session && body.trim().length >= 10);
-
-  function getDraftPayload() {
-    return {
+  const saveDraft = useCallback(() => {
+    const currentBody = bodyText;
+    if (!title && !currentBody) return;
+    const draft: Draft = {
       title,
+      body: currentBody,
       type,
-      body,
-      externalLink,
-      linkName,
-      imageUrls,
-      selectedCategory,
-      severity,
-      validationGoal,
-      pollOptions,
-      customTags,
-      openPanel,
-      timestamp: new Date().toISOString(),
+      timestamp: new Date().toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }),
     };
-  }
+    const existing: Draft[] = (() => {
+      try { return JSON.parse(localStorage.getItem('paoblem-drafts') ?? '[]'); } catch { return []; }
+    })();
+    // Replace newest duplicate title, or prepend
+    const idx = existing.findIndex((d) => d.title === title);
+    if (idx >= 0) existing[idx] = draft; else existing.unshift(draft);
+    localStorage.setItem('paoblem-drafts', JSON.stringify(existing.slice(0, 10)));
+    setSavedDrafts(existing.slice(0, 10));
+    setLastSaved(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+  }, [title, type, bodyText]);
 
-  function normalizeTag(value: string) {
-    return value.trim().replace(/^#/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
+  useEffect(() => {
+    const timer = setTimeout(saveDraft, 1500);
+    return () => clearTimeout(timer);
+  }, [title, type, saveDraft]);
+
+  /* ── Helpers ── */
+  const wordCount = bodyText.trim().split(/\s+/).filter(Boolean).length;
+  const charCount = bodyText.length;
+  const isEnhanceEnabled = wordCount >= 15;
+  const isFormValid = Boolean(session && title.trim().length > 0 && bodyText.trim().length >= 10);
+
+  function normalizeTag(v: string) {
+    return v.trim().replace(/^#/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
   }
 
   function addCustomTag() {
     const cleaned = normalizeTag(tagInput);
     if (!cleaned || customTags.includes(cleaned) || customTags.length >= 5) return;
-    setCustomTags((current) => [...current, cleaned]);
+    setCustomTags((t) => [...t, cleaned]);
     setTagInput('');
   }
 
-  function removeCustomTag(tag: string) {
-    setCustomTags((current) => current.filter((item) => item !== tag));
+  function handleLoadDraft(draft: Draft) {
+    setTitle(draft.title);
+    setType(draft.type);
+    if (bodyEditorRef.current) bodyEditorRef.current.innerText = draft.body;
+    setBodyText(draft.body);
+    setShowDraftPanel(false);
   }
 
-  function buildBodyWithMetadata(rawBody: string) {
-    const metadataTags = [
-      selectedCategory,
-      severity,
-      validationGoal,
-      ...customTags,
-    ].map((tag) => `#${normalizeTag(tag)}`).join(' ');
+  function handleDiscardDraft(idx: number) {
+    const next = savedDrafts.filter((_, i) => i !== idx);
+    setSavedDrafts(next);
+    localStorage.setItem('paoblem-drafts', JSON.stringify(next));
+  }
 
-    const pollText = openPanel === 'poll' && pollOptions.some((option) => option.trim())
-      ? `\n\nPoll: ${pollOptions.filter((option) => option.trim()).join(' / ')}`
-      : '';
-
-    return `${rawBody.trim()}${pollText}\n\n${metadataTags}`;
+  function handlePollCreate(question: string, options: string[]) {
+    setPollQuestion(question);
+    setOpenPanel('poll');
+    setShowPollModal(false);
   }
 
   async function handleAIEnhance() {
@@ -208,11 +537,11 @@ export default function CreatePost() {
       const res = await fetch('/api/ai/enhance', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: body }),
+        body: JSON.stringify({ text: getBodyHtml() }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Failed to enhance text.');
-      setOriginalBody(body);
+      setOriginalBody(getBodyHtml());
       setEnhancedBody(data.enhanced);
       setAiPreviewOpen(true);
     } catch (err: any) {
@@ -224,50 +553,41 @@ export default function CreatePost() {
 
   async function handleSubmit(e?: React.FormEvent) {
     e?.preventDefault();
-    if (!session) {
-      setError('You must be logged in to post.');
-      return;
-    }
-    if (body.trim().length < 10) {
-      setError('Describe the problem in at least 10 characters.');
-      return;
-    }
+    if (!session) { setError('You must be logged in to post.'); return; }
+    const bodyHtml = getBodyHtml();
+    if (bodyText.trim().length < 10) { setError('Describe the problem in at least 10 characters.'); return; }
+    if (!title.trim()) { setError('Please add a title.'); return; }
 
     setSubmitting(true);
     setError(null);
 
     const trimmedLink = externalLink.trim();
-    const formattedLink = trimmedLink ? (/^https?:\/\//i.test(trimmedLink) ? trimmedLink : `https://${trimmedLink}`) : null;
-    const derivedTitle = title.trim() || body.trim().split(/\s+/).slice(0, 9).join(' ');
+    const formattedLink = trimmedLink
+      ? (/^https?:\/\//i.test(trimmedLink) ? trimmedLink : `https://${trimmedLink}`)
+      : null;
 
     try {
       const res = await fetch('/api/posts/create', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          Authorization: `Bearer ${session.access_token}`,
-        },
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          title: derivedTitle,
-          body: buildBodyWithMetadata(body),
+          title: title.trim(),
+          body: bodyHtml,
           type,
           image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           external_link: formattedLink,
           link_name: linkName || null,
+          poll_question: openPanel === 'poll' ? pollQuestion : null,
+          category: selectedCategory,
+          tags: customTags,
         }),
       });
-
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Something went wrong.');
-
       setSuccess(true);
-      localStorage.removeItem('paoblem-post-draft');
+      localStorage.removeItem('paoblem-drafts');
       queryClient.invalidateQueries({ queryKey: ['posts'] });
-
-      setTimeout(() => {
-        router.push('/');
-        router.refresh();
-      }, 900);
+      setTimeout(() => { router.push('/'); router.refresh(); }, 900);
     } catch (err: any) {
       setError(err.message || 'Failed to create post.');
     } finally {
@@ -276,15 +596,17 @@ export default function CreatePost() {
   }
 
   function handleBackClick() {
-    const hasUnsavedChanges = title.trim() || body.trim() || imageUrls.length > 0 || externalLink;
-    if (hasUnsavedChanges) setIsDraftLeaveOpen(true);
+    const hasChanges = title.trim() || getBodyText().trim() || imageUrls.length > 0 || externalLink;
+    if (hasChanges) setIsDraftLeaveOpen(true);
     else router.push('/');
   }
 
+  /* ─── Render ────────────────────────────────────────────────── */
   return (
     <div className="app-container cp-modal-page">
       <Navbar />
 
+      {/* Blurred feed backdrop */}
       <div className="cp-modal-backdrop" aria-hidden="true">
         <div className="cp-modal-feed-shell">
           <div className="cp-modal-feed-compose">
@@ -298,250 +620,266 @@ export default function CreatePost() {
         </div>
       </div>
 
+      {/* Modal stage */}
       <main className="cp-modal-stage" role="presentation">
-        <section className="cp-thread-modal" role="dialog" aria-modal="true" aria-labelledby="create-post-title">
+        <section className="cp-thread-modal" role="dialog" aria-modal="true" aria-labelledby="cp-modal-title">
           <form onSubmit={handleSubmit}>
+
+            {/* ── Header ── */}
             <header className="cp-thread-header">
-              <button type="button" className="cp-thread-cancel" onClick={handleBackClick}>
-                Cancel
-              </button>
+              <button type="button" className="cp-thread-cancel" onClick={handleBackClick}>Cancel</button>
               <div className="cp-thread-title-wrap">
-                <h1 id="create-post-title">New thread</h1>
+                <h1 id="cp-modal-title">New post</h1>
                 {lastSaved && (
-                  <span>
+                  <span className="cp-thread-saved">
                     <Save size={10} />
                     Saved {lastSaved}
                   </span>
                 )}
               </div>
               <div className="cp-thread-header-actions">
-                <button type="button" aria-label="Drafts">
-                  <Save size={24} />
-                </button>
-                <button type="button" aria-label="More options">
-                  <ListChecks size={24} />
+                {/* Drafts icon */}
+                <div style={{ position: 'relative' }}>
+                  <button
+                    type="button"
+                    className={`cp-thread-icon-btn ${showDraftPanel ? 'cp-thread-icon-btn--active' : ''}`}
+                    aria-label="Saved drafts"
+                    onClick={() => setShowDraftPanel((v) => !v)}
+                  >
+                    <FileText size={18} />
+                    {savedDrafts.length > 0 && <span className="cp-draft-dot" aria-hidden="true" />}
+                  </button>
+
+                  {/* Draft dropdown */}
+                  {showDraftPanel && (
+                    <div className="cp-draft-dropdown">
+                      <div className="cp-draft-dropdown-header">
+                        <span>Saved Drafts</span>
+                        <span className="cp-draft-count">{savedDrafts.length}</span>
+                      </div>
+                      <DraftSidebar
+                        drafts={savedDrafts}
+                        onLoad={handleLoadDraft}
+                        onDiscard={handleDiscardDraft}
+                      />
+                    </div>
+                  )}
+                </div>
+
+                <button type="button" className="cp-thread-icon-btn" aria-label="More options">
+                  <MoreHorizontal size={18} />
                 </button>
               </div>
             </header>
 
-            {(error || success) && (
-              <div className={`cp-thread-alert ${success ? 'cp-thread-alert--success' : ''}`}>
-                {success ? <CheckCircle size={15} /> : <AlertTriangle size={15} />}
-                {success ? 'Post published. Redirecting...' : error}
-              </div>
-            )}
+            {/* ── Scrollable body ── */}
+            <div className="cp-thread-scroll">
+              {(error || success) && (
+                <div className={`cp-thread-alert ${success ? 'cp-thread-alert--success' : ''}`}>
+                  <CheckCircle size={14} />
+                  {success ? 'Post published. Redirecting…' : error}
+                </div>
+              )}
 
-            <div className="cp-thread-body">
-              <div className="cp-thread-avatar-column">
-                <img
-                  src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=preview'}
-                  alt="You"
-                  className="cp-thread-avatar"
-                />
-                <span className="cp-thread-line" />
-                <span className="cp-thread-small-avatar" />
-              </div>
-
-              <div className="cp-thread-main">
-                <div className="cp-thread-identity">
-                  <strong>{session?.user?.user_metadata?.full_name || 'You'}</strong>
-                  <span>Community or topic</span>
+              <div className="cp-thread-body">
+                {/* Avatar column */}
+                <div className="cp-thread-avatar-column">
+                  <img
+                    src={session?.user?.user_metadata?.avatar_url || 'https://api.dicebear.com/7.x/bottts/svg?seed=preview'}
+                    alt="You"
+                    className="cp-thread-avatar"
+                  />
+                  <span className="cp-thread-line" />
+                  <span className="cp-thread-small-avatar" />
                 </div>
 
-                <input
-                  ref={titleInputRef}
-                  className="cp-thread-title-input"
-                  placeholder="Optional title"
-                  value={title}
-                  onChange={(e) => setTitle(e.target.value)}
-                  disabled={submitting}
-                  maxLength={300}
-                />
+                {/* Main compose area */}
+                <div className="cp-thread-main">
+                  {/* Identity row with type tags */}
+                  <div className="cp-thread-identity">
+                    <strong>{session?.user?.user_metadata?.full_name || 'You'}</strong>
+                    <span className="cp-thread-community">
+                      Community or topic <ChevronRight size={12} />
+                    </span>
+                    {/* Problem / Idea tags – right side of identity row */}
+                    <div className="cp-type-tag-row">
+                      <button
+                        type="button"
+                        className={`cp-type-tag cp-type-tag--problem ${type === 'problem' ? 'active' : ''}`}
+                        onClick={() => setType('problem')}
+                        disabled={submitting}
+                      >
+                        ⚠ Problem
+                      </button>
+                      <button
+                        type="button"
+                        className={`cp-type-tag cp-type-tag--idea ${type === 'idea' ? 'active' : ''}`}
+                        onClick={() => setType('idea')}
+                        disabled={submitting}
+                      >
+                        💡 Idea
+                      </button>
+                    </div>
+                  </div>
 
-                <textarea
-                  ref={textareaRef}
-                  className="cp-thread-textarea"
-                  placeholder="What's the problem you're facing?"
-                  value={body}
-                  onChange={(e) => setBody(e.target.value)}
-                  disabled={submitting}
-                  maxLength={10000}
-                />
-
-                <div className="cp-thread-actions" aria-label="Inline actions">
-                  {[
-                    { key: 'media' as const, label: 'Media', icon: ImageIcon },
-                    { key: 'link' as const, label: 'Link', icon: Link2 },
-                    { key: 'poll' as const, label: 'Poll', icon: ListChecks },
-                  ].map((action) => (
-                    <button
-                      key={action.key}
-                      type="button"
-                      className={openPanel === action.key ? 'active' : ''}
-                      onClick={() => setOpenPanel(openPanel === action.key ? null : action.key)}
-                      aria-label={action.label}
-                      title={action.label}
-                    >
-                      <action.icon size={20} />
-                      <span>{action.label}</span>
-                    </button>
-                  ))}
-                  <button
-                    type="button"
-                    className={isEnhanceEnabled ? 'active' : ''}
-                    onClick={handleAIEnhance}
-                    disabled={!isEnhanceEnabled || aiEnhancing || submitting}
-                    onMouseEnter={() => setShowAiTooltip(true)}
-                    onMouseLeave={() => setShowAiTooltip(false)}
-                    aria-label="AI Enhance"
-                    title="AI Enhance"
-                  >
-                    {aiEnhancing ? <Loader2 size={20} className="spin" /> : <Sparkles size={20} />}
-                    <span>AI Enhance</span>
-                  </button>
-                  {showAiTooltip && !isEnhanceEnabled && (
-                    <div className="cp-tooltip cp-thread-tooltip">Write 15+ words to unlock AI improve</div>
-                  )}
-                </div>
-
-                {isEnhanceEnabled && (
-                  <button
-                    type="button"
-                    className="cp-thread-floating-ai"
-                    onClick={handleAIEnhance}
-                    disabled={aiEnhancing || submitting}
-                  >
-                    {aiEnhancing ? <Loader2 size={14} className="spin" /> : <Sparkles size={14} />}
-                    Improve
-                  </button>
-                )}
-              </div>
-            </div>
-
-            {openPanel === 'media' && (
-              <div className="cp-thread-panel">
-                <ImageUploader imageUrls={imageUrls} onChange={setImageUrls} maxFiles={10} />
-              </div>
-            )}
-
-            {openPanel === 'link' && (
-              <div className="cp-thread-panel cp-thread-link-panel">
-                <div className="cp-link-input-wrap cp-link-input-wrap--url">
-                  <Globe size={14} className="cp-link-icon" />
+                  {/* Title */}
                   <input
-                    type="url"
-                    className="cp-link-input"
-                    placeholder="https://example.com"
-                    value={externalLink}
-                    onChange={(e) => setExternalLink(e.target.value)}
+                    ref={titleInputRef}
+                    className="cp-thread-title-input"
+                    placeholder="Add a title (required)"
+                    value={title}
+                    onChange={(e) => setTitle(e.target.value)}
                     disabled={submitting}
+                    maxLength={300}
                   />
-                </div>
-                <input
-                  type="text"
-                  className="cp-link-input cp-link-input--plain"
-                  placeholder="Link label (optional)"
-                  value={linkName}
-                  onChange={(e) => setLinkName(e.target.value)}
-                  disabled={submitting}
-                  maxLength={60}
-                />
-              </div>
-            )}
 
-            {openPanel === 'poll' && (
-              <div className="cp-thread-panel cp-thread-poll">
-                {pollOptions.map((option, index) => (
+                  {/* ── Rich text body editor ── */}
+                  <div className="cp-rich-wrap cp-rich-wrap--body">
+                    <RichToolbar editorRef={bodyEditorRef} />
+                    <div
+                      ref={bodyEditorRef}
+                      className="cp-rich-editor cp-rich-editor--body"
+                      contentEditable={!submitting}
+                      suppressContentEditableWarning
+                      data-placeholder="What's the problem you're facing?"
+                      aria-label="Post body"
+                      aria-multiline="true"
+                    />
+                  </div>
+
+                  <div className="cp-thread-editor-stats">
+                    <span>{wordCount} words</span>
+                    <span>{charCount.toLocaleString()} / 10,000</span>
+                  </div>
+
+                  {/* Action row */}
+                  <div className="cp-thread-actions-row">
+                    <div className="cp-thread-actions" aria-label="Attachments">
+                      {[
+                        { key: 'media' as const, label: 'Media', icon: ImageIcon },
+                        { key: 'link' as const, label: 'Link', icon: Link2 },
+                      ].map((action) => (
+                        <button
+                          key={action.key}
+                          type="button"
+                          className={openPanel === action.key ? 'active' : ''}
+                          onClick={() => setOpenPanel(openPanel === action.key ? null : action.key)}
+                          disabled={submitting}
+                          aria-label={action.label}
+                          title={action.label}
+                        >
+                          <action.icon size={20} />
+                        </button>
+                      ))}
+                      <button
+                        type="button"
+                        className={openPanel === 'poll' ? 'active' : ''}
+                        onClick={() => setShowPollModal(true)}
+                        disabled={submitting}
+                        aria-label="Poll"
+                        title="Poll"
+                      >
+                        <BarChart3 size={20} />
+                      </button>
+                    </div>
+
+                    {/* AI Enhance */}
+                    <div className="cp-thread-ai-wrap">
+                      <button
+                        type="button"
+                        className={`cp-thread-ai-pill ${isEnhanceEnabled ? 'is-ready' : ''}`}
+                        onClick={handleAIEnhance}
+                        disabled={!isEnhanceEnabled || aiEnhancing || submitting}
+                        onMouseEnter={() => setShowAiTooltip(true)}
+                        onMouseLeave={() => setShowAiTooltip(false)}
+                      >
+                        {aiEnhancing ? <Loader2 size={13} className="cp-spin" /> : <Sparkles size={13} />}
+                        <span>AI Enhance</span>
+                      </button>
+                      {showAiTooltip && !isEnhanceEnabled && (
+                        <div className="cp-tooltip cp-thread-tooltip">Write 15+ words to unlock AI enhance</div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* ── Media panel ── */}
+              {openPanel === 'media' && (
+                <div className="cp-thread-panel">
+                  <ImageUploader imageUrls={imageUrls} onChange={setImageUrls} maxFiles={10} />
+                </div>
+              )}
+
+              {/* ── Link panel ── */}
+              {openPanel === 'link' && (
+                <div className="cp-thread-panel cp-thread-link-panel">
+                  <div className="cp-link-input-wrap cp-link-input-wrap--url">
+                    <Globe size={13} className="cp-link-icon" />
+                    <input
+                      type="url"
+                      className="cp-link-input"
+                      placeholder="https://example.com"
+                      value={externalLink}
+                      onChange={(e) => setExternalLink(e.target.value)}
+                      disabled={submitting}
+                    />
+                  </div>
                   <input
-                    key={index}
-                    className="cp-modern-poll-input"
-                    value={option}
-                    onChange={(e) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? e.target.value : item))}
-                    placeholder={`Option ${index + 1}`}
+                    type="text"
+                    className="cp-link-input cp-link-input--plain"
+                    placeholder="Link label (optional)"
+                    value={linkName}
+                    onChange={(e) => setLinkName(e.target.value)}
+                    disabled={submitting}
+                    maxLength={60}
                   />
-                ))}
-                {pollOptions.length < 4 && (
-                  <button type="button" className="cp-modern-add-option" onClick={() => setPollOptions((current) => [...current, ''])}>
-                    <Plus size={14} />
-                    Add another option
-                  </button>
-                )}
-              </div>
-            )}
-
-            <section className="cp-thread-options">
-              <button type="button" className="cp-thread-options-title">
-                <ListChecks size={19} />
-                <span>Post Options</span>
-              </button>
-
-              <div className="cp-thread-type-row" role="group" aria-label="Problem or idea">
-                {FLAIR_OPTIONS.map((option) => (
-                  <button
-                    key={option.value}
-                    type="button"
-                    className={`${type === option.value ? 'active' : ''} cp-thread-type-${option.value}`}
-                    onClick={() => setType(option.value)}
-                  >
-                    <option.icon size={15} />
-                    <span>{option.label}</span>
-                  </button>
-                ))}
-              </div>
-
-              <div className="cp-thread-chip-scroll">
-                {CATEGORY_CHIPS.map((category) => (
-                  <button
-                    key={category}
-                    type="button"
-                    className={selectedCategory === category ? 'active' : ''}
-                    onClick={() => setSelectedCategory(category)}
-                  >
-                    {category}
-                  </button>
-                ))}
-              </div>
-
-              <div className="cp-thread-meta">
-                <div>
-                  <span>Severity</span>
-                  <div className="cp-thread-mini-row">
-                    {SEVERITY_OPTIONS.map((option) => (
-                      <button key={option} type="button" className={severity === option ? 'active' : ''} onClick={() => setSeverity(option)}>
-                        {option === 'Critical' && <ShieldAlert size={13} />}
-                        {option}
-                      </button>
-                    ))}
-                  </div>
                 </div>
-                <div>
-                  <span>Validation goal</span>
-                  <div className="cp-thread-goals">
-                    {VALIDATION_GOALS.map((goal) => (
-                      <button key={goal.value} type="button" className={validationGoal === goal.value ? 'active' : ''} onClick={() => setValidationGoal(goal.value)}>
-                        <goal.icon size={14} />
-                        {goal.value}
-                      </button>
-                    ))}
-                  </div>
+              )}
+
+              {/* ── Poll preview chip ── */}
+              {openPanel === 'poll' && pollQuestion && (
+                <div className="cp-thread-panel cp-poll-chip">
+                  <BarChart3 size={14} />
+                  <span>{pollQuestion}</span>
+                  <button
+                    type="button"
+                    onClick={() => { setOpenPanel(null); setPollQuestion(''); }}
+                    disabled={submitting}
+                    aria-label="Remove poll"
+                  >
+                    <X size={12} />
+                  </button>
                 </div>
+              )}
+
+              {/* ── Category chips ── */}
+              <div className="cp-thread-cat-row">
+                {CATEGORY_CHIPS.map((cat) => (
+                  <button
+                    key={cat}
+                    type="button"
+                    className={`cp-thread-cat-chip ${selectedCategory === cat ? 'active' : ''}`}
+                    onClick={() => setSelectedCategory(cat)}
+                    disabled={submitting}
+                  >
+                    {cat}
+                  </button>
+                ))}
               </div>
 
+              {/* ── Custom tags ── */}
               <div className="cp-thread-tags">
                 <input
                   type="text"
                   placeholder="Add tag"
                   value={tagInput}
                   onChange={(e) => setTagInput(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addCustomTag();
-                    }
-                  }}
+                  onKeyDown={(e) => { if (e.key === 'Enter') { e.preventDefault(); addCustomTag(); } }}
                   maxLength={24}
+                  disabled={submitting}
                 />
-                <button type="button" onClick={addCustomTag} disabled={!tagInput.trim()}>
+                <button type="button" onClick={addCustomTag} disabled={!tagInput.trim() || submitting}>
                   Add
                 </button>
               </div>
@@ -550,79 +888,88 @@ export default function CreatePost() {
                   {customTags.map((tag) => (
                     <span key={tag} className="cp-custom-tag-chip">
                       #{tag}
-                      <button type="button" onClick={() => removeCustomTag(tag)} aria-label={`Remove ${tag}`}>
+                      <button
+                        type="button"
+                        onClick={() => setCustomTags((t) => t.filter((x) => x !== tag))}
+                        disabled={submitting}
+                        aria-label={`Remove ${tag}`}
+                      >
                         <X size={10} />
                       </button>
                     </span>
                   ))}
                 </div>
               )}
-            </section>
 
-            {aiPreviewOpen && (
-              <div className="cp-ai-split cp-thread-ai-split">
-                <div className="cp-ai-split-header">
-                  <span className="cp-ai-split-label">AI Enhancement Preview</span>
-                  <div className="cp-ai-split-actions">
-                    <button type="button" className="cp-ai-btn cp-ai-btn--decline" onClick={() => setAiPreviewOpen(false)}>
-                      Decline
-                    </button>
-                    <button
-                      type="button"
-                      className="cp-ai-btn cp-ai-btn--accept"
-                      onClick={() => {
-                        if (enhancedBody) setBody(enhancedBody);
-                        setAiPreviewOpen(false);
-                      }}
-                    >
-                      Accept
-                    </button>
+              {/* ── AI preview ── */}
+              {aiPreviewOpen && (
+                <div className="cp-ai-split cp-thread-ai-split">
+                  <div className="cp-ai-split-header">
+                    <span className="cp-ai-split-label">AI Enhancement Preview</span>
+                    <div className="cp-ai-split-actions">
+                      <button type="button" className="cp-ai-btn cp-ai-btn--decline" onClick={() => setAiPreviewOpen(false)}>
+                        Decline
+                      </button>
+                      <button
+                        type="button"
+                        className="cp-ai-btn cp-ai-btn--accept"
+                        onClick={() => {
+                          if (enhancedBody && bodyEditorRef.current) {
+                            bodyEditorRef.current.innerHTML = enhancedBody;
+                          }
+                          setAiPreviewOpen(false);
+                        }}
+                      >
+                        Accept
+                      </button>
+                    </div>
+                  </div>
+                  <div className="split-view">
+                    <div className="split-pane">
+                      <span className="split-label">Original</span>
+                      <div dangerouslySetInnerHTML={{ __html: originalBody ?? '' }} />
+                    </div>
+                    <div className="split-pane">
+                      <span className="split-label">Enhanced</span>
+                      <div dangerouslySetInnerHTML={{ __html: enhancedBody ?? '' }} />
+                    </div>
                   </div>
                 </div>
-                <div className="split-view">
-                  <div className="split-pane">
-                    <span className="split-label">Original</span>
-                    {originalBody}
-                  </div>
-                  <div className="split-pane">
-                    <span className="split-label">Enhanced</span>
-                    {enhancedBody}
-                  </div>
-                </div>
-              </div>
-            )}
+              )}
+            </div>
 
+            {/* ── Footer ── */}
             <footer className="cp-thread-footer">
-              <div>
-                <span>{wordCount} words</span>
-                <span>{body.length.toLocaleString()} / 10,000</span>
-              </div>
               <button
                 type="submit"
                 disabled={!isFormValid || submitting}
                 className={`cp-thread-post-btn ${!isFormValid ? 'disabled' : ''}`}
               >
-                {submitting ? 'Posting' : success ? 'Posted' : 'Post'}
+                {submitting ? (
+                  <><Loader2 size={13} className="cp-spin" /> Posting</>
+                ) : success ? 'Posted' : 'Post'}
               </button>
             </footer>
           </form>
         </section>
       </main>
 
+      {/* ── Poll Modal ── */}
+      <PollModal
+        isOpen={showPollModal}
+        onClose={() => setShowPollModal(false)}
+        onCreatePoll={handlePollCreate}
+        disabled={submitting}
+      />
+
+      {/* ── Draft Leave Modal ── */}
       <DraftLeaveModal
         isOpen={isDraftLeaveOpen}
         onClose={() => setIsDraftLeaveOpen(false)}
-        onSaveDraft={() => {
-          localStorage.setItem('paoblem-post-draft', JSON.stringify(getDraftPayload()));
-          setIsDraftLeaveOpen(false);
-          router.push('/');
-        }}
-        onDiscard={() => {
-          localStorage.removeItem('paoblem-post-draft');
-          setIsDraftLeaveOpen(false);
-          router.push('/');
-        }}
+        onSaveDraft={() => { saveDraft(); setIsDraftLeaveOpen(false); router.push('/'); }}
+        onDiscard={() => { localStorage.removeItem('paoblem-drafts'); setIsDraftLeaveOpen(false); router.push('/'); }}
       />
     </div>
   );
 }
+

@@ -406,7 +406,7 @@ function NavbarInner() {
           >
             <input 
               type="text" 
-              placeholder="Search problems, solutions, users..." 
+              placeholder="Search anything..." 
               readOnly 
               style={{ cursor: 'pointer' }}
             />

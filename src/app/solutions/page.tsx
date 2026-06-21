@@ -163,7 +163,7 @@ export default function SolutionsPage() {
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Search by problem, solution, user, or tag"
+                placeholder="Search solutions..."
               />
               {search && (
                 <button type="button" className="solutions-clear-search" onClick={() => setSearch('')} aria-label="Clear search">
