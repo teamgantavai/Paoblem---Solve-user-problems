@@ -2011,3 +2011,274 @@
   .post-header         { margin-bottom: 0.65rem; }
   .post-user           { gap: 0.6rem; }
 }
+
+/* ==========================================================================
+   POLL SYSTEM — CSS ADDITIONS
+   Append these to your global stylesheet (e.g. globals.css or create-post.css)
+   ========================================================================== */
+
+
+/* ── Mode Tabs (Post / Poll switcher) ─────────────────────────────────────── */
+.cp-mode-tabs {
+  display        : flex;
+  gap            : 4px;
+  margin         : 0.5rem 0 0.75rem;
+  background     : rgba(255, 255, 255, 0.04);
+  border         : 1px solid var(--border-color);
+  border-radius  : 10px;
+  padding        : 3px;
+  width          : fit-content;
+}
+
+.cp-mode-tab {
+  display        : inline-flex;
+  align-items    : center;
+  gap            : 5px;
+  padding        : 0.3rem 0.85rem;
+  border         : none;
+  border-radius  : 8px;
+  background     : transparent;
+  color          : var(--text-muted);
+  font-size      : 0.78rem;
+  font-weight    : 500;
+  cursor         : pointer;
+  transition     : background 0.15s, color 0.15s;
+}
+
+.cp-mode-tab.active {
+  background     : rgba(99, 102, 241, 0.15);
+  color          : #6366f1;
+  font-weight    : 600;
+}
+
+.cp-mode-tab:hover:not(.active):not(:disabled) {
+  background     : rgba(255, 255, 255, 0.06);
+  color          : var(--text-main);
+}
+
+.cp-mode-tab:disabled {
+  opacity        : 0.5;
+  cursor         : not-allowed;
+}
+
+
+/* ── Poll Inline Form ─────────────────────────────────────────────────────── */
+.cp-poll-form {
+  display        : flex;
+  flex-direction : column;
+  gap            : 1.1rem;
+  padding        : 0.25rem 0 0.5rem;
+}
+
+.cp-poll-form-field {
+  display        : flex;
+  flex-direction : column;
+  gap            : 0.4rem;
+}
+
+.cp-poll-form-label {
+  font-size      : 0.75rem;
+  font-weight    : 600;
+  color          : var(--text-muted);
+  text-transform : uppercase;
+  letter-spacing : 0.05em;
+}
+
+.cp-poll-form-input {
+  width          : 100%;
+  background     : rgba(255, 255, 255, 0.04);
+  border         : 1.5px solid var(--border-color);
+  border-radius  : 10px;
+  padding        : 0.55rem 0.8rem;
+  font-size      : 0.88rem;
+  color          : var(--text-main);
+  outline        : none;
+  transition     : border-color 0.15s;
+  box-sizing     : border-box;
+}
+
+.cp-poll-form-input:focus {
+  border-color   : #6366f1;
+}
+
+.cp-poll-form-input--err {
+  border-color   : #ef4444 !important;
+}
+
+.cp-poll-form-input:disabled {
+  opacity        : 0.5;
+  cursor         : not-allowed;
+}
+
+.cp-poll-form-err {
+  font-size      : 0.73rem;
+  color          : #ef4444;
+  font-weight    : 500;
+}
+
+.cp-poll-form-hint {
+  font-size      : 0.7rem;
+  color          : var(--text-muted);
+}
+
+/* Options list */
+.cp-poll-options-list {
+  display        : flex;
+  flex-direction : column;
+  gap            : 0.4rem;
+}
+
+.cp-poll-option-row {
+  display        : flex;
+  align-items    : center;
+  gap            : 0.5rem;
+}
+
+.cp-poll-option-num {
+  flex-shrink    : 0;
+  width          : 1.2rem;
+  text-align     : center;
+  font-size      : 0.75rem;
+  font-weight    : 600;
+  color          : var(--text-muted);
+}
+
+.cp-poll-option-input {
+  flex           : 1;
+  margin         : 0;
+}
+
+.cp-poll-option-remove {
+  flex-shrink    : 0;
+  display        : flex;
+  align-items    : center;
+  justify-content: center;
+  width          : 26px;
+  height         : 26px;
+  border-radius  : 50%;
+  border         : 1.5px solid var(--border-color);
+  background     : transparent;
+  color          : var(--text-muted);
+  cursor         : pointer;
+  transition     : border-color 0.15s, color 0.15s, background 0.15s;
+}
+
+.cp-poll-option-remove:hover:not(:disabled) {
+  border-color   : #ef4444;
+  color          : #ef4444;
+  background     : rgba(239, 68, 68, 0.08);
+}
+
+/* Add option button */
+.cp-poll-add-option-btn {
+  display        : inline-flex;
+  align-items    : center;
+  gap            : 0.3rem;
+  padding        : 0.35rem 0.75rem;
+  border         : 1.5px dashed rgba(99, 102, 241, 0.4);
+  border-radius  : 8px;
+  background     : transparent;
+  color          : #6366f1;
+  font-size      : 0.78rem;
+  font-weight    : 600;
+  cursor         : pointer;
+  width          : fit-content;
+  transition     : border-color 0.15s, background 0.15s;
+}
+
+.cp-poll-add-option-btn:hover:not(:disabled) {
+  border-color   : #6366f1;
+  background     : rgba(99, 102, 241, 0.06);
+}
+
+.cp-poll-add-option-btn:disabled {
+  opacity        : 0.4;
+  cursor         : not-allowed;
+}
+
+/* Duration chips */
+.cp-poll-duration-chips {
+  display        : flex;
+  flex-wrap      : wrap;
+  gap            : 0.4rem;
+}
+
+.cp-poll-dur-chip {
+  display        : inline-flex;
+  align-items    : center;
+  padding        : 0.3rem 0.8rem;
+  border         : 1.5px solid var(--border-color);
+  border-radius  : 999px;
+  background     : transparent;
+  color          : var(--text-muted);
+  font-size      : 0.75rem;
+  font-weight    : 500;
+  cursor         : pointer;
+  transition     : border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.cp-poll-dur-chip.active {
+  border-color   : #6366f1;
+  background     : rgba(99, 102, 241, 0.1);
+  color          : #6366f1;
+  font-weight    : 600;
+}
+
+.cp-poll-dur-chip:hover:not(.active):not(:disabled) {
+  border-color   : rgba(99, 102, 241, 0.4);
+  color          : var(--text-main);
+}
+
+.cp-poll-dur-chip:disabled {
+  opacity        : 0.4;
+  cursor         : not-allowed;
+}
+
+/* Custom date picker */
+.cp-poll-custom-date {
+  max-width      : 240px;
+  color-scheme   : dark;
+}
+
+/* Preview pill */
+.cp-poll-preview-pill {
+  display        : inline-flex;
+  align-items    : center;
+  gap            : 0.4rem;
+  padding        : 0.35rem 0.75rem;
+  border-radius  : 999px;
+  background     : rgba(99, 102, 241, 0.08);
+  border         : 1px solid rgba(99, 102, 241, 0.2);
+  color          : #6366f1;
+  font-size      : 0.75rem;
+  font-weight    : 500;
+}
+
+
+/* ── PollCard (feed rendering) ───────────────────────────────────────────── */
+/*
+   PollCard uses inline styles for layout flexibility, but you can override
+   the button hover ring here if you need it:
+*/
+.poll-option-btn-focus:focus-visible {
+  outline        : 2px solid #6366f1;
+  outline-offset : 2px;
+}
+
+
+/* ── Responsive tweaks ───────────────────────────────────────────────────── */
+@media (max-width: 480px) {
+  .cp-poll-duration-chips {
+    gap            : 0.3rem;
+  }
+
+  .cp-poll-dur-chip {
+    font-size      : 0.7rem;
+    padding        : 0.25rem 0.6rem;
+  }
+
+  .cp-mode-tab {
+    padding        : 0.28rem 0.65rem;
+    font-size      : 0.73rem;
+  }
+}

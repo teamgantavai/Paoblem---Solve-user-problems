@@ -298,6 +298,11 @@ function ChatsPageContent() {
     );
   };
 
+  const matchesChatThread = (message: DBMessage, chatId: string | null) => {
+    if (!chatId) return false;
+    return message.conversation_id === chatId || message.partner_id === chatId;
+  };
+
   const [activeChatOnline, setActiveChatOnline] = useState<boolean>(false);
   const [activeChatLastSeen, setActiveChatLastSeen] = useState<string | null>(null);
 
@@ -400,7 +405,7 @@ function ChatsPageContent() {
   // Active Conversation ID helper
   const activeConversationId = useMemo(() => {
     if (!activeChatId) return null;
-    const msg = localMessages.find(m => m.conversation_id === activeChatId || m.partner_id === activeChatId);
+    const msg = localMessages.find(m => matchesChatThread(m, activeChatId));
     return msg?.conversation_id || activeChatId;
   }, [activeChatId, localMessages]);
 
@@ -694,7 +699,7 @@ function ChatsPageContent() {
   useEffect(() => {
     const context = activeChatId
       ? localMessages
-          .filter(m => (m.conversation_id || m.partner_id) === activeChatId)
+          .filter(m => matchesChatThread(m, activeChatId))
           .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
           .slice(-12)
       : [];
@@ -739,9 +744,8 @@ function ChatsPageContent() {
   // Send Message Mutation
   const sendMessageMutation = useMutation({
     mutationFn: async ({ partnerId, body, type = 'TEXT', atts = [], replyToId, clientMutationId }: { partnerId: string; body: string; type?: string; atts?: any[]; replyToId?: string | null; clientMutationId: string }) => {
-      const existing = localMessages.find(m => m.conversation_id === partnerId || m.partner_id === partnerId);
-      const conversationId = existing?.conversation_id || (activeConversationIdRef.current === partnerId ? partnerId : undefined);
-      const isConversationId = !!conversationId && conversationId === partnerId;
+      const existing = localMessages.find(m => matchesChatThread(m, partnerId));
+      const conversationId = existing?.conversation_id;
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: {
@@ -750,7 +754,7 @@ function ChatsPageContent() {
         },
         body: JSON.stringify({ 
           conversationId,
-          recipientId: !isConversationId ? partnerId : undefined, 
+          recipientId: conversationId ? undefined : partnerId, 
           body, 
           type, 
           attachments: atts,
@@ -763,8 +767,8 @@ function ChatsPageContent() {
     },
     onMutate: async (newMsg) => {
       const tempId = newMsg.clientMutationId;
-      const existing = localMessages.find(m => m.conversation_id === activeChatId || m.partner_id === activeChatId);
-      const conversationId = existing?.conversation_id || (activeConversationIdRef.current === activeChatId ? activeChatId : '');
+      const existing = localMessages.find(m => matchesChatThread(m, activeChatId));
+      const conversationId = existing?.conversation_id || '';
       const optimisticMsg: DBMessage = {
         id: tempId,
         tempId: tempId,
@@ -808,6 +812,7 @@ function ChatsPageContent() {
           }
           return m;
         }));
+        setActiveChatId(data.message.conversation_id || newMsg.partnerId);
       }
       queryClient.invalidateQueries({ queryKey: ['chats-messages', session?.access_token] });
     }
@@ -888,7 +893,7 @@ function ChatsPageContent() {
     setLoadingSummary(true);
     setAiSummaryOpen(true);
     try {
-      const activeChatMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId);
+      const activeChatMessages = localMessages.filter(m => matchesChatThread(m, activeChatId));
       const res = await fetch('/api/ai/chat-assistant', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
@@ -927,7 +932,7 @@ function ChatsPageContent() {
         })
       });
       // Optimistically clear local UI
-      setLocalMessages(prev => prev.filter(m => (m.conversation_id || m.partner_id) !== activeChatId));
+      setLocalMessages(prev => prev.filter(m => !matchesChatThread(m, activeChatId)));
       setShowConfirmClear(false);
       setShowChatMenu(false);
     } catch (err) {
@@ -948,7 +953,7 @@ function ChatsPageContent() {
       });
       if (res.ok) {
         // Remove from UI
-        setLocalMessages(prev => prev.filter(m => (m.conversation_id || m.partner_id) !== activeChatId));
+        setLocalMessages(prev => prev.filter(m => !matchesChatThread(m, activeChatId)));
         setActiveChatId(null);
         setMobileConversationOpen(false);
         setRightSidebarOpen(false);
@@ -1032,7 +1037,7 @@ function ChatsPageContent() {
       }
 
       // Find members of current chat
-      const activeMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId);
+      const activeMessages = localMessages.filter(m => matchesChatThread(m, activeChatId));
       const currentMembersIds = activeChatInfo?.members?.map(m => m.id) || [];
       if (currentMembersIds.length === 0 && activeChatInfo) {
          currentMembersIds.push(activeChatId); // In case it's a new unsaved chat
@@ -1434,7 +1439,7 @@ function ChatsPageContent() {
       return new Date(b[1].timestamp).getTime() - new Date(a[1].timestamp).getTime();
     });
 
-  const activeMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId).reverse();
+  const activeMessages = localMessages.filter(m => matchesChatThread(m, activeChatId)).reverse();
   const filteredActiveMessages = activeMessages.filter(m => {
     if (!chatSearchQuery.trim()) return true;
     return m.body.toLowerCase().includes(chatSearchQuery.toLowerCase());
