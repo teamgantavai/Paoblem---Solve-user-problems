@@ -2852,9 +2852,9 @@
 
 .cp-thread-body {
   display: grid;
-  grid-template-columns: 40px minmax(0, 1fr);
-  gap: 14px;
-  padding: 22px 20px 0;
+  grid-template-columns: 44px minmax(0, 1fr);
+  gap: 20px;
+  padding: 24px 24px 0;
 }
 
 .cp-thread-avatar-column {
@@ -2873,20 +2873,11 @@
 }
 
 .cp-thread-line {
-  width: 2px;
-  flex: 1;
-  min-height: 16px;
-  margin: 10px 0;
-  border-radius: 99px;
-  background: linear-gradient(180deg, rgba(255, 255, 255, 0.18), rgba(255, 255, 255, 0.03));
+  display: none;
 }
 
 .cp-thread-small-avatar {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--cpm-bg-raised);
-  border: 1px solid var(--cpm-border);
+  display: none;
 }
 
 .cp-thread-main {
@@ -2898,9 +2889,9 @@
 .cp-thread-identity {
   display: flex;
   align-items: center;
-  gap: 8px;
-  margin-bottom: 4px;
-  min-height: 22px;
+  gap: 10px;
+  margin-bottom: 12px;
+  min-height: 24px;
 }
 
 .cp-thread-identity strong {
@@ -2931,10 +2922,11 @@
 }
 
 .cp-thread-title-input {
-  height: 34px;
-  font-size: 0.94rem;
-  font-weight: 650;
+  height: 44px;
+  font-size: 1.1rem;
+  font-weight: 700;
   letter-spacing: -0.005em;
+  margin-bottom: 8px;
 }
 
 .cp-thread-title-input::placeholder,
@@ -2944,23 +2936,24 @@
 }
 
 .cp-thread-textarea {
-  min-height: 108px;
+  min-height: 120px;
   max-height: 320px;
   resize: none;
-  font-size: 1.02rem;
-  line-height: 1.56;
+  font-size: 1.05rem;
+  line-height: 1.6;
   letter-spacing: -0.003em;
-  padding-top: 2px;
+  padding-top: 8px;
+  padding-bottom: 8px;
 }
 
 /* ---------- Formatting toolbar ---------- */
 .cp-thread-toolbar {
   display: inline-flex;
   align-items: center;
-  gap: 2px;
-  margin: 6px 0 12px;
-  padding: 4px;
-  border-radius: 999px;
+  gap: 4px;
+  margin: 12px 0 16px;
+  padding: 6px 8px;
+  border-radius: 12px;
   background: var(--cpm-bg-raised);
   border: 1px solid var(--cpm-border);
 }
@@ -2996,9 +2989,9 @@
   align-items: center;
   justify-content: space-between;
   gap: 12px;
-  padding: 4px 0 4px;
+  padding: 12px 0 8px;
   border-top: 1px solid var(--cpm-border);
-  margin-top: 4px;
+  margin-top: 12px;
 }
 
 .cp-thread-actions {

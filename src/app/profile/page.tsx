@@ -133,7 +133,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
   const displayUserId = isOwnProfile ? currentUserId : targetUserId;
 
-  const [activeTab, setActiveTab] = useState<'about' | 'problems' | 'ideas' | 'saved' | 'settings' | 'signout'>('about');
+  const [activeTab, setActiveTab] = useState<'about' | 'posts' | 'comments' | 'saved' | 'history' | 'hidden' | 'upvoted' | 'downvoted' | 'settings' | 'signout'>('about');
   const [bioExpanded, setBioExpanded] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const rolePickerRef = useRef<HTMLDivElement>(null);
@@ -463,8 +463,8 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
     );
   }
 
-  const avatarSrc = tempAvatar || profile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${displayUserId}`;
-  const displayName = profile?.full_name || 'Member';
+  const avatarSrc = tempAvatar || profile?.avatar_url || (isOwnProfile ? session?.user?.user_metadata?.avatar_url : null) || `https://api.dicebear.com/7.x/bottts/svg?seed=${displayUserId}`;
+  const displayName = profile?.full_name || (isOwnProfile ? session?.user?.user_metadata?.full_name : null) || 'Member';
   const currentRole = profile?.role || 'Innovator';
   const bio = profile?.bio || '';
   const location = profile?.location || '';
@@ -660,11 +660,57 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
             </div>
 
             {location && (
-              <div className="profile-location-row">
-                <MapPin size={13} />
-                <span>{location}</span>
+              <div className="profile-location-row" style={{ marginTop: '0.2rem' }}>
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><MapPin size={13} /> {location}</span>
+                <span>•</span>
+                <span>{followData?.followersCount || 0} followers</span>
+                <span>•</span>
+                <span>{stats?.postCount || 0} contributions</span>
               </div>
             )}
+            {!location && (
+              <div className="profile-location-row" style={{ marginTop: '0.2rem' }}>
+                <span>{followData?.followersCount || 0} followers</span>
+                <span>•</span>
+                <span>{stats?.postCount || 0} contributions</span>
+              </div>
+            )}
+
+            <div className="profile-action-buttons-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', marginTop: '0.5rem' }}>
+              {!isOwnProfile ? (
+                <>
+                  <button
+                    className={`profile-action-btn ${followData?.isFollowing ? '' : 'primary'}`}
+                    onClick={() => toggleFollowMutation.mutate()}
+                    disabled={toggleFollowMutation.isPending}
+                  >
+                    {toggleFollowMutation.isPending ? (
+                      <Loader2 size={14} className="spin" />
+                    ) : followData?.isFollowing ? (
+                      <>
+                        <UserMinus size={14} /> Unfollow
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={14} /> Follow
+                      </>
+                    )}
+                  </button>
+                  <button className="profile-action-btn" onClick={handleMessageUser}>
+                    <MessageCircle size={14} /> Message
+                  </button>
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setActiveTab('settings')} className="profile-action-btn primary">
+                    <User size={14} /> Edit Profile
+                  </button>
+                  <button onClick={() => router.push('/analytics')} className="profile-action-btn">
+                    <BarChart2 size={14} /> Analytics
+                  </button>
+                </>
+              )}
+            </div>
 
             {bio && (
               <p className="profile-bio-text">
@@ -686,7 +732,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               <p className="profile-bio-text" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
                 No bio yet.{' '}
                 <button
-                  style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', fontSize: '0.875rem', padding: 0, fontStyle: 'normal' }}
+                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.875rem', padding: 0, fontStyle: 'normal' }}
                   onClick={() => setActiveTab('settings')}
                 >
                   Add one
@@ -694,135 +740,53 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
               </p>
             )}
 
-            {/* Action Buttons for Guest Profile */}
-            {!isOwnProfile && (
-              <div className="profile-actions-row">
-                <button
-                  className={`profile-action-btn ${followData?.isFollowing ? '' : 'primary'}`}
-                  onClick={() => toggleFollowMutation.mutate()}
-                  disabled={toggleFollowMutation.isPending}
-                >
-                  {toggleFollowMutation.isPending ? (
-                    <Loader2 size={14} className="spin" />
-                  ) : followData?.isFollowing ? (
-                    <>
-                      <UserMinus size={14} />
-                      Unfollow
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={14} />
-                      Follow
-                    </>
-                  )}
-                </button>
-                <button className="profile-action-btn" onClick={handleMessageUser}>
-                  <MessageCircle size={14} />
-                  Message
-                </button>
-              </div>
-            )}
-
-            {/* Stats Bar */}
-            <div className="profile-stats-row">
-              <div className="profile-stat-item">
-                <span className="profile-stat-value">{followData?.followersCount || 0}</span>
-                <span className="profile-stat-label">Followers</span>
-              </div>
-              <div className="profile-stat-item">
-                <span className="profile-stat-value">{followData?.followingCount || 0}</span>
-                <span className="profile-stat-label">Following</span>
-              </div>
-              <div className="profile-stat-item">
-                <span className="profile-stat-value">{stats?.postCount || 0}</span>
-                <span className="profile-stat-label">Posts</span>
-              </div>
-              <div className="profile-stat-item">
-                <span className="profile-stat-value">{stats?.commentCount || 0}</span>
-                <span className="profile-stat-label">Comments</span>
-              </div>
-            </div>
+            {/* Action buttons and stats have moved to the right sidebar */}
           </div>
         </div>
       </div>
 
-      {/* ── Sub-navigation Layout (Sidebar + Tab Content) ── */}
-      <div className="profile-content-container">
-        {/* Profile Sidebar Nav */}
-        <div className="profile-sidebar-nav">
-          <button
-            className={`profile-nav-link ${activeTab === 'about' ? 'active' : ''}`}
-            onClick={() => setActiveTab('about')}
-          >
-            <User size={16} />
-            <span>About</span>
-          </button>
-          <button
-            className={`profile-nav-link ${activeTab === 'problems' ? 'active' : ''}`}
-            onClick={() => setActiveTab('problems')}
-          >
-            <AlertTriangle size={16} />
-            <span>Problems ({problemsList.length})</span>
-          </button>
-          <button
-            className={`profile-nav-link ${activeTab === 'ideas' ? 'active' : ''}`}
-            onClick={() => setActiveTab('ideas')}
-          >
-            <Lightbulb size={16} />
-            <span>Ideas ({ideasList.length})</span>
-          </button>
+      {/* ── Reddit Style Horizontal Nav ── */}
+      <div className="profile-horizontal-nav">
+        <button className={`profile-tab-btn ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>Overview</button>
+        <button className={`profile-tab-btn ${activeTab === 'posts' ? 'active' : ''}`} onClick={() => setActiveTab('posts')}>Posts</button>
+        <button className={`profile-tab-btn ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>Comments</button>
+        {isOwnProfile && (
+          <>
+            <button className={`profile-tab-btn ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => setActiveTab('saved')}>Saved</button>
+            <button className={`profile-tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>History</button>
+            <button className={`profile-tab-btn ${activeTab === 'hidden' ? 'active' : ''}`} onClick={() => setActiveTab('hidden')}>Hidden</button>
+            <button className={`profile-tab-btn ${activeTab === 'upvoted' ? 'active' : ''}`} onClick={() => setActiveTab('upvoted')}>Upvoted</button>
+            <button className={`profile-tab-btn ${activeTab === 'downvoted' ? 'active' : ''}`} onClick={() => setActiveTab('downvoted')}>Downvoted</button>
+          </>
+        )}
+      </div>
 
-          {isOwnProfile && (
-            <>
-              <button
-                className="profile-nav-link"
-                onClick={() => router.push('/analytics')}
-              >
-                <BarChart2 size={16} />
-                <span>Analytics</span>
-              </button>
-              <button
-                className={`profile-nav-link ${activeTab === 'saved' ? 'active' : ''}`}
-                onClick={() => setActiveTab('saved')}
-              >
-                <Bookmark size={16} />
-                <span>Saved Posts ({savedPosts.length})</span>
-              </button>
-              <button
-                className={`profile-nav-link ${activeTab === 'settings' ? 'active' : ''}`}
-                onClick={() => setActiveTab('settings')}
-              >
-                <Settings size={16} />
-                <span>Settings</span>
-              </button>
-              <button
-                className={`profile-nav-link ${activeTab === 'signout' ? 'active' : ''}`}
-                onClick={() => setActiveTab('signout')}
-                style={{ color: '#ef4444' }}
-              >
-                <LogOut size={16} />
-                <span>Sign Out</span>
-              </button>
-            </>
-          )}
-        </div>
-
-        {/* Tab Content Display Area */}
+      <div className="profile-content-container" style={{ display: 'block', marginTop: '1rem' }}>
+        {/* Tab Content Display Area (Main Feed Column) */}
         <div className="profile-tab-main-content">
           {activeTab === 'about' && (
             <AboutTab bio={bio} userComments={userComments} onAddBioClick={() => setActiveTab('settings')} />
           )}
 
-          {activeTab === 'problems' && (
-            <ProblemsTab posts={problemsList} />
+          {activeTab === 'posts' && (
+            <ProblemsTab posts={userPosts} />
           )}
 
-          {activeTab === 'ideas' && (
-            <ProblemsTab posts={ideasList} />
+          {activeTab === 'comments' && (
+            <div className="card profile-content-card">
+              <h3 className="profile-section-title" style={{ marginBottom: '1rem' }}>Comments</h3>
+              <CommentsTab comments={userComments} />
+            </div>
           )}
 
           {activeTab === 'saved' && isOwnProfile && (
             <ProblemsTab posts={savedPosts} isSavedTab={true} />
+          )}
+
+          {['history', 'hidden', 'upvoted', 'downvoted'].includes(activeTab) && isOwnProfile && (
+            <div className="profile-empty-state card">
+              <p style={{ color: 'var(--text-muted)' }}>This section is currently empty or under construction.</p>
+            </div>
           )}
 
           {activeTab === 'settings' && isOwnProfile && (
@@ -862,7 +826,7 @@ function AboutTab({ bio, userComments, onAddBioClick }: { bio: string; userComme
           <p className="profile-about-body" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
             No bio added yet.{' '}
             <button
-              style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', cursor: 'pointer', fontStyle: 'normal', padding: 0 }}
+              style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontStyle: 'normal', padding: 0 }}
               onClick={onAddBioClick}
             >
               Add bio in Settings.
@@ -903,7 +867,7 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
   }
 
   return (
-    <div ref={listRef} className="profile-post-list" style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+    <div ref={listRef} className="profile-post-list" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: '1rem' }}>
       {posts.map((post) => (
         <div
           key={post.id}

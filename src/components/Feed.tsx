@@ -328,7 +328,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   };
 
   // Render list of posts
-  const posts = data?.pages.flatMap((page) => page.posts) || [];
+  const rawPosts = data?.pages.flatMap((page) => page.posts) || [];
+  const posts = rawPosts.filter((post, index, self) => index === self.findIndex((p) => p.id === post.id));
 
   useEffect(() => {
     if (!session && posts.length > 0 && shuffledPosts.length === 0) {

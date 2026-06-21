@@ -274,11 +274,11 @@ function SidebarLeftInner() {
               </div>
             </div>
             <div className="sidebar-solution-status">
-              <CheckCircle size={14} />
+              <CheckCircle size={18} strokeWidth={1.5} />
               <span>{pulseStats.problemsSolved} problems solved by developers</span>
             </div>
             <div className="sidebar-solution-status sidebar-solution-status--open">
-              <Clock size={14} />
+              <Clock size={18} strokeWidth={1.5} />
               <span>{pulseStats.unsolvedProblems} waiting for solutions</span>
             </div>
           </>
@@ -299,11 +299,11 @@ function SidebarLeftInner() {
               </div>
             </div>
             <div className="sidebar-solution-status">
-              <TrendingUp size={14} />
+              <TrendingUp size={18} strokeWidth={1.5} />
               <span>{pulseStats.totalProblems} problems posted by the community</span>
             </div>
             <div className="sidebar-solution-status sidebar-solution-status--open">
-              <Lightbulb size={14} />
+              <Lightbulb size={18} strokeWidth={1.5} />
               <span>{pulseStats.totalIdeas} ideas shared for builders</span>
             </div>
           </>

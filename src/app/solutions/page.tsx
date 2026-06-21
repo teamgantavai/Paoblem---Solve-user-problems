@@ -39,6 +39,7 @@ export default function SolutionsPage() {
   const [nextCursor, setNextCursor] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
+  const [votingSolutionIds, setVotingSolutionIds] = useState<Record<string, boolean>>({});
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const viewedSolutionsRef = useRef<Set<string>>(new Set());
 
@@ -113,6 +114,74 @@ export default function SolutionsPage() {
       });
     } catch (err) {
       console.warn('[solutions] Failed to track solution event', err);
+    }
+  };
+
+  const handleVote = async (e: React.MouseEvent, solutionId: string, type: 'up' | 'down') => {
+    e.stopPropagation();
+    if (!session?.access_token) return alert('Please sign in to vote');
+    if (votingSolutionIds[solutionId]) return;
+
+    setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: true }));
+
+    // Optimistic update (simplified)
+    setSolutions((current) =>
+      current.map((sol) => {
+        if (sol.id === solutionId) {
+          return {
+            ...sol,
+            upvotes: type === 'up' ? (sol.upvotes || 0) + 1 : sol.upvotes,
+            downvotes: type === 'down' ? (sol.downvotes || 0) + 1 : sol.downvotes,
+          };
+        }
+        return sol;
+      })
+    );
+
+    try {
+      const res = await fetch('/api/solutions/vote', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ solution_id: solutionId, vote_type: type }),
+      });
+      if (!res.ok) throw new Error('Failed to vote');
+      
+      const data = await res.json();
+      // Revert optimistic if it was actually a removal
+      if (data.action === 'removed') {
+        setSolutions((current) =>
+          current.map((sol) => {
+            if (sol.id === solutionId) {
+              return {
+                ...sol,
+                upvotes: type === 'up' ? Math.max(0, (sol.upvotes || 0) - 1) : sol.upvotes,
+                downvotes: type === 'down' ? Math.max(0, (sol.downvotes || 0) - 1) : sol.downvotes,
+              };
+            }
+            return sol;
+          })
+        );
+      }
+    } catch (err) {
+      console.error(err);
+      // Revert entirely on error
+      setSolutions((current) =>
+        current.map((sol) => {
+          if (sol.id === solutionId) {
+            return {
+              ...sol,
+              upvotes: type === 'up' ? Math.max(0, (sol.upvotes || 0) - 1) : sol.upvotes,
+              downvotes: type === 'down' ? Math.max(0, (sol.downvotes || 0) - 1) : sol.downvotes,
+            };
+          }
+          return sol;
+        })
+      );
+    } finally {
+      setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: false }));
     }
   };
 
@@ -274,10 +343,15 @@ export default function SolutionsPage() {
                         {solution.link_name || solution.external_link}
                       </a>
                     )}
-                    <div className="solution-card-footer">
-                      <span className="vote-container"><TriangleIcon size={15} /> <span className="vote-label up">+{solution.upvotes}</span></span>
-                      <span className="vote-container"><TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} /> <span className="vote-label down">-{solution.downvotes}</span></span>
-                      <span className="solution-comments-pill"><MessageCircle size={14} /> {solution.comments_count}</span>
+                    <div 
+                      className="solution-card-footer" 
+                      onClick={() => router.push(`/post/${solution.problem?.slug || solution.problem_id}#solutions`)}
+                      style={{ cursor: 'pointer' }}
+                      title="View post to vote and comment"
+                    >
+                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'up')}><TriangleIcon size={15} /> <span className="vote-label up">+{solution.upvotes || 0}</span></button>
+                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'down')}><TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} /> <span className="vote-label down">-{solution.downvotes || 0}</span></button>
+                      <button type="button" className="solution-comments-pill"><MessageCircle size={14} /> {solution.comments_count}</button>
                     </div>
                   </article>
                 ))

@@ -106,27 +106,30 @@
 .profile-identity-section {
   padding: 0 1.5rem 1.5rem;
   display: flex;
-  gap: 1.25rem;
+  flex-direction: column;
+  align-items: flex-start;
   position: relative;
 }
 
 .profile-avatar-col {
   flex-shrink: 0;
-  margin-top: -36px;
+  margin-top: -64px;
+  margin-bottom: 0.75rem;
+  z-index: 10;
 }
 
 .profile-full-avatar-wrap {
   position: relative;
-  width: 84px;
-  height: 84px;
+  width: 120px;
+  height: 120px;
 }
 
 .profile-full-avatar {
-  width: 84px;
-  height: 84px;
-  border-radius: 50%;
+  width: 120px;
+  height: 120px;
+  border-radius: 12px;
   object-fit: cover;
-  border: 3px solid var(--bg-card);
+  border: 4px solid var(--bg-card);
   background-color: #27272a;
   display: block;
 }
@@ -154,9 +157,9 @@
 
 /* ── Identity Info ── */
 .profile-info-col {
-  flex: 1;
-  padding-top: 1rem;
-  min-width: 0;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
 }
 
 .profile-name-line {
@@ -164,7 +167,7 @@
   align-items: center;
   gap: 0.6rem;
   flex-wrap: wrap;
-  margin-bottom: 0.35rem;
+  margin-bottom: 0.2rem;
 }
 
 .profile-full-name {
@@ -246,14 +249,15 @@
   font-weight: 600;
 }
 
-/* ── Location ── */
+/* ── Location & Stats line ── */
 .profile-location-row {
   display: flex;
   align-items: center;
   gap: 0.35rem;
-  font-size: 0.8rem;
+  font-size: 0.85rem;
   color: var(--text-muted);
-  margin-bottom: 0.5rem;
+  margin-top: 0.2rem;
+  margin-bottom: 0.75rem;
 }
 
 /* ── Bio ── */
@@ -314,92 +318,18 @@
 }
 
 .profile-action-btn.primary {
-  background: var(--accent-blue);
-  border-color: var(--accent-blue);
-  color: white;
+  background: white;
+  border-color: white;
+  color: black;
 }
 
 .profile-action-btn.primary:hover {
   opacity: 0.88;
 }
 
-/* ── Stats Bar ── */
-.profile-stats-row {
-  display: flex;
-  gap: 1.5rem;
-  flex-wrap: wrap;
-  margin-top: 1rem;
-  padding-top: 1rem;
-  border-top: 1px solid var(--border-color);
-}
+/* Removed .profile-stats-row as it moved to sidebar */
 
-.profile-stat-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  gap: 0.1rem;
-}
 
-.profile-stat-value {
-  font-size: 1.15rem;
-  font-weight: 800;
-  color: var(--text-main);
-  letter-spacing: -0.02em;
-}
-
-.profile-stat-label {
-  font-size: 0.68rem;
-  color: var(--text-muted);
-  font-weight: 500;
-}
-
-/* ── Tabs ── */
-.profile-tabs {
-  display: flex;
-  border-bottom: 1px solid var(--border-color);
-  margin-bottom: 0;
-}
-
-.profile-tab-btn {
-  flex: 1;
-  padding: 0.85rem 1rem;
-  font-size: 0.82rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  transition: color 0.2s, background 0.2s;
-  position: relative;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-}
-
-.profile-tab-btn:hover {
-  color: var(--text-main);
-  background: var(--bg-hover);
-}
-
-.profile-tab-btn.active {
-  color: var(--text-main);
-}
-
-.profile-tab-btn.active::after {
-  content: '';
-  position: absolute;
-  bottom: 0;
-  left: 50%;
-  transform: translateX(-50%);
-  width: 60%;
-  height: 2px;
-  background: white;
-  border-radius: 2px 2px 0 0;
-}
-
-/* ── Tab Content ── */
-.profile-tab-content {
-  padding: 1.25rem;
-}
 
 /* ── About section in Profile tab ── */
 .profile-about-section {
@@ -486,8 +416,8 @@
 .profile-save-btn {
   width: 100%;
   padding: 0.75rem;
-  background: var(--accent-blue);
-  color: white;
+  background: white;
+  color: black;
   border: none;
   border-radius: 12px;
   font-size: 0.9rem;
@@ -600,56 +530,195 @@
   }
 }
 
-/* ── Content Container Layout ── */
+/* ── Content Container Layout (Two Column) ── */
 .profile-content-container {
   display: flex;
   gap: 1.5rem;
-  margin-top: 1rem;
-}
-
-.profile-sidebar-nav {
-  width: 240px;
-  flex-shrink: 0;
-  display: flex;
-  flex-direction: column;
-  gap: 0.35rem;
-  align-self: flex-start;
-  background-color: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: 18px;
-  padding: 0.75rem;
-}
-
-.profile-nav-link {
-  display: flex;
-  align-items: center;
-  gap: 0.75rem;
-  padding: 0.75rem 1rem;
-  border-radius: 12px;
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--text-muted);
-  background: transparent;
-  border: none;
-  cursor: pointer;
-  text-align: left;
-  transition: background 0.2s, color 0.2s;
-  width: 100%;
-}
-
-.profile-nav-link:hover {
-  background: var(--bg-hover);
-  color: var(--text-main);
-}
-
-.profile-nav-link.active {
-  background: rgba(99, 102, 241, 0.12);
-  color: #a5b4fc;
+  margin-top: 1.25rem;
+  align-items: flex-start;
 }
 
 .profile-tab-main-content {
   flex: 1;
   min-width: 0;
+}
+
+/* ── Right Sidebar (Reddit/LinkedIn style) ── */
+.profile-right-sidebar {
+  width: 320px;
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.profile-sidebar-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+}
+
+.profile-sidebar-title {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: var(--text-main);
+  margin: 0 0 0.25rem 0;
+  letter-spacing: -0.02em;
+}
+
+.profile-sidebar-subtitle {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin: 0 0 1.25rem 0;
+}
+
+.profile-sidebar-stats-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 0.75rem;
+  margin-bottom: 1.25rem;
+}
+
+.sidebar-stat-box {
+  display: flex;
+  flex-direction: column;
+}
+
+.sidebar-stat-box strong {
+  font-size: 1.15rem;
+  color: var(--text-main);
+  font-weight: 800;
+}
+
+.sidebar-stat-box span {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.profile-sidebar-details {
+  border-top: 1px solid var(--border-color);
+  padding-top: 1rem;
+  margin-bottom: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.sidebar-detail-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.82rem;
+}
+
+.sidebar-detail-label {
+  color: var(--text-muted);
+  font-weight: 600;
+}
+
+.sidebar-detail-value {
+  color: var(--text-main);
+  font-weight: 700;
+}
+
+.sidebar-actions-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-sidebar-header {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: 0.85rem;
+  font-weight: 700;
+}
+
+.sidebar-settings-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+}
+
+.sidebar-setting-btn {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+  padding: 0.65rem 0.75rem;
+  background: transparent;
+  border: none;
+  border-radius: 10px;
+  color: var(--text-main);
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s;
+  text-align: left;
+}
+
+.sidebar-setting-btn:hover {
+  background: var(--bg-hover);
+}
+
+.sidebar-setting-btn.danger {
+  color: #ef4444;
+}
+
+.sidebar-setting-btn.danger:hover {
+  background: rgba(239, 68, 68, 0.1);
+}
+
+/* ── Reddit Style Horizontal Nav ── */
+.profile-horizontal-nav {
+  display: flex;
+  gap: 0.25rem;
+  border-bottom: 1px solid var(--border-color);
+  margin-bottom: 0.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.profile-horizontal-nav::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-tab-btn {
+  padding: 0.85rem 0.5rem;
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  cursor: pointer;
+  transition: color 0.2s, background 0.2s;
+  position: relative;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+}
+
+.profile-tab-btn:hover {
+  color: var(--text-main);
+  background: var(--bg-hover);
+}
+
+.profile-tab-btn.active {
+  color: var(--text-main);
+}
+
+.profile-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0.5rem;
+  width: calc(100% - 1rem);
+  height: 3px;
+  background: white;
+  border-radius: 3px 3px 0 0;
 }
 
 .profile-comment-item-card {
@@ -690,27 +759,18 @@
   margin-bottom: 0.85rem;
 }
 
-@media (max-width: 768px) {
+.full-width {
+  width: 100%;
+}
+
+@media (max-width: 900px) {
   .profile-content-container {
     flex-direction: column;
-    gap: 1rem;
   }
-
-  .profile-sidebar-nav {
+  
+  .profile-right-sidebar {
     width: 100%;
-    flex-direction: row;
-    overflow-x: auto;
-    padding: 0.5rem;
-    gap: 0.5rem;
-    border-radius: 14px;
-  }
-
-  .profile-nav-link {
-    padding: 0.5rem 0.85rem;
-    font-size: 0.8rem;
-    white-space: nowrap;
-    width: auto;
-    justify-content: center;
+    order: -1; /* Make sidebar info appear above feed on mobile */
   }
 }
 
