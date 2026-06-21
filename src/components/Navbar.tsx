@@ -33,6 +33,30 @@ import NotificationItem from './NotificationItem';
 import MessageItem from './MessageItem';
 import SearchOverlay from './SearchOverlay';
 
+const NAVBAR_CACHE_TTL_MS = 5 * 60 * 1000;
+const NAVBAR_NOTIFICATIONS_CACHE_KEY = 'navbar-notifications-cache';
+const NAVBAR_MESSAGES_CACHE_KEY = 'navbar-messages-cache';
+
+function readCachedNavbarData<T>(key: string): T | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const raw = window.localStorage.getItem(key);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as { data: T; cachedAt: number };
+    if (!parsed?.data || (Date.now() - parsed.cachedAt) > NAVBAR_CACHE_TTL_MS) return null;
+    return parsed.data;
+  } catch {
+    return null;
+  }
+}
+
+function writeCachedNavbarData<T>(key: string, data: T) {
+  if (typeof window === 'undefined') return;
+  try {
+    window.localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() }));
+  } catch {}
+}
+
 function NavbarInner() {
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -134,10 +158,16 @@ function NavbarInner() {
       });
       if (!res.ok) return [];
       const data = await res.json();
-      return data.notifications || [];
+      const nextNotifications = data.notifications || [];
+      writeCachedNavbarData(NAVBAR_NOTIFICATIONS_CACHE_KEY, nextNotifications);
+      return nextNotifications;
     },
     enabled: !!session?.access_token,
-    refetchInterval: 30000 // poll every 30s
+    initialData: () => readCachedNavbarData<AppNotification[]>(NAVBAR_NOTIFICATIONS_CACHE_KEY) || undefined,
+    staleTime: NAVBAR_CACHE_TTL_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: 120000
   });
 
   // Fetch messages counts
@@ -152,10 +182,16 @@ function NavbarInner() {
       });
       if (!res.ok) return [];
       const data = await res.json();
-      return data.messages || [];
+      const nextMessages = data.messages || [];
+      writeCachedNavbarData(NAVBAR_MESSAGES_CACHE_KEY, nextMessages);
+      return nextMessages;
     },
     enabled: !!session?.access_token,
-    refetchInterval: 30000 // poll every 30s
+    initialData: () => readCachedNavbarData<Message[]>(NAVBAR_MESSAGES_CACHE_KEY) || undefined,
+    staleTime: NAVBAR_CACHE_TTL_MS,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+    refetchInterval: 120000
   });
 
   const { data: pulseStats } = useQuery<{
@@ -314,12 +350,18 @@ function NavbarInner() {
             >
               <AlignLeft size={20} strokeWidth={2.5} />
             </button>
-            <img 
-              src={theme === 'light' ? '/logo-light.svg' : '/logo.svg'} 
-              alt="Paoblem Logo" 
-              className="nav-logo"
-              onClick={() => router.push('/')}
-            />
+            <div className="nav-logo-container" onClick={() => router.push('/')} style={{ display: 'inline-flex', cursor: 'pointer' }}>
+              <img 
+                src="/logo.svg" 
+                alt="Paoblem Logo" 
+                className="nav-logo logo-dark"
+              />
+              <img 
+                src="/logo-light.svg" 
+                alt="Paoblem Logo" 
+                className="nav-logo logo-light"
+              />
+            </div>
           </div>
 
           <div className="nav-links desktop-only" style={{ position: 'relative' }}>
@@ -415,35 +457,37 @@ function NavbarInner() {
             </button>
           </div>
 
-          <button 
-            className="search-btn mobile-only" 
-            style={{ marginRight: '6px', background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-            aria-label="Open Search"
-            onClick={() => setIsSearchOpen(true)}
-            type="button"
-          >
-            <Search size={18} strokeWidth={2} />
-          </button>
-
-          {session ? (
+          <div className="mobile-only" style={{ alignItems: 'center', gap: '0.5rem' }}>
             <button 
-              className="search-btn mobile-only nav-item-notif" 
-              style={{ position: 'relative' }} 
-              aria-label="Notifications"
-              onClick={() => router.push('/notifications')}
+              className="search-btn" 
+              style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              aria-label="Open Search"
+              onClick={() => setIsSearchOpen(true)}
+              type="button"
             >
-            <Bell size={18} strokeWidth={2} />
-              {unreadNotifCount > 0 && (
-                <span className="nav-badge">
-                  {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
-                </span>
-              )}
+              <Search size={18} strokeWidth={2} />
             </button>
-          ) : (
-            <button className="btn btn-primary mobile-only" style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => setIsAuthOpen(true)}>
-              Sign In
-            </button>
-          )}
+
+            {session ? (
+              <button 
+                className="search-btn nav-item-notif" 
+                style={{ position: 'relative' }} 
+                aria-label="Notifications"
+                onClick={() => router.push('/notifications')}
+              >
+                <Bell size={18} strokeWidth={2} />
+                {unreadNotifCount > 0 && (
+                  <span className="nav-badge">
+                    {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
+                  </span>
+                )}
+              </button>
+            ) : (
+              <button className="btn btn-primary" style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => setIsAuthOpen(true)}>
+                Sign In
+              </button>
+            )}
+          </div>
 
         </div>
       </nav>
@@ -561,22 +605,60 @@ function NavbarInner() {
           {/* Navigation Menu */}
           <div className="drawer-menu-section">
             <div 
-              className={`drawer-menu-item ${isHomeActive ? 'active' : ''}`} 
+              className={`drawer-menu-item ${isHomeActive && !searchParams.get('filter') ? 'active' : ''}`} 
               onClick={() => { setIsOpen(false); router.push('/'); }}
             >
               <TrendingUp size={20} />
-              <span>Trending Problems</span>
+              <span>Home Feed</span>
             </div>
-            <div className="drawer-menu-item" onClick={() => { setIsOpen(false); triggerNotice('Analytics'); }}>
+            
+            <div 
+              className={`drawer-menu-item ${pathname === '/analytics' ? 'active' : ''}`} 
+              onClick={() => { 
+                setIsOpen(false); 
+                if (!session) {
+                  setIsAuthOpen(true);
+                } else {
+                  router.push('/analytics'); 
+                }
+              }}
+            >
               <BarChart2 size={20} />
               <span>Analytics</span>
             </div>
+
             <div 
               className={`drawer-menu-item ${isSolutionsActive ? 'active' : ''}`} 
               onClick={() => { setIsOpen(false); router.push('/solutions'); }}
             >
-              <Bookmark size={20} />
+              <NotebookPen size={20} />
               <span>Solutions Feed</span>
+            </div>
+
+            <div 
+              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'saved' ? 'active' : ''}`} 
+              onClick={() => { 
+                setIsOpen(false); 
+                router.push('/?filter=saved'); 
+              }}
+            >
+              <Bookmark size={20} />
+              <span>Saved Posts</span>
+            </div>
+
+            <div 
+              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'mine' ? 'active' : ''}`} 
+              onClick={() => { 
+                setIsOpen(false); 
+                if (!session) {
+                  setIsAuthOpen(true);
+                } else {
+                  router.push('/?filter=mine'); 
+                }
+              }}
+            >
+              <Star size={20} />
+              <span>My Posts</span>
             </div>
  
             <div className="drawer-menu-divider" />

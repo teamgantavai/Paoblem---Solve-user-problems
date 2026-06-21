@@ -17,6 +17,22 @@
   cursor: pointer;
 }
 
+.logo-light {
+  display: none !important;
+}
+
+.logo-dark {
+  display: block !important;
+}
+
+.light-theme .logo-light {
+  display: block !important;
+}
+
+.light-theme .logo-dark {
+  display: none !important;
+}
+
 .navbar-container {
   display: flex;
   align-items: center;

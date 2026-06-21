@@ -11,6 +11,9 @@ export interface Post {
   metadata?: any;
   external_link: string | null;
   link_name: string | null;
+  poll_question?: string | null;
+  category?: string | null;
+  tags?: string[] | null;
   upvotes: number;
   downvotes: number;
   comments_count: number;

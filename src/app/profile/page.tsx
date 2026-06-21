@@ -292,7 +292,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       await queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
       await queryClient.invalidateQueries({ queryKey: ['messages'] });
       await queryClient.invalidateQueries({ queryKey: ['posts'] });
-      
+
       // Update session metadata explicitly on auth client
       await supabase.auth.updateUser({
         data: updatePayload
@@ -505,7 +505,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
     if (session?.user?.id) {
       try {
         await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-      } catch (err) {}
+      } catch (err) { }
     }
     await supabase.auth.signOut();
     router.push('/');
@@ -814,135 +814,135 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       </div>
 
       <div className="upf-content">
-          {activeTab === 'problems' && (
-            <div className="upf-list">
-              {problemsList.length === 0
-                ? <EmptyState icon={<BookOpen size={36} />} text={`${displayName} hasn't posted any problems yet.`} />
-                : problemsList.map((post) => (
-                  <article key={post.id} className="upf-post-card">
-                    <div className="upf-post-meta">
-                      <span className="upf-tag upf-tag--problem">Problem</span>
-                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                    </div>
-                    <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
-                    {post.body && (
-                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                    )}
-                    <div className="upf-post-footer">
-                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                    </div>
-                  </article>
-                ))
-              }
-            </div>
-          )}
+        {activeTab === 'problems' && (
+          <div className="upf-list">
+            {problemsList.length === 0
+              ? <EmptyState icon={<BookOpen size={36} />} text={`${displayName} hasn't posted any problems yet.`} />
+              : problemsList.map((post) => (
+                <article key={post.id} className="upf-post-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--problem">Problem</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                  </div>
+                  <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
+                  {post.body && (
+                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  <div className="upf-post-footer">
+                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        )}
 
-          {activeTab === 'ideas' && (
-            <div className="upf-list">
-              {ideasList.length === 0
-                ? <EmptyState icon={<Lightbulb size={36} />} text={`${displayName} hasn't shared any ideas yet.`} />
-                : ideasList.map((post) => (
-                  <article key={post.id} className="upf-post-card">
-                    <div className="upf-post-meta">
-                      <span className="upf-tag upf-tag--idea">Idea</span>
-                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                    </div>
-                    <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
-                    {post.body && (
-                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                    )}
-                    <div className="upf-post-footer">
-                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                    </div>
-                  </article>
-                ))
-              }
-            </div>
-          )}
+        {activeTab === 'ideas' && (
+          <div className="upf-list">
+            {ideasList.length === 0
+              ? <EmptyState icon={<Lightbulb size={36} />} text={`${displayName} hasn't shared any ideas yet.`} />
+              : ideasList.map((post) => (
+                <article key={post.id} className="upf-post-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--idea">Idea</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                  </div>
+                  <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
+                  {post.body && (
+                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  <div className="upf-post-footer">
+                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        )}
 
-          {activeTab === 'solutions' && (
-            <div className="upf-list">
-              {userSolutions.length === 0
-                ? <EmptyState icon={<Award size={36} />} text={`${displayName} hasn't proposed any solutions yet.`} />
-                : userSolutions.map((sol) => (
-                  <article key={sol.id} className="upf-post-card">
-                    <div className="upf-post-meta">
-                      <span className="upf-tag upf-tag--solution">Solution</span>
-                      <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
-                    </div>
-                    <span className="upf-post-title">{sol.title}</span>
-                    {sol.problem && (
-                      <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
-                        <BookOpen size={12} /> Re: {sol.problem.title}
-                      </Link>
-                    )}
-                    {sol.body && (
-                      <p className="upf-post-body">{sol.body.substring(0, 200)}{sol.body.length > 200 ? '…' : ''}</p>
-                    )}
-                    {sol.external_link && (
-                      <a href={sol.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link">
-                        <ExternalLink size={12} /> {sol.link_name || 'View Resource'}
-                      </a>
-                    )}
-                    <div className="upf-post-footer">
-                      <span className="upf-post-stat"><ArrowUp size={13} />{sol.upvotes}</span>
-                      <span className="upf-post-stat"><MessageSquare size={13} />{sol.comments_count || 0}</span>
-                    </div>
-                  </article>
-                ))
-              }
-            </div>
-          )}
+        {activeTab === 'solutions' && (
+          <div className="upf-list">
+            {userSolutions.length === 0
+              ? <EmptyState icon={<Award size={36} />} text={`${displayName} hasn't proposed any solutions yet.`} />
+              : userSolutions.map((sol) => (
+                <article key={sol.id} className="upf-post-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--solution">Solution</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
+                  </div>
+                  <span className="upf-post-title">{sol.title}</span>
+                  {sol.problem && (
+                    <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
+                      <BookOpen size={12} /> Re: {sol.problem.title}
+                    </Link>
+                  )}
+                  {sol.body && (
+                    <p className="upf-post-body">{sol.body.substring(0, 200)}{sol.body.length > 200 ? '…' : ''}</p>
+                  )}
+                  {sol.external_link && (
+                    <a href={sol.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link">
+                      <ExternalLink size={12} /> {sol.link_name || 'View Resource'}
+                    </a>
+                  )}
+                  <div className="upf-post-footer">
+                    <span className="upf-post-stat"><ArrowUp size={13} />{sol.upvotes}</span>
+                    <span className="upf-post-stat"><MessageSquare size={13} />{sol.comments_count || 0}</span>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        )}
 
-          {activeTab === 'comments' && (
-            <div className="upf-list">
-              {userComments.length === 0
-                ? <EmptyState icon={<MessageSquare size={36} />} text={`${displayName} hasn't commented yet.`} />
-                : userComments.map((c) => (
-                  <article key={c.id} className="upf-comment-card">
-                    <div className="upf-post-meta">
-                      <span className="upf-tag upf-tag--comment">Comment</span>
-                      <span className="upf-date"><Calendar size={12} />{formatDate(c.created_at)}</span>
-                    </div>
-                    {c.post_title && (
-                      <Link href={`/post/${c.post_id}`} className="upf-comment-context">
-                        <BookOpen size={12} /> On: {c.post_title || 'a post'}
-                      </Link>
-                    )}
-                    <p className="upf-comment-body">{c.body}</p>
-                  </article>
-                ))
-              }
-            </div>
-          )}
+        {activeTab === 'comments' && (
+          <div className="upf-list">
+            {userComments.length === 0
+              ? <EmptyState icon={<MessageSquare size={36} />} text={`${displayName} hasn't commented yet.`} />
+              : userComments.map((c) => (
+                <article key={c.id} className="upf-comment-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--comment">Comment</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(c.created_at)}</span>
+                  </div>
+                  {c.post_title && (
+                    <Link href={`/post/${c.post_id}`} className="upf-comment-context">
+                      <BookOpen size={12} /> On: {c.post_title || 'a post'}
+                    </Link>
+                  )}
+                  <p className="upf-comment-body">{c.body}</p>
+                </article>
+              ))
+            }
+          </div>
+        )}
 
-          {activeTab === 'followers' && (
-            <div className="upf-follow-grid">
-              {followersList.length === 0
-                ? <EmptyState icon={<Users size={36} />} text={`${displayName} has no followers yet.`} />
-                : followersList.map((u) => <UserCard key={u.id} user={u} />)
-              }
-            </div>
-          )}
+        {activeTab === 'followers' && (
+          <div className="upf-follow-grid">
+            {followersList.length === 0
+              ? <EmptyState icon={<Users size={36} />} text={`${displayName} has no followers yet.`} />
+              : followersList.map((u) => <UserCard key={u.id} user={u} />)
+            }
+          </div>
+        )}
 
-          {activeTab === 'following' && (
-            <div className="upf-follow-grid">
-              {followingList.length === 0
-                ? <EmptyState icon={<Heart size={36} />} text={`${displayName} isn't following anyone yet.`} />
-                : followingList.map((u) => <UserCard key={u.id} user={u} />)
-              }
-            </div>
-          )}
+        {activeTab === 'following' && (
+          <div className="upf-follow-grid">
+            {followingList.length === 0
+              ? <EmptyState icon={<Heart size={36} />} text={`${displayName} isn't following anyone yet.`} />
+              : followingList.map((u) => <UserCard key={u.id} user={u} />)
+            }
+          </div>
+        )}
 
-          {activeTab === 'settings' && isOwnProfile && (
-            <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} />
-          )}
+        {activeTab === 'settings' && isOwnProfile && (
+          <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} />
+        )}
 
-          {activeTab === 'signout' && isOwnProfile && (
-            <SignOutTab onLogout={handleLogout} />
-          )}
+        {activeTab === 'signout' && isOwnProfile && (
+          <SignOutTab onLogout={handleLogout} />
+        )}
       </div>
 
       <PhotoEditorModal
@@ -1249,7 +1249,7 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
         <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-main)' }}>Profile Settings</h3>
         <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
           <div className="profile-edit-field">
-            <label className="profile-edit-label">Username (SEO URL)</label>
+            <label className="profile-edit-label">Username</label>
             <input
               className="profile-edit-input"
               value={username}

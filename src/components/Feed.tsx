@@ -59,6 +59,24 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
   const dwellStartRef = useRef<Record<string, number>>({});
   const viewedPostIdsRef = useRef<Set<string>>(new Set());
+  const shareMenuRef = useRef<HTMLDivElement>(null);
+
+  const formatPostTime = (dateStr: string) => {
+    const diffMs = Date.now() - new Date(dateStr).getTime();
+    const sec = Math.max(0, Math.floor(diffMs / 1000));
+    if (sec < 60) return 'just now';
+    const min = Math.floor(sec / 60);
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
+    const day = Math.floor(hr / 24);
+    if (day < 7) return `${day}d ago`;
+    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+  };
+
+  const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
+  const getPostPollQuestion = (post: Post) => post.poll_question || post.metadata?.poll_question || null;
+  const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
 
   // Synchronize URL query parameter with component state
   useEffect(() => {
@@ -107,12 +125,14 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
   // Close sharing menu when clicking outside
   useEffect(() => {
-    const handleOutsideClick = () => {
+    const handleOutsideClick = (event: MouseEvent) => {
+      const target = event.target as Node | null;
+      if (shareMenuRef.current && target && shareMenuRef.current.contains(target)) return;
       setActiveShareMenuPostId(null);
       setShowSubSharePostId(null);
     };
-    window.addEventListener('click', handleOutsideClick);
-    return () => window.removeEventListener('click', handleOutsideClick);
+    window.addEventListener('mousedown', handleOutsideClick);
+    return () => window.removeEventListener('mousedown', handleOutsideClick);
   }, []);
 
   // 1. Listen to Auth State
@@ -525,6 +545,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                 data-post-id={post.id}
                 onMouseEnter={animateCardHover}
                 onMouseLeave={animateCardHoverOut}
+                style={{ position: 'relative', overflow: 'visible' }}
               >
                 <div className="post-header">
                   <div className="post-user">
@@ -560,21 +581,18 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                         </p>
                       )}
                       <p className="post-author-meta">
-                        {new Date(post.created_at).toLocaleDateString(undefined, {
-                          month: 'short',
-                          day: 'numeric',
-                          hour: '2-digit',
-                          minute: '2-digit',
-                        })}
+                        <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
+                          {formatPostTime(post.created_at)}
+                        </time>
                       </p>
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start' }}>
+                  <div ref={shareMenuRef} className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start', zIndex: 10 }}>
                     <button
                       onClick={() => handleToggleSave(post.id)}
                       style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                      className="theme-toggle-btn"
+                      className="post-header-action-btn"
                       title={savedIds.includes(post.id) ? "Unsave Problem" : "Save Problem"}
                     >
                       <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
@@ -583,12 +601,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     <button
                       onClick={(e) => {
                         e.stopPropagation();
+                        e.preventDefault();
                         const isClosing = activeShareMenuPostId === post.id;
                         setActiveShareMenuPostId(isClosing ? null : post.id);
                         setShowSubSharePostId(null);
                       }}
                       style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                      className="theme-toggle-btn"
+                      className="post-header-action-btn"
                       title="More Options"
                     >
                       <MoreVertical size={18} />
@@ -598,7 +617,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       <div
                         className="share-dropdown-menu"
                         onClick={(e) => e.stopPropagation()}
-                        style={{ position: 'absolute', top: '34px', right: 0 }}
+                        style={{ position: 'absolute', top: '34px', right: 0, zIndex: 250 }}
                       >
                         {showSubSharePostId !== post.id ? (
                           <>
@@ -650,7 +669,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                               onClick={() => {
                                 setActiveShareMenuPostId(null);
                                 setShowSubSharePostId(null);
-                                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank');
+                                const firstImg = post.image_url ? post.image_url.split(',')[0].trim() : '';
+                                const shareText = post.title + '\n' + window.location.origin + '/post/' + (post.slug || post.id) + (firstImg ? '\nImage: ' + firstImg : '');
+                                window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
                                 trackPostEvent(post.id, 'POST_SHARE', { destination: 'whatsapp' });
                               }}
                             >
@@ -672,7 +693,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                               onClick={() => {
                                 setActiveShareMenuPostId(null);
                                 setShowSubSharePostId(null);
-                                window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}&title=${encodeURIComponent(post.title)}`, '_blank');
+                                const firstImg = post.image_url ? post.image_url.split(',')[0].trim() : '';
+                                const redditTitle = post.title + (firstImg ? ' [Image]' : '');
+                                window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}&title=${encodeURIComponent(redditTitle)}`, '_blank');
                                 trackPostEvent(post.id, 'POST_SHARE', { destination: 'reddit' });
                               }}
                             >
@@ -691,6 +714,28 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                             >
                               <Copy size={13} /> Copy Link
                             </button>
+                            {post.image_url && (() => {
+                              let firstImg = '';
+                              try {
+                                const parsed = JSON.parse(post.image_url);
+                                firstImg = Array.isArray(parsed) ? parsed[0] : post.image_url;
+                              } catch {
+                                firstImg = post.image_url;
+                              }
+                              return firstImg ? (
+                                <button
+                                  className="share-menu-item"
+                                  onClick={() => {
+                                    setActiveShareMenuPostId(null);
+                                    setShowSubSharePostId(null);
+                                    navigator.clipboard.writeText(firstImg);
+                                    showToast('Image link copied!');
+                                  }}
+                                >
+                                  🖼️ Copy Image Link
+                                </button>
+                              ) : null;
+                            })()}
                           </>
                         )}
                       </div>
@@ -722,6 +767,63 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     {decodeHTMLEntities(post.title)}
                   </h3>
                   <ExpandableBody body={post.body} />
+
+                  {/* Category + Poll + Tags */}
+                  {(getPostCategory(post) || getPostPollQuestion(post) || getPostTags(post).length > 0) && (
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>
+                      {getPostCategory(post) && (
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '999px',
+                          background: 'rgba(99, 102, 241, 0.12)',
+                          color: '#6366f1',
+                          border: '1px solid rgba(99, 102, 241, 0.2)',
+                          maxWidth: '100%',
+                          whiteSpace: 'nowrap',
+                          overflow: 'hidden',
+                          textOverflow: 'ellipsis',
+                        }}>
+                          {getPostCategory(post)}
+                        </span>
+                      )}
+                      {getPostPollQuestion(post) && (
+                        <span style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 600,
+                          padding: '0.15rem 0.55rem',
+                          borderRadius: '999px',
+                          background: 'rgba(245, 158, 11, 0.12)',
+                          color: '#f59e0b',
+                          border: '1px solid rgba(245, 158, 11, 0.2)',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '0.25rem',
+                          minWidth: 0,
+                          maxWidth: '100%',
+                        }}>
+                          <span aria-hidden="true">📊</span>
+                          <span style={{ minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                            {getPostPollQuestion(post)}
+                          </span>
+                        </span>
+                      )}
+                      {getPostTags(post).map((tag: string) => (
+                        <span key={tag} style={{
+                          fontSize: '0.68rem',
+                          fontWeight: 500,
+                          padding: '0.15rem 0.5rem',
+                          borderRadius: '999px',
+                          background: 'var(--bg-hover)',
+                          color: 'var(--text-muted)',
+                          border: '1px solid var(--border-color)',
+                        }}>
+                          #{tag}
+                        </span>
+                      ))}
+                    </div>
+                  )}
                 </div>
 
                 {/* Multiple Image Gallery Grid / Lightbox display */}

@@ -29,6 +29,7 @@ function AnalyticsDashboardInner() {
   const [loading, setLoading] = useState(true);
   const [gridData, setGridData] = useState<AnalyticsGridResponse | null>(null);
   const [detailData, setDetailData] = useState<PostAnalyticsDetailResponse | null>(null);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -40,11 +41,14 @@ function AnalyticsDashboardInner() {
   const fetchGrid = useCallback(async () => {
     if (!session) return;
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch('/api/analytics/overview', {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      setGridData(await res.json());
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load analytics');
+      setGridData(data);
     } finally {
       setLoading(false);
     }
@@ -53,13 +57,17 @@ function AnalyticsDashboardInner() {
   const fetchDetail = useCallback(async (postId: string) => {
     if (!session) return;
     setLoading(true);
+    setErrorMessage(null);
     try {
       const res = await fetch(`/api/analytics/post?postId=${postId}`, {
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
-      if (res.ok) {
-        setDetailData(await res.json());
-      }
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load post analytics');
+      setDetailData(data);
+    } catch (err) {
+      setDetailData(null);
+      setErrorMessage(err instanceof Error ? err.message : 'Failed to load analytics');
     } finally {
       setLoading(false);
     }
@@ -68,10 +76,9 @@ function AnalyticsDashboardInner() {
   useEffect(() => {
     if (!session) return;
     if (selectedPostId) {
-      fetchDetail(selectedPostId);
+      void Promise.resolve().then(() => fetchDetail(selectedPostId));
     } else {
-      setDetailData(null);
-      fetchGrid();
+      void Promise.resolve().then(() => fetchGrid());
     }
   }, [session, selectedPostId, fetchGrid, fetchDetail]);
 
@@ -103,8 +110,32 @@ function AnalyticsDashboardInner() {
     );
   }
 
+  if (errorMessage) {
+    return (
+      <div className="analytics-empty">
+        <BarChart2 size={48} />
+        <h2>Analytics unavailable</h2>
+        <p>{errorMessage}</p>
+        <button className="analytics-btn primary" onClick={() => selectedPostId ? fetchDetail(selectedPostId) : fetchGrid()}>
+          Try again
+        </button>
+      </div>
+    );
+  }
+
   /* ── Post Detail View ── */
-  if (selectedPostId && detailData) {
+  if (selectedPostId) {
+    if (!detailData) {
+      return (
+        <div className="analytics-empty">
+          <BarChart2 size={48} />
+          <h2>Post analytics not found</h2>
+          <p>We couldn&apos;t load analytics for that post.</p>
+          <button className="analytics-btn primary" onClick={goBack}>Back to all posts</button>
+        </div>
+      );
+    }
+
     const { post, stats, voters, demographics } = detailData;
     const thumb = getPostThumb(post.image_url);
 

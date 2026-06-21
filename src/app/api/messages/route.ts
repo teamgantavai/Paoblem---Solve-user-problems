@@ -55,6 +55,10 @@ async function sendChatEmailNotifications({
   );
 }
 
+function makeDirectKey(userA: string, userB: string) {
+  return [userA, userB].sort().join(':');
+}
+
 export async function GET(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -74,13 +78,28 @@ export async function GET(req: NextRequest) {
       const { data: memberConversations, error: memberErr } = await supabaseAdmin
         .from('conversation_members')
         .select('conversation_id')
-        .eq('user_id', user.id);
+        .eq('user_id', user.id)
+        .is('deleted_at', null);
 
       if (memberErr) throw memberErr;
 
       const conversationIds = (memberConversations || []).map(mc => mc.conversation_id);
 
       if (conversationIds.length > 0) {
+        const { data: conversationRows } = await supabaseAdmin
+          .from('conversations')
+          .select('id, type, name, avatar_url, created_by, updated_at')
+          .in('id', conversationIds)
+          .is('deleted_at', null);
+
+        const conversationMap = new Map((conversationRows || []).map((conversation: any) => [conversation.id, conversation]));
+
+        const { data: hiddenRows } = await supabaseAdmin
+          .from('message_deletions')
+          .select('message_id')
+          .eq('user_id', user.id);
+        const hiddenMessageIds = new Set((hiddenRows || []).map((row: any) => row.message_id));
+
         // Fetch all messages in these conversations
         const { data: messagesData, error: msgErr } = await supabaseAdmin
           .from('messages')
@@ -88,7 +107,8 @@ export async function GET(req: NextRequest) {
             *,
             sender:sender_id(username, full_name, avatar_url),
             attachments(*),
-            read_receipts(*)
+            read_receipts(*),
+            reply_to:reply_to_message_id(id, content, type, sender_id, attachments(*))
           `)
           .in('conversation_id', conversationIds)
           .order('created_at', { ascending: false });
@@ -136,6 +156,7 @@ export async function GET(req: NextRequest) {
         // Format messages to preserve backward compatibility (mapping to partner_id, partner_name etc.)
         const formattedMessages = (messagesData || [])
           .filter((m: any) => {
+            if (hiddenMessageIds.has(m.id)) return false;
             const clearedAt = clearedAtMap[m.conversation_id];
             if (clearedAt && new Date(m.created_at).getTime() <= clearedAt) {
               return false; // hide messages sent before or equal to the clear marker
@@ -146,15 +167,20 @@ export async function GET(req: NextRequest) {
           const convMembers = membersMap[m.conversation_id] || [];
           const partners = convMembers.filter(member => member.id !== user.id);
           const partner = partners[0] || convMembers[0] || {};
-          const isGroup = convMembers.length > 2;
+          const conversation = conversationMap.get(m.conversation_id) as any;
+          const isGroup = conversation?.type === 'group' || convMembers.length > 2;
           
           let partnerName = isGroup ? partners.map(p => p.full_name?.split(' ')[0] || 'User').join(', ') : (partner.full_name || 'Member');
           let partnerAvatar = partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partner.id || m.sender_id}`;
 
           if (isGroup) {
-            if (convMetadata[m.conversation_id]?.name) partnerName = convMetadata[m.conversation_id].name!;
-            if (convMetadata[m.conversation_id]?.avatar) partnerAvatar = convMetadata[m.conversation_id].avatar!;
+            if (conversation?.name) partnerName = conversation.name;
+            else if (convMetadata[m.conversation_id]?.name) partnerName = convMetadata[m.conversation_id].name!;
+            if (conversation?.avatar_url) partnerAvatar = conversation.avatar_url;
+            else if (convMetadata[m.conversation_id]?.avatar) partnerAvatar = convMetadata[m.conversation_id].avatar!;
           }
+
+          const isDeleted = !!m.deleted_at;
           
           return {
             id: m.id,
@@ -169,10 +195,22 @@ export async function GET(req: NextRequest) {
             partner_last_seen: partner.last_seen || null,
             is_group: isGroup,
             members: convMembers,
-            body: m.content || '',
+            body: isDeleted ? 'This message was deleted' : (m.content || ''),
             read: m.read_receipts?.some((r: any) => r.user_id !== m.sender_id) || false,
             type: m.type || 'TEXT',
             attachments: m.attachments || [],
+            reply_to_message_id: m.reply_to_message_id,
+            reply_to: m.reply_to ? {
+              id: m.reply_to.id,
+              body: m.reply_to.content || '',
+              type: m.reply_to.type || 'TEXT',
+              sender_id: m.reply_to.sender_id,
+              attachments: m.reply_to.attachments || [],
+            } : null,
+            forwarded_from_message_id: m.forwarded_from_message_id,
+            forwarded_sender_id: m.forwarded_sender_id,
+            forwarded: !!m.forwarded_from_message_id,
+            deleted_at: m.deleted_at,
             created_at: m.created_at,
             edited_at: m.edited_at,
             sender_name: m.sender?.full_name || 'Member',
@@ -240,7 +278,20 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
-    const { recipientId, participantIds, body, type = 'TEXT', attachments = [], conversationId } = await req.json();
+    const {
+      recipientId,
+      participantIds,
+      body,
+      type = 'TEXT',
+      attachments = [],
+      conversationId,
+      groupName,
+      groupAvatar,
+      replyToMessageId,
+      forwardedFromMessageId,
+      forwardedSenderId,
+      clientMutationId,
+    } = await req.json();
     if (!recipientId && !conversationId && (!participantIds || participantIds.length === 0)) {
       return NextResponse.json({ error: 'recipientId, participantIds or conversationId is required' }, { status: 400 });
     }
@@ -250,26 +301,62 @@ export async function POST(req: NextRequest) {
       let activeConversationId = conversationId;
 
       if (!activeConversationId && participantIds && participantIds.length > 0) {
-        // Create new group chat conversation
-        const { data: newConv, error: createErr } = await supabaseAdmin
+        const uniqueParticipantIds = [...new Set(participantIds.filter((id: string) => id && id !== user.id))].sort();
+        const groupKey = [user.id, ...uniqueParticipantIds].sort().join(':');
+        const { data: existingGroup } = await supabaseAdmin
           .from('conversations')
-          .insert({ type: 'group' })
-          .select()
-          .single();
-        if (createErr) throw createErr;
-        activeConversationId = newConv.id;
+          .select('id')
+          .eq('type', 'group')
+          .eq('direct_key', `group:${groupKey}`)
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (existingGroup?.id) {
+          activeConversationId = existingGroup.id;
+        }
+
+        // Create new group chat conversation
+        if (!activeConversationId) {
+          const { data: newConv, error: createErr } = await supabaseAdmin
+            .from('conversations')
+            .insert({
+              type: 'group',
+              name: groupName || null,
+              avatar_url: groupAvatar || null,
+              created_by: user.id,
+              direct_key: `group:${groupKey}`,
+            })
+            .select()
+            .single();
+          if (createErr) throw createErr;
+          activeConversationId = newConv.id;
+        }
         
-        const membersToInsert = [user.id, ...participantIds].map(uid => ({
+        const membersToInsert = [user.id, ...uniqueParticipantIds].map(uid => ({
           conversation_id: activeConversationId,
-          user_id: uid
+          user_id: uid,
+          role: uid === user.id ? 'admin' : 'member',
         }));
-        await supabaseAdmin.from('conversation_members').insert(membersToInsert);
+        await supabaseAdmin.from('conversation_members').upsert(membersToInsert, { onConflict: 'conversation_id,user_id' });
       } else if (!activeConversationId && recipientId) {
+        const directKey = makeDirectKey(user.id, recipientId);
+        const { data: existingDirect } = await supabaseAdmin
+          .from('conversations')
+          .select('id')
+          .eq('type', 'direct')
+          .eq('direct_key', directKey)
+          .is('deleted_at', null)
+          .maybeSingle();
+
+        if (existingDirect?.id) {
+          activeConversationId = existingDirect.id;
+        }
+
         // Find if direct conversation already exists
-        const { data: existingMembers, error: findErr } = await supabaseAdmin
+        const { data: existingMembers, error: findErr } = !activeConversationId ? await supabaseAdmin
           .from('conversation_members')
           .select('conversation_id')
-          .in('user_id', [user.id, recipientId]);
+          .in('user_id', [user.id, recipientId]) : { data: null, error: null };
 
         if (!findErr && existingMembers) {
           // Count occurrences to find conversation with both users
@@ -287,7 +374,7 @@ export async function POST(req: NextRequest) {
         if (!activeConversationId) {
           const { data: newConv, error: createErr } = await supabaseAdmin
             .from('conversations')
-            .insert({ type: 'direct' })
+            .insert({ type: 'direct', direct_key: directKey, created_by: user.id })
             .select()
             .single();
 
@@ -297,10 +384,27 @@ export async function POST(req: NextRequest) {
           // Add members
           await supabaseAdmin
             .from('conversation_members')
-            .insert([
-              { conversation_id: activeConversationId, user_id: user.id },
-              { conversation_id: activeConversationId, user_id: recipientId }
-            ]);
+            .upsert([
+              { conversation_id: activeConversationId, user_id: user.id, role: 'admin' },
+              { conversation_id: activeConversationId, user_id: recipientId, role: 'member' }
+            ], { onConflict: 'conversation_id,user_id' });
+        }
+      }
+
+      if (!activeConversationId) {
+        return NextResponse.json({ error: 'Could not resolve conversation' }, { status: 400 });
+      }
+
+      if (clientMutationId) {
+        const { data: existingMessage } = await supabaseAdmin
+          .from('messages')
+          .select('id')
+          .eq('conversation_id', activeConversationId)
+          .eq('sender_id', user.id)
+          .contains('metadata', { clientMutationId })
+          .maybeSingle();
+        if (existingMessage?.id) {
+          return NextResponse.json({ duplicate: true, message: existingMessage }, { status: 200 });
         }
       }
 
@@ -311,7 +415,14 @@ export async function POST(req: NextRequest) {
           conversation_id: activeConversationId,
           sender_id: user.id,
           type: type,
-          content: body || ''
+          content: body || '',
+          reply_to_message_id: replyToMessageId || null,
+          forwarded_from_message_id: forwardedFromMessageId || null,
+          forwarded_sender_id: forwardedSenderId || null,
+          metadata: {
+            ...(clientMutationId ? { clientMutationId } : {}),
+            ...(forwardedFromMessageId ? { forwarded: true } : {}),
+          },
         })
         .select(`
           *,
@@ -380,6 +491,10 @@ export async function POST(req: NextRequest) {
         read: false,
         type: newMsg.type || 'TEXT',
         attachments: attachments,
+        reply_to_message_id: replyToMessageId || null,
+        forwarded_from_message_id: forwardedFromMessageId || null,
+        forwarded_sender_id: forwardedSenderId || null,
+        forwarded: !!forwardedFromMessageId,
         created_at: newMsg.created_at,
         edited_at: newMsg.edited_at,
         sender_name: newMsg.sender?.full_name || 'Member',
@@ -596,6 +711,77 @@ export async function PUT(req: NextRequest) {
     return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('[PUT /api/messages]', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+export async function DELETE(req: NextRequest) {
+  try {
+    const authHeader = req.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const token = authHeader.replace('Bearer ', '');
+    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
+    }
+
+    const { messageId, mode = 'me' } = await req.json();
+    if (!messageId) {
+      return NextResponse.json({ error: 'messageId is required' }, { status: 400 });
+    }
+
+    const { data: message, error: messageError } = await supabaseAdmin
+      .from('messages')
+      .select('id, sender_id, conversation_id, created_at')
+      .eq('id', messageId)
+      .maybeSingle();
+
+    if (messageError || !message) {
+      return NextResponse.json({ error: 'Message not found' }, { status: 404 });
+    }
+
+    const { data: membership } = await supabaseAdmin
+      .from('conversation_members')
+      .select('user_id, role')
+      .eq('conversation_id', message.conversation_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    if (mode === 'everyone') {
+      const isSender = message.sender_id === user.id;
+      const isAdmin = membership.role === 'admin';
+      if (!isSender && !isAdmin) {
+        return NextResponse.json({ error: 'Only the sender or an admin can delete for everyone' }, { status: 403 });
+      }
+
+      const { error } = await supabaseAdmin
+        .from('messages')
+        .update({
+          content: '',
+          deleted_at: new Date().toISOString(),
+          deleted_by: user.id,
+        })
+        .eq('id', messageId);
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, mode: 'everyone' });
+    }
+
+    const { error } = await supabaseAdmin
+      .from('message_deletions')
+      .upsert({ message_id: messageId, user_id: user.id }, { onConflict: 'message_id,user_id' });
+
+    if (error) throw error;
+    return NextResponse.json({ success: true, mode: 'me' });
+  } catch (err: any) {
+    console.error('[DELETE /api/messages]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

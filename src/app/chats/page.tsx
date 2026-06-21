@@ -6,7 +6,7 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   Loader2, MessageCircle, Send, ArrowLeft, User, Users, Search, Pin,
   FileText, Image as ImageIcon, Link as LinkIcon, Trash2, Edit,
-  Reply, Forward, Sparkles, Smile, Mic, Download, Copy, Bookmark, Share2, Archive,
+  Reply, Sparkles, Smile, Mic, Download, Copy, Bookmark, Share2, Archive,
   Check, CheckCheck, Info, X, Sparkle, AlertCircle, RefreshCw, MoreVertical,
   VolumeX, Ban, AlertTriangle, EyeOff, Trash, Clock, Settings, Key, Phone, Plus, Paperclip
 } from 'lucide-react';
@@ -39,6 +39,18 @@ interface DBMessage {
   type: string;
   attachments?: any[];
   reactions?: Record<string, string[]>;
+  reply_to_message_id?: string | null;
+  reply_to?: {
+    id: string;
+    body: string;
+    type: string;
+    sender_id: string;
+    attachments?: any[];
+  } | null;
+  forwarded_from_message_id?: string | null;
+  forwarded_sender_id?: string | null;
+  forwarded?: boolean;
+  deleted_at?: string | null;
   created_at: string;
   edited_at?: string | null;
   status?: 'sending' | 'sent' | 'read' | 'error';
@@ -56,43 +68,49 @@ const getRelativeTime = (isoDate: string | null) => {
   return `Last seen ${days}d ago`;
 };
 
-const UserSearchSuggestions = ({ query, onSelect, excludeUsernames = [], currentUserId }: { query: string, onSelect: (uname: string) => void, excludeUsernames?: string[], currentUserId?: string }) => {
+const EMPTY_USERNAMES: string[] = [];
+
+const UserSearchSuggestions = ({ query, onSelect, excludeUsernames = EMPTY_USERNAMES, currentUserId }: { query: string, onSelect: (uname: string, user?: any) => void, excludeUsernames?: string[], currentUserId?: string }) => {
   const [suggestions, setSuggestions] = useState<any[]>([]);
+  const normalizedQuery = query.trim();
+  const excludedUsernameKey = excludeUsernames.map((uname) => uname.toLowerCase()).sort().join('|');
+
   useEffect(() => {
-    if (!query.trim()) {
-      setSuggestions([]);
+    if (!normalizedQuery) {
+      setSuggestions((prev) => prev.length ? [] : prev);
       return;
     }
     const timer = setTimeout(async () => {
+      const excludedUsernames = new Set(excludedUsernameKey ? excludedUsernameKey.split('|') : []);
       const { data } = await supabase.from('profiles')
         .select('username, full_name, avatar_url, id, online')
-        .ilike('username', `%${query}%`)
+        .ilike('username', `%${normalizedQuery}%`)
         .limit(5);
       if (data) {
         setSuggestions(data.filter(u => 
-          !excludeUsernames.includes(u.username.toLowerCase()) && 
+          !excludedUsernames.has(u.username.toLowerCase()) && 
           u.id !== currentUserId
         ));
       }
     }, 300);
     return () => clearTimeout(timer);
-  }, [query, excludeUsernames, currentUserId]);
+  }, [normalizedQuery, excludedUsernameKey, currentUserId]);
 
-  if (!query.trim() || suggestions.length === 0) return null;
+  if (!normalizedQuery || suggestions.length === 0) return null;
 
   return (
-    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '12px', zIndex: 100, marginTop: '4px', overflow: 'hidden', boxShadow: '0 4px 15px rgba(0,0,0,0.5)' }}>
+    <div style={{ position: 'absolute', top: '100%', left: 0, right: 0, backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '12px', zIndex: 100, marginTop: '4px', overflow: 'hidden', boxShadow: '0 14px 32px var(--card-shadow)' }}>
       {suggestions.map(u => (
-        <div key={u.username} onClick={() => onSelect(u.username)} style={{ padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', borderBottom: '1px solid #2a2a2c', transition: 'background-color 0.2s' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = '#2a2a2c'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
+        <button type="button" key={u.username} onClick={() => onSelect(u.username, u)} style={{ width: '100%', padding: '0.75rem 1rem', display: 'flex', alignItems: 'center', gap: '0.75rem', cursor: 'pointer', border: 'none', borderBottom: '1px solid var(--border-color)', transition: 'background-color 0.2s', background: 'transparent', textAlign: 'left' }} onMouseEnter={e => e.currentTarget.style.backgroundColor = 'var(--bg-hover)'} onMouseLeave={e => e.currentTarget.style.backgroundColor = 'transparent'}>
           <span style={{ position: 'relative', display: 'inline-flex' }}>
             <Avatar src={u.avatar_url} name={u.full_name || u.username} size={32} />
             <span style={{ position: 'absolute', right: -1, bottom: -1, width: 9, height: 9, borderRadius: '50%', background: u.online ? '#10b981' : '#6b7280', border: '2px solid var(--bg-card)' }} />
           </span>
           <div style={{ display: 'flex', flexDirection: 'column' }}>
-            <span style={{ fontSize: '0.9rem', color: '#fff', fontWeight: 500 }}>{u.full_name || u.username}</span>
-            <span style={{ fontSize: '0.75rem', color: '#a1a1aa' }}>@{u.username}</span>
+            <span style={{ fontSize: '0.9rem', color: 'var(--text-main)', fontWeight: 600 }}>{u.full_name || u.username}</span>
+            <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>@{u.username}</span>
           </div>
-        </div>
+        </button>
       ))}
     </div>
   );
@@ -231,7 +249,6 @@ function ChatsPageContent() {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const [newGroupName, setNewGroupName] = useState('');
   const [isDeletingChat, setIsDeletingChat] = useState(false);
-  const groupAvatarInputRef = useRef<HTMLInputElement>(null);
 
   // Attachment states
   const [attachments, setAttachments] = useState<any[]>([]);
@@ -249,15 +266,37 @@ function ChatsPageContent() {
   // Messages lists (local state for optimistic UI updates)
   const [localMessages, setLocalMessages] = useState<DBMessage[]>([]);
   const [failedMessages, setFailedMessages] = useState<any[]>([]);
+  const [forwardingMessage, setForwardingMessage] = useState<DBMessage | null>(null);
+  const [forwardTargetIds, setForwardTargetIds] = useState<string[]>([]);
+  const [isForwarding, setIsForwarding] = useState(false);
+  const [smartReplies, setSmartReplies] = useState<string[]>([]);
+  const [nextPrediction, setNextPrediction] = useState('');
+  const [aiAssistantLoading, setAiAssistantLoading] = useState(false);
+  const [rewriteOptions, setRewriteOptions] = useState<Record<string, string> | null>(null);
 
   // Typing indicators
   const [isTyping, setIsTyping] = useState(false);
   const [partnerTyping, setPartnerTyping] = useState(false);
   const typingTimeoutRef = useRef<any>(null);
+  const activeTypingChannelRef = useRef<any>(null);
+  const activeConversationIdRef = useRef<string | null>(null);
 
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const targetUserId = searchParams.get('userId');
+
+  const mergeMessages = (current: DBMessage[], incoming: DBMessage[]) => {
+    const byKey = new Map<string, DBMessage>();
+    [...current, ...incoming].forEach((message) => {
+      const key = message.id || message.tempId;
+      if (!key) return;
+      const existing = byKey.get(key);
+      byKey.set(key, { ...(existing || {}), ...message });
+    });
+    return Array.from(byKey.values()).sort(
+      (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
+    );
+  };
 
   const [activeChatOnline, setActiveChatOnline] = useState<boolean>(false);
   const [activeChatLastSeen, setActiveChatLastSeen] = useState<string | null>(null);
@@ -336,9 +375,7 @@ function ChatsPageContent() {
 
   // Keep local messages updated with fetched messages
   useEffect(() => {
-    if (messages.length > 0) {
-      setLocalMessages(messages);
-    }
+    setLocalMessages(prev => mergeMessages(prev, messages));
   }, [messages]);
 
   // Fetch target user's details if we came from their profile
@@ -366,6 +403,32 @@ function ChatsPageContent() {
     const msg = localMessages.find(m => m.conversation_id === activeChatId || m.partner_id === activeChatId);
     return msg?.conversation_id || activeChatId;
   }, [activeChatId, localMessages]);
+
+  useEffect(() => {
+    activeConversationIdRef.current = activeConversationId;
+  }, [activeConversationId]);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const channel = supabase
+      .channel(`chat-global:${session.user.id}`)
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversations' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_members' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
+      })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'read_receipts' }, () => {
+        queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
+      })
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [session?.user?.id, session?.access_token, queryClient]);
 
   // Real-time separate channel subscriptions (chat, presence, typing)
   useEffect(() => {
@@ -493,10 +556,11 @@ function ChatsPageContent() {
     // 3. Typing Channel: typing:{conversationId}
     const typingChannel = supabase.channel(`typing:${currentConvId}`);
     let localTypingTimeout: any = null;
+    activeTypingChannelRef.current = typingChannel;
 
     typingChannel
       .on('broadcast', { event: 'typing:start' }, (payload: any) => {
-        if (payload.payload?.userId === activeChatId) {
+        if (payload.payload?.userId !== session.user.id) {
           setPartnerTyping(true);
           
           // Auto-clear safety timeout
@@ -507,7 +571,7 @@ function ChatsPageContent() {
         }
       })
       .on('broadcast', { event: 'typing:stop' }, (payload: any) => {
-        if (payload.payload?.userId === activeChatId) {
+        if (payload.payload?.userId !== session.user.id) {
           setPartnerTyping(false);
           if (localTypingTimeout) clearTimeout(localTypingTimeout);
         }
@@ -518,6 +582,7 @@ function ChatsPageContent() {
       supabase.removeChannel(chatChannel);
       supabase.removeChannel(presenceChannel);
       supabase.removeChannel(typingChannel);
+      if (activeTypingChannelRef.current === typingChannel) activeTypingChannelRef.current = null;
       if (localTypingTimeout) clearTimeout(localTypingTimeout);
     };
   }, [activeChatId, session?.user?.id, activeConversationId]);
@@ -596,11 +661,9 @@ function ChatsPageContent() {
   const handleTyping = () => {
     if (!session || !activeChatId) return;
 
-    const currentConvId = activeConversationId || activeChatId;
-
     if (!isTyping) {
       setIsTyping(true);
-      supabase.channel(`typing:${currentConvId}`).send({
+      activeTypingChannelRef.current?.send({
         type: 'broadcast',
         event: 'typing:start',
         payload: { userId: session.user.id }
@@ -611,7 +674,7 @@ function ChatsPageContent() {
 
     typingTimeoutRef.current = setTimeout(() => {
       setIsTyping(false);
-      supabase.channel(`typing:${currentConvId}`).send({
+      activeTypingChannelRef.current?.send({
         type: 'broadcast',
         event: 'typing:stop',
         payload: { userId: session.user.id }
@@ -628,10 +691,57 @@ function ChatsPageContent() {
     }
   }, [newMessage]);
 
+  useEffect(() => {
+    const context = activeChatId
+      ? localMessages
+          .filter(m => (m.conversation_id || m.partner_id) === activeChatId)
+          .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())
+          .slice(-12)
+      : [];
+    if (!activeChatId || !session?.access_token || context.length === 0) {
+      setSmartReplies([]);
+      setNextPrediction('');
+      return;
+    }
+    const timer = setTimeout(async () => {
+      setAiAssistantLoading(true);
+      try {
+        const [suggestionsRes, predictionRes] = await Promise.all([
+          fetch('/api/ai/chat-assistant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ mode: 'suggestions', conversationId: activeConversationId, messages: context })
+          }),
+          fetch('/api/ai/chat-assistant', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+            body: JSON.stringify({ mode: 'prediction', conversationId: activeConversationId, messages: context })
+          })
+        ]);
+        if (suggestionsRes.ok) {
+          const data = await suggestionsRes.json();
+          setSmartReplies(Array.isArray(data.suggestions) ? data.suggestions.slice(0, 3) : []);
+        }
+        if (predictionRes.ok) {
+          const data = await predictionRes.json();
+          setNextPrediction(typeof data.prediction === 'string' ? data.prediction : '');
+        }
+      } catch {
+        setSmartReplies([]);
+        setNextPrediction('');
+      } finally {
+        setAiAssistantLoading(false);
+      }
+    }, 900);
+    return () => clearTimeout(timer);
+  }, [activeChatId, activeConversationId, session?.access_token, localMessages.slice(0, 6).map(m => `${m.id}:${m.body}`).join('|')]);
+
   // Send Message Mutation
   const sendMessageMutation = useMutation({
-    mutationFn: async ({ partnerId, body, type = 'TEXT', atts = [] }: { partnerId: string; body: string; type?: string; atts?: any[] }) => {
-      const isConversationId = localMessages.some(m => m.conversation_id === partnerId);
+    mutationFn: async ({ partnerId, body, type = 'TEXT', atts = [], replyToId, clientMutationId }: { partnerId: string; body: string; type?: string; atts?: any[]; replyToId?: string | null; clientMutationId: string }) => {
+      const existing = localMessages.find(m => m.conversation_id === partnerId || m.partner_id === partnerId);
+      const conversationId = existing?.conversation_id || (activeConversationIdRef.current === partnerId ? partnerId : undefined);
+      const isConversationId = !!conversationId && conversationId === partnerId;
       const res = await fetch('/api/messages', {
         method: 'POST',
         headers: {
@@ -639,23 +749,26 @@ function ChatsPageContent() {
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({ 
-          conversationId: isConversationId ? partnerId : undefined,
+          conversationId,
           recipientId: !isConversationId ? partnerId : undefined, 
           body, 
           type, 
-          attachments: atts 
+          attachments: atts,
+          replyToMessageId: replyToId,
+          clientMutationId,
         }),
       });
       if (!res.ok) throw new Error('Failed to send message');
       return res.json();
     },
     onMutate: async (newMsg) => {
-      const tempId = 'temp-' + Math.random().toString(36).substring(2, 9);
-      const isConversationId = localMessages.some(m => m.conversation_id === activeChatId);
+      const tempId = newMsg.clientMutationId;
+      const existing = localMessages.find(m => m.conversation_id === activeChatId || m.partner_id === activeChatId);
+      const conversationId = existing?.conversation_id || (activeConversationIdRef.current === activeChatId ? activeChatId : '');
       const optimisticMsg: DBMessage = {
         id: tempId,
         tempId: tempId,
-        conversation_id: isConversationId ? (activeChatId || '') : '',
+        conversation_id: conversationId || '',
         sender_id: session.user.id,
         recipient_id: newMsg.partnerId,
         partner_id: newMsg.partnerId,
@@ -665,6 +778,14 @@ function ChatsPageContent() {
         read: false,
         type: newMsg.type || 'TEXT',
         attachments: newMsg.atts || [],
+        reply_to_message_id: newMsg.replyToId || null,
+        reply_to: replyToMessage ? {
+          id: replyToMessage.id || '',
+          body: replyToMessage.body,
+          type: replyToMessage.type,
+          sender_id: replyToMessage.sender_id,
+          attachments: replyToMessage.attachments,
+        } : null,
         created_at: new Date().toISOString(),
         status: 'sending'
       };
@@ -696,6 +817,7 @@ function ChatsPageContent() {
     if (e) e.preventDefault();
     const msgToSend = newMessage;
     const attsToSend = attachments;
+    const replyToId = replyToMessage?.id || null;
     if (!msgToSend.trim() && attsToSend.length === 0) return;
     if (!activeChatId) return;
 
@@ -717,7 +839,9 @@ function ChatsPageContent() {
       partnerId: activeChatId, 
       body: msgToSend,
       type: msgType,
-      atts: attsToSend
+      atts: attsToSend,
+      replyToId,
+      clientMutationId: 'client-' + crypto.randomUUID()
     });
   };
 
@@ -734,7 +858,9 @@ function ChatsPageContent() {
       partnerId: failedMsg.partnerId,
       body: failedMsg.body,
       type: failedMsg.type,
-      atts: failedMsg.attachments
+      atts: failedMsg.attachments,
+      replyToId: failedMsg.replyToId || null,
+      clientMutationId: 'client-' + crypto.randomUUID()
     });
   };
 
@@ -763,14 +889,19 @@ function ChatsPageContent() {
     setAiSummaryOpen(true);
     try {
       const activeChatMessages = localMessages.filter(m => (m.conversation_id || m.partner_id) === activeChatId);
-      const res = await fetch('/api/ai/summarize', {
+      const res = await fetch('/api/ai/chat-assistant', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ messages: activeChatMessages.slice(0, 15) })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ mode: 'summary', conversationId: activeConversationId, messages: activeChatMessages.slice(-40) })
       });
       if (res.ok) {
         const data = await res.json();
-        setAiSummaryData(data);
+        setAiSummaryData({
+          summary: data.summary,
+          actionItems: data.actionItems || [],
+          keyPoints: data.keyPoints || [],
+          decisions: data.decisions || [],
+        } as any);
       }
     } catch (err: any) {
       console.error(err);
@@ -835,20 +966,16 @@ function ChatsPageContent() {
     e.preventDefault();
     if (!activeChatId || !session?.access_token || !newGroupName.trim()) return;
     try {
-      await fetch('/api/messages', {
-        method: 'POST',
+      const res = await fetch(`/api/conversations/${activeChatId}`, {
+        method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify({
-          conversationId: activeChatId,
-          type: 'GROUP_RENAME',
-          body: newGroupName.trim()
-        })
+        body: JSON.stringify({ name: newGroupName.trim() })
       });
-      // Trigger a re-fetch of messages in the background to update the name
-      queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
+      if (!res.ok) throw new Error('Failed to rename group');
+      queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
       setShowRenameModal(false);
       setShowChatMenu(false);
       setNewGroupName('');
@@ -857,56 +984,31 @@ function ChatsPageContent() {
     }
   };
 
-  const handleGroupAvatarUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files || !files[0] || !activeChatId || !session?.access_token) return;
-
-    const file = files[0];
-    const reader = new FileReader();
-    reader.onloadend = async () => {
-      try {
-        await fetch('/api/messages', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${session.access_token}`
-          },
-          body: JSON.stringify({
-            conversationId: activeChatId,
-            type: 'GROUP_AVATAR',
-            body: reader.result as string
-          })
-        });
-        queryClient.invalidateQueries({ queryKey: ['chats-messages'] });
-        setShowChatMenu(false);
-      } catch (err) {
-        console.error(err);
-      }
-    };
-    reader.readAsDataURL(file);
-  };
-
-
-  const handleStartNewChat = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newChatUsername.trim()) return;
+  const openDirectChatByUsername = async (username: string) => {
+    if (!username.trim()) return;
     setNewChatLoading(true);
     setNewChatError('');
 
     try {
-      const { data, error } = await supabase.from('profiles').select('*').eq('username', newChatUsername.trim().toLowerCase()).single();
+      const { data, error } = await supabase.from('profiles').select('*').eq('username', username.trim().toLowerCase()).single();
       if (error || !data) {
         setNewChatError('User not found. Please check the username.');
         return;
       }
       setIsNewChatModalOpen(false);
       setNewChatUsername('');
+      setNewChatMode('pick');
       openConversation(data.id);
     } catch (err: any) {
       setNewChatError('An error occurred. Please try again.');
     } finally {
       setNewChatLoading(false);
     }
+  };
+
+  const handleStartNewChat = async (e: React.FormEvent) => {
+    e.preventDefault();
+    await openDirectChatByUsername(newChatUsername);
   };
 
   const handleAddMember = async (e: React.FormEvent) => {
@@ -975,14 +1077,15 @@ function ChatsPageContent() {
     if (!newMessage.trim()) return;
     setEnhancingMessage(true);
     try {
-      const res = await fetch('/api/ai/enhance', {
+      const res = await fetch('/api/ai/chat-assistant', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: newMessage, tone })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ mode: 'rewrite', draft: newMessage, tone, conversationId: activeConversationId })
       });
       if (res.ok) {
         const data = await res.json();
-        setNewMessage(data.enhanced || newMessage);
+        setRewriteOptions(data);
+        setNewMessage(data[tone] || data.professional || newMessage);
       }
     } catch (err) {
       console.error(err);
@@ -1055,9 +1158,63 @@ function ChatsPageContent() {
     await navigator.clipboard?.writeText(text);
   };
 
-  const handleDeleteMessageLocal = (messageId: string) => {
-    setLocalMessages(prev => prev.filter(m => m.id !== messageId));
+  const openForwardModal = (msg: DBMessage) => {
+    setForwardingMessage(msg);
+    setForwardTargetIds([]);
     setActiveActionMessageId(null);
+  };
+
+  const submitForward = async () => {
+    if (!forwardingMessage || !session?.access_token || forwardTargetIds.length === 0) return;
+    setIsForwarding(true);
+    try {
+      await Promise.all(forwardTargetIds.map((chatId) => {
+        const existing = localMessages.find(m => m.conversation_id === chatId || m.partner_id === chatId);
+        const conversationId = existing?.conversation_id || chatId;
+        const isConversationId = !!existing?.conversation_id || chatId === activeConversationIdRef.current;
+        return fetch('/api/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+          body: JSON.stringify({
+            conversationId: isConversationId ? conversationId : undefined,
+            recipientId: !isConversationId ? chatId : undefined,
+            body: forwardingMessage.body,
+            type: forwardingMessage.type,
+            attachments: forwardingMessage.attachments || [],
+            forwardedFromMessageId: forwardingMessage.id,
+            forwardedSenderId: forwardingMessage.sender_id,
+            clientMutationId: 'forward-' + crypto.randomUUID(),
+          })
+        });
+      }));
+      setForwardingMessage(null);
+      setForwardTargetIds([]);
+      queryClient.invalidateQueries({ queryKey: ['chats-messages', session.access_token] });
+    } finally {
+      setIsForwarding(false);
+    }
+  };
+
+  const handleDeleteMessage = async (messageId: string, mode: 'me' | 'everyone' = 'me') => {
+    if (!session?.access_token) return;
+    const originalMessages = localMessages;
+    if (mode === 'me') {
+      setLocalMessages(prev => prev.filter(m => m.id !== messageId));
+    } else {
+      setLocalMessages(prev => prev.map(m => m.id === messageId ? { ...m, body: 'This message was deleted', deleted_at: new Date().toISOString(), attachments: [] } : m));
+    }
+    setActiveActionMessageId(null);
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ messageId, mode })
+      });
+      if (!res.ok) throw new Error('Failed to delete message');
+    } catch (err) {
+      console.error(err);
+      setLocalMessages(originalMessages);
+    }
   };
 
   const startMessageEdit = (msg: DBMessage) => {
@@ -1713,6 +1870,23 @@ function ChatsPageContent() {
                                   position: 'relative'
                                 }}
                               >
+                                {msg.forwarded && (
+                                  <div style={{ fontSize: '0.72rem', opacity: 0.78, marginBottom: '0.35rem', fontWeight: 700 }}>
+                                    Forwarded
+                                  </div>
+                                )}
+                                {msg.reply_to && (
+                                  <button
+                                    type="button"
+                                    onClick={() => jumpToMessage(msg.reply_to!.id)}
+                                    style={{ display: 'block', width: '100%', textAlign: 'left', border: 'none', borderLeft: `3px solid ${isMe ? '#ffffff' : 'var(--accent-blue)'}`, background: isMe ? 'rgba(255,255,255,0.16)' : 'var(--bg-hover)', color: 'inherit', borderRadius: '8px', padding: '0.45rem 0.55rem', marginBottom: '0.45rem', cursor: 'pointer' }}
+                                  >
+                                    <span style={{ display: 'block', fontSize: '0.7rem', opacity: 0.75, fontWeight: 700 }}>Reply</span>
+                                    <span style={{ display: 'block', fontSize: '0.78rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                                      {msg.reply_to.body || 'Attachment'}
+                                    </span>
+                                  </button>
+                                )}
                                 {/* Attachments */}
                                 {msg.attachments && msg.attachments.length > 0 && (
                                   <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginBottom: msg.body ? '0.4rem' : '0' }}>
@@ -1774,7 +1948,22 @@ function ChatsPageContent() {
 
 
                           </div>
-                          <div onClick={(e) => e.stopPropagation()} className={`message-actions-overlay ${activeActionMessageId === msg.id ? 'active' : ''}`} style={{ gap: '0.25rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '999px', padding: '0.25rem', boxShadow: '0 8px 24px var(--card-shadow)' }}>
+                          <div
+                            onClick={(e) => e.stopPropagation()}
+                            className={`message-actions-overlay ${activeActionMessageId === msg.id ? 'active' : ''}`}
+                            style={{
+                              gap: '0.25rem',
+                              backgroundColor: 'var(--bg-card)',
+                              border: '1px solid var(--border-color)',
+                              borderRadius: '999px',
+                              padding: '0.25rem',
+                              boxShadow: '0 8px 24px var(--card-shadow)',
+                              left: isMe ? 'auto' : '48px',
+                              right: isMe ? '8px' : 'auto',
+                              maxWidth: 'min(520px, calc(100vw - 72px))',
+                              overflowX: 'auto',
+                            }}
+                          >
                             <button type="button" title="Reply" onClick={() => startReply(msg)} className="chat-icon-btn"><Reply size={14} /></button>
                             {isMe && <button type="button" title="Edit" onClick={() => startMessageEdit(msg)} className="chat-icon-btn"><Edit size={14} /></button>}
                             {['😢', '😡'].map((emoji) => (
@@ -1785,8 +1974,9 @@ function ChatsPageContent() {
                             ))}
                             <button type="button" title="Copy" onClick={() => handleCopyMessage(msg.body)} className="chat-icon-btn"><Copy size={14} /></button>
                             <button type="button" title={msg.id && savedMessageIds.includes(msg.id) ? 'Unsave' : 'Save'} onClick={() => msg.id && toggleSaveMessage(msg.id)} className="chat-icon-btn"><Bookmark size={14} fill={msg.id && savedMessageIds.includes(msg.id) ? 'currentColor' : 'none'} /></button>
-                            <button type="button" title="Forward" onClick={() => handleShareMessage(msg)} className="chat-icon-btn"><Forward size={14} /></button>
-                            <button type="button" title="Delete" onClick={() => msg.id && handleDeleteMessageLocal(msg.id)} className="chat-icon-btn chat-icon-btn-danger"><Trash2 size={14} /></button>
+                            <button type="button" title="Forward" onClick={() => openForwardModal(msg)} className="chat-icon-btn"><Share2 size={14} /></button>
+                            <button type="button" title="Delete for me" onClick={() => msg.id && handleDeleteMessage(msg.id, 'me')} className="chat-icon-btn chat-icon-btn-danger"><EyeOff size={14} /></button>
+                            {isMe && <button type="button" title="Delete for everyone" onClick={() => msg.id && handleDeleteMessage(msg.id, 'everyone')} className="chat-icon-btn chat-icon-btn-danger"><Trash2 size={14} /></button>}
                           </div>
                         </div>
                         </div>
@@ -1829,6 +2019,34 @@ function ChatsPageContent() {
                         <X size={16} />
                       </span>
                     </button>
+                  )}
+                  {(smartReplies.length > 0 || nextPrediction) && (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem', marginBottom: '0.65rem' }}>
+                      {smartReplies.length > 0 && (
+                        <div style={{ display: 'flex', gap: '0.45rem', flexWrap: 'wrap' }}>
+                          {smartReplies.map((suggestion) => (
+                            <button
+                              key={suggestion}
+                              type="button"
+                              onClick={() => setNewMessage(suggestion)}
+                              style={{ border: '1px solid var(--border-color)', background: 'var(--bg-hover)', color: 'var(--text-main)', borderRadius: '999px', padding: '0.4rem 0.7rem', fontSize: '0.78rem', cursor: 'pointer' }}
+                            >
+                              {suggestion}
+                            </button>
+                          ))}
+                          {aiAssistantLoading && <Loader2 size={14} className="spin" style={{ color: 'var(--text-muted)', alignSelf: 'center' }} />}
+                        </div>
+                      )}
+                      {nextPrediction && !newMessage && (
+                        <button
+                          type="button"
+                          onClick={() => setNewMessage(nextPrediction)}
+                          style={{ width: 'fit-content', maxWidth: '100%', border: 'none', background: 'transparent', color: 'var(--text-muted)', padding: 0, fontSize: '0.8rem', cursor: 'pointer', textAlign: 'left' }}
+                        >
+                          {nextPrediction}
+                        </button>
+                      )}
+                    </div>
                   )}
                   {attachments.length > 0 && (
                     <div style={{ display: 'flex', gap: '0.5rem', marginBottom: '0.65rem' }}>
@@ -1981,13 +2199,12 @@ function ChatsPageContent() {
                     {showChatMenu && (
                       <div style={{ position: 'absolute', top: '100%', right: 0, marginTop: '0.5rem', backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '8px', overflow: 'hidden', zIndex: 50, width: '190px', boxShadow: '0 14px 32px var(--card-shadow)' }}>
                         <button onClick={() => activeChatId && togglePinChat(activeChatId)} className="chat-menu-item"><Pin size={14} />{activeChatId && pinnedChatIds.includes(activeChatId) ? 'Unpin Chat' : 'Pin Chat'}</button>
+                        <button onClick={() => { handleAISummary(); setShowChatMenu(false); }} className="chat-menu-item"><Sparkles size={14} />Summarize Chat</button>
                         <button onClick={() => handleShareMessage({ id: activeChatId || '', body: `${activeChatInfo.partnerName} on Paoblem`, conversation_id: activeChatId || '', sender_id: '', recipient_id: '', partner_id: '', partner_name: '', partner_avatar: '', read: false, type: 'TEXT', created_at: new Date().toISOString() })} className="chat-menu-item"><Share2 size={14} />Share Chat</button>
                         <button onClick={() => setShowConfirmClear(true)} className="chat-menu-item"><Trash size={14} />Clear Chat</button>
                         {activeChatInfo.isGroup && (
                           <>
                             <button onClick={() => setShowRenameModal(true)} className="chat-menu-item"><Edit size={14} />Rename Group</button>
-                            <button onClick={() => groupAvatarInputRef.current?.click()} className="chat-menu-item"><ImageIcon size={14} />Set Picture</button>
-                            <input type="file" accept="image/*" ref={groupAvatarInputRef} style={{ display: 'none' }} onChange={handleGroupAvatarUpload} />
                           </>
                         )}
                         <button onClick={() => setShowConfirmDelete(true)} className="chat-menu-item chat-menu-item-danger">
@@ -2144,12 +2361,43 @@ function ChatsPageContent() {
         }}
       />
 
+      {forwardingMessage && (
+        <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1100, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
+          <div className="modal-box" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '18px', maxWidth: '460px', width: '100%', padding: '1.25rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+              <h3 style={{ margin: 0, color: 'var(--text-main)', fontSize: '1.1rem' }}>Forward message</h3>
+              <button type="button" onClick={() => setForwardingMessage(null)} className="chat-icon-btn"><X size={18} /></button>
+            </div>
+            <p style={{ margin: 0, color: 'var(--text-muted)', fontSize: '0.84rem', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{forwardingMessage.body || 'Attachment'}</p>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', maxHeight: '320px', overflowY: 'auto' }}>
+              {sortedChats.map(([chatId, chat]) => (
+                <label key={chatId} style={{ display: 'flex', alignItems: 'center', gap: '0.7rem', padding: '0.6rem', borderRadius: '10px', cursor: 'pointer', background: forwardTargetIds.includes(chatId) ? 'var(--bg-hover)' : 'transparent' }}>
+                  <input
+                    type="checkbox"
+                    checked={forwardTargetIds.includes(chatId)}
+                    onChange={(e) => setForwardTargetIds(prev => e.target.checked ? [...prev, chatId] : prev.filter(id => id !== chatId))}
+                  />
+                  <Avatar src={chat.partnerAvatar} name={chat.partnerName} size={32} />
+                  <span style={{ color: 'var(--text-main)', fontSize: '0.9rem', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{chat.partnerName}</span>
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '0.6rem' }}>
+              <button type="button" onClick={() => setForwardingMessage(null)} style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', fontWeight: 600, cursor: 'pointer' }}>Cancel</button>
+              <button type="button" disabled={isForwarding || forwardTargetIds.length === 0} onClick={submitForward} style={{ background: 'var(--accent-blue)', color: '#fff', border: 'none', borderRadius: '10px', padding: '0.55rem 0.9rem', fontWeight: 700, cursor: forwardTargetIds.length ? 'pointer' : 'not-allowed', opacity: forwardTargetIds.length ? 1 : 0.55 }}>
+                {isForwarding ? 'Forwarding...' : 'Forward'}
+              </button>
+            </div>
+          </div>
+        </GSAPModalWrapper>
+      )}
+
       {/* AI Summary Modal */}
       {aiSummaryOpen && (
         <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="modal-box" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '2rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 24px 70px var(--card-shadow)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 <Sparkles size={18} style={{ color: '#6366f1' }} />
                 AI Conversation Summary
               </h3>
@@ -2167,7 +2415,7 @@ function ChatsPageContent() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
                 <div>
                   <h4 style={{ fontSize: '0.88rem', fontWeight: 700, color: '#6366f1', marginBottom: '0.35rem' }}>SUMMARY</h4>
-                  <p style={{ fontSize: '0.88rem', color: 'rgba(255,255,255,0.7)', lineHeight: '1.5' }}>
+                  <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5' }}>
                     {aiSummaryData?.summary || 'No summary available.'}
                   </p>
                 </div>
@@ -2176,7 +2424,7 @@ function ChatsPageContent() {
                   {aiSummaryData?.actionItems && aiSummaryData.actionItems.length > 0 ? (
                     <ul style={{ paddingLeft: '1.15rem', display: 'flex', flexDirection: 'column', gap: '0.35rem' }}>
                       {aiSummaryData.actionItems.map((item, idx) => (
-                        <li key={idx} style={{ fontSize: '0.85rem', color: 'rgba(255,255,255,0.75)' }}>{item}</li>
+                        <li key={idx} style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>{item}</li>
                       ))}
                     </ul>
                   ) : (
@@ -2192,9 +2440,9 @@ function ChatsPageContent() {
       {/* New Chat Modal */}
       {isNewChatModalOpen && (
         <GSAPModalWrapper style={{ position: 'fixed', top: 0, left: 0, width: '100%', height: '100%', backgroundColor: 'rgba(0,0,0,0.6)', zIndex: 1000, display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '1rem' }}>
-          <div className="modal-box" style={{ backgroundColor: '#121214', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <div className="modal-box" style={{ backgroundColor: 'var(--bg-card)', border: '1px solid var(--border-color)', borderRadius: '24px', maxWidth: '500px', width: '100%', padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1.25rem', boxShadow: '0 24px 70px var(--card-shadow)' }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: '#f8f9fa', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 700, fontFamily: 'Outfit', color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
                 {newChatMode === 'pick' ? 'Start a New Chat' : newChatMode === 'dm' ? 'Direct Message' : 'New Group Chat'}
               </h3>
               <button onClick={() => { setIsNewChatModalOpen(false); setNewChatError(''); setNewChatUsername(''); setNewChatMode('pick'); setGroupChatUsernames([]); setGroupChatInput(''); setGroupChatName(''); }} style={{ background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}>
@@ -2207,30 +2455,30 @@ function ChatsPageContent() {
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <button
                   onClick={() => setNewChatMode('dm')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: '#fff', textAlign: 'left' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: 'var(--search-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-main)', textAlign: 'left' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#6366f1'; e.currentTarget.style.backgroundColor = '#1e1e22'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2c'; e.currentTarget.style.backgroundColor = '#1a1a1c'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.backgroundColor = 'var(--search-bg)'; }}
                 >
                   <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'linear-gradient(135deg, #6366f1, #8b5cf6)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <MessageCircle size={20} color="#fff" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                     <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Direct Message</span>
-                    <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Start a private 1-on-1 conversation</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Start a private 1-on-1 conversation</span>
                   </div>
                 </button>
                 <button
                   onClick={() => setNewChatMode('group')}
-                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: '#fff', textAlign: 'left' }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '1rem', padding: '1rem 1.25rem', backgroundColor: 'var(--search-bg)', border: '1px solid var(--border-color)', borderRadius: '16px', cursor: 'pointer', transition: 'all 0.2s', color: 'var(--text-main)', textAlign: 'left' }}
                   onMouseEnter={e => { e.currentTarget.style.borderColor = '#10b981'; e.currentTarget.style.backgroundColor = '#1e1e22'; }}
-                  onMouseLeave={e => { e.currentTarget.style.borderColor = '#2a2a2c'; e.currentTarget.style.backgroundColor = '#1a1a1c'; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = 'var(--border-color)'; e.currentTarget.style.backgroundColor = 'var(--search-bg)'; }}
                 >
                   <div style={{ width: '44px', height: '44px', borderRadius: '14px', background: 'linear-gradient(135deg, #10b981, #059669)', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
                     <Users size={20} color="#fff" />
                   </div>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.15rem' }}>
                     <span style={{ fontSize: '0.95rem', fontWeight: 600 }}>Group Chat</span>
-                    <span style={{ fontSize: '0.78rem', color: '#a1a1aa' }}>Create a conversation with multiple people</span>
+                    <span style={{ fontSize: '0.78rem', color: 'var(--text-muted)' }}>Create a conversation with multiple people</span>
                   </div>
                 </button>
               </div>
@@ -2244,19 +2492,22 @@ function ChatsPageContent() {
                 </button>
                 <form onSubmit={handleStartNewChat} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', position: 'relative' }}>
-                    <label style={{ fontSize: '0.85rem', color: '#a1a1aa' }}>Enter Username</label>
+                    <label style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Enter Username</label>
                     <input
                       type="text"
                       value={newChatUsername}
                       onChange={(e) => setNewChatUsername(e.target.value)}
                       placeholder="e.g. johndoe"
                       autoFocus
-                      style={{ backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
+                      style={{ backgroundColor: 'var(--search-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none' }}
                     />
                     <UserSearchSuggestions 
                       query={newChatUsername} 
                       currentUserId={session?.user?.id}
-                      onSelect={(uname) => setNewChatUsername(uname)} 
+                      onSelect={(uname) => {
+                        setNewChatUsername(uname);
+                        openDirectChatByUsername(uname);
+                      }} 
                     />
                   </div>
                   {newChatError && <p style={{ color: '#ef4444', fontSize: '0.8rem', margin: 0 }}>{newChatError}</p>}
@@ -2322,7 +2573,7 @@ function ChatsPageContent() {
                     }}
                     placeholder="Add username and press Enter"
                     autoFocus
-                    style={{ flex: 1, backgroundColor: '#1a1a1c', border: '1px solid #2a2a2c', color: '#ffffff', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none', fontSize: '0.85rem' }}
+                    style={{ flex: 1, backgroundColor: 'var(--search-bg)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '12px', padding: '0.75rem 1rem', outline: 'none', fontSize: '0.85rem' }}
                   />
                   <button
                     type="button"
@@ -2333,7 +2584,7 @@ function ChatsPageContent() {
                         setNewChatError('');
                       }
                     }}
-                    style={{ backgroundColor: '#2a2a2c', border: 'none', color: '#fff', borderRadius: '12px', padding: '0 1rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem' }}
+                    style={{ backgroundColor: 'var(--bg-hover)', border: '1px solid var(--border-color)', color: 'var(--text-main)', borderRadius: '12px', padding: '0 1rem', cursor: 'pointer', fontWeight: 600, fontSize: '1.1rem' }}
                   >+</button>
                   <UserSearchSuggestions 
                     query={groupChatInput} 
@@ -2373,7 +2624,7 @@ function ChatsPageContent() {
                       const res = await fetch('/api/messages', {
                         method: 'POST',
                         headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session!.access_token}` },
-                        body: JSON.stringify({ participantIds: ids, body: 'Group chat created.', type: 'SYSTEM' })
+                        body: JSON.stringify({ participantIds: ids, body: 'Group chat created.', type: 'SYSTEM', groupName: groupChatName.trim() || null })
                       });
                       if (!res.ok) throw new Error('Failed to create group');
                       const result = await res.json();
@@ -2381,13 +2632,6 @@ function ChatsPageContent() {
                       setNewChatMode('pick');
                       setGroupChatUsernames([]);
                       setGroupChatInput('');
-                      if (groupChatName.trim()) {
-                        await fetch('/api/messages', {
-                          method: 'POST',
-                          headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session!.access_token}` },
-                          body: JSON.stringify({ conversationId: result.message.conversation_id, body: groupChatName.trim(), type: 'GROUP_RENAME' })
-                        });
-                      }
                       setGroupChatName('');
                       openConversation(result.message.conversation_id);
                       queryClient.invalidateQueries({ queryKey: ['messages', session!.access_token] });
@@ -2547,7 +2791,6 @@ function ChatsPageContent() {
           display: none;
           position: absolute;
           top: -28px;
-          right: 8px;
           z-index: 5;
         }
         .dot {

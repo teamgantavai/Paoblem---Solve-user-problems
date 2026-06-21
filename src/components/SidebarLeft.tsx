@@ -21,6 +21,27 @@ import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
 import Avatar from './Avatar';
 
+const SIDEBAR_PROFILE_CACHE_KEY = 'sidebar-left-profile-cache';
+const SIDEBAR_PULSE_CACHE_KEY = 'sidebar-left-pulse-cache';
+const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;
+
+type CachedSidebarProfile = {
+  data: { full_name: string | null; avatar_url: string | null; role: string | null; username?: string | null; cover_url?: string | null };
+  cachedAt: number;
+};
+
+type CachedPulseStats = {
+  data: {
+    totalSolutions: number;
+    problemsSolved: number;
+    unsolvedProblems: number;
+    totalProblems: number;
+    totalIdeas: number;
+    totalPosts: number;
+  };
+  cachedAt: number;
+};
+
 function SidebarLeftInner() {
   const router = useRouter();
   const pathname = usePathname();
@@ -50,6 +71,46 @@ function SidebarLeftInner() {
     setIsNoticeOpen(true);
   };
 
+  const readCachedProfile = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_PROFILE_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as CachedSidebarProfile;
+      if (!parsed?.data || (Date.now() - parsed.cachedAt) > SIDEBAR_CACHE_TTL_MS) return null;
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCachedProfile = (data: CachedSidebarProfile['data']) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SIDEBAR_PROFILE_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() } satisfies CachedSidebarProfile));
+    } catch {}
+  };
+
+  const readCachedPulse = () => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const raw = window.localStorage.getItem(SIDEBAR_PULSE_CACHE_KEY);
+      if (!raw) return null;
+      const parsed = JSON.parse(raw) as CachedPulseStats;
+      if (!parsed?.data || (Date.now() - parsed.cachedAt) > SIDEBAR_CACHE_TTL_MS) return null;
+      return parsed.data;
+    } catch {
+      return null;
+    }
+  };
+
+  const writeCachedPulse = (data: CachedPulseStats['data']) => {
+    if (typeof window === 'undefined') return;
+    try {
+      window.localStorage.setItem(SIDEBAR_PULSE_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() } satisfies CachedPulseStats));
+    } catch {}
+  };
+
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
@@ -67,13 +128,20 @@ function SidebarLeftInner() {
       setProfile(null);
       return;
     }
+    const cachedProfile = readCachedProfile();
+    if (cachedProfile) {
+      setProfile(cachedProfile as any);
+    }
     supabase
       .from('profiles')
       .select('full_name, avatar_url, role, username, cover_url')
       .eq('id', session.user.id)
       .single()
       .then(({ data }) => {
-        if (data) setProfile(data as any);
+        if (data) {
+          setProfile(data as any);
+          writeCachedProfile(data as any);
+        }
       });
   };
 
@@ -92,6 +160,11 @@ function SidebarLeftInner() {
     let cancelled = false;
     async function fetchPulseStats() {
       try {
+        const cachedPulse = readCachedPulse();
+        if (cachedPulse) {
+          setPulseStats(cachedPulse);
+          return;
+        }
         const [solutionsRes, problemsRes, ideasRes] = await Promise.all([
           fetch('/api/solutions?filter=all'),
           supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'problem'),
@@ -103,14 +176,16 @@ function SidebarLeftInner() {
         const totalIdeas = ideasRes.count || 0;
 
         if (!cancelled) {
-          setPulseStats({
+          const nextStats = {
             totalSolutions: solutionJson?.stats?.totalSolutions || 0,
             problemsSolved: solutionJson?.stats?.problemsSolved || 0,
             unsolvedProblems: solutionJson?.stats?.unsolvedProblems || 0,
             totalProblems,
             totalIdeas,
             totalPosts: totalProblems + totalIdeas,
-          });
+          };
+          setPulseStats(nextStats);
+          writeCachedPulse(nextStats);
         }
       } catch (err) {
         console.error('Failed to load pulse stats', err);

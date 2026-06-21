@@ -27,6 +27,9 @@ const createPostSchema = z.object({
   }),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
+  poll_question: z.string().max(200).nullable().optional(),
+  category: z.string().max(60).nullable().optional(),
+  tags: z.array(z.string().max(30)).max(5).nullable().optional(),
   metadata: z.any().optional(),
   video_url: z.string().url().nullable().optional(),
 });
@@ -92,10 +95,17 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { title, body: postBody, type, image_url, external_link, link_name, metadata, video_url } = parsed.data;
+    const { title, body: postBody, type, image_url, external_link, link_name, metadata, video_url, poll_question, category, tags } = parsed.data;
 
     const sanitizedTitle = sanitize(title);
     const sanitizedBody = sanitize(postBody);
+
+    const metadataValue = {
+      ...(metadata || {}),
+      ...(poll_question ? { poll_question } : {}),
+      ...(category ? { category } : {}),
+      ...(tags && tags.length > 0 ? { tags } : {}),
+    };
 
     const insertData: Record<string, unknown> = {
       user_id: user.id,
@@ -104,7 +114,7 @@ export async function POST(req: NextRequest) {
       type,
       image_url: image_url || null,
       external_link: external_link || null,
-      metadata: metadata || {},
+      metadata: metadataValue,
       video_url: video_url || null,
     };
 
@@ -112,12 +122,30 @@ export async function POST(req: NextRequest) {
     if (link_name) {
       insertData.link_name = link_name;
     }
+    if (poll_question) {
+      insertData.poll_question = poll_question;
+    }
+    if (category) {
+      insertData.category = category;
+    }
+    if (tags && tags.length > 0) {
+      insertData.tags = tags;
+    }
 
-    const { data, error } = await supabase
+    const insertPost = async (payload: Record<string, unknown>) => supabase
       .from('posts')
-      .insert(insertData)
+      .insert(payload)
       .select()
       .single();
+
+    let { data, error } = await insertPost(insertData);
+    if (error && /category|poll_question|tags/i.test(error.message || '')) {
+      const fallbackData = { ...insertData };
+      delete fallbackData.category;
+      delete fallbackData.poll_question;
+      delete fallbackData.tags;
+      ({ data, error } = await insertPost(fallbackData));
+    }
 
     if (error) {
       console.error('[posts/create] Insert error:', JSON.stringify(error));

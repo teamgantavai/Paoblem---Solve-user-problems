@@ -107,4 +107,12 @@
     flex-direction: column;
     gap: 0.85rem;
   }
+
+  /* Analytics page main content – must stay visible on mobile */
+  .analytics-page-main {
+    display: block !important;
+    width: 100% !important;
+    height: auto !important;
+    overflow-y: visible !important;
+  }
 }

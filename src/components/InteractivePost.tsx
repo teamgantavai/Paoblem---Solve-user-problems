@@ -730,7 +730,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               padding: '6px',
               borderRadius: '50%'
             }}
-            className="theme-toggle-btn"
+            className="post-header-action-btn"
             title={savedIds.includes(post.id) ? "Unsave Post" : "Save Post"}
           >
             <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
@@ -739,6 +739,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           <button
             onClick={(e) => {
               e.stopPropagation();
+              e.nativeEvent.stopImmediatePropagation();
               setActiveShareMenu(!activeShareMenu);
               setShowSubShare(false);
             }}
@@ -751,7 +752,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               padding: '6px',
               borderRadius: '50%'
             }}
-            className="theme-toggle-btn"
+            className="post-header-action-btn"
             title="More Options"
           >
             <MoreVertical size={18} />
@@ -812,7 +813,9 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                     className="share-menu-item"
                     onClick={() => {
                       setActiveShareMenu(false);
-                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + post.slug)}`, '_blank');
+                      const firstImg = post.image_url ? post.image_url.split(',')[0].trim() : '';
+                      const shareText = post.title + '\n' + window.location.origin + '/post/' + post.slug + (firstImg ? '\nImage: ' + firstImg : '');
+                      window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(shareText)}`, '_blank');
                       trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'whatsapp' });
                     }}
                   >
@@ -832,7 +835,9 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                     className="share-menu-item"
                     onClick={() => {
                       setActiveShareMenu(false);
-                      window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + post.slug)}&title=${encodeURIComponent(post.title)}`, '_blank');
+                      const firstImg = post.image_url ? post.image_url.split(',')[0].trim() : '';
+                      const redditTitle = post.title + (firstImg ? ' [Image]' : '');
+                      window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + post.slug)}&title=${encodeURIComponent(redditTitle)}`, '_blank');
                       trackEvent(post.id, 'POST_SHARE', session?.access_token, { platform: 'reddit' });
                     }}
                   >

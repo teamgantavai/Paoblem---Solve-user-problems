@@ -465,6 +465,31 @@
   color: white;
 }
 
+.light-theme .composer-action-btn {
+  color: var(--text-muted);
+}
+
+.light-theme .composer-action-btn:hover {
+  background: rgba(99, 102, 241, 0.08);
+  color: var(--text-main);
+}
+
+.light-theme .composer-send-btn {
+  box-shadow: 0 10px 22px rgba(59, 130, 246, 0.18);
+}
+
+.light-theme .composer-send-btn:hover {
+  opacity: 0.95;
+}
+
+.light-theme .composer-input-wrap {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+.light-theme .composer-divider {
+  background: rgba(15, 23, 42, 0.08);
+}
+
 .composer-send-btn {
   display: flex;
   align-items: center;

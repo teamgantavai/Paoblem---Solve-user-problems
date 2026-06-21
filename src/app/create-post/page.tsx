@@ -203,7 +203,7 @@ function RichToolbar({ editorRef, onUpdate }: RichToolbarProps) {
 interface PollModalProps {
   isOpen: boolean;
   onClose: () => void;
-  onCreatePoll: (question: string, options: string[]) => void;
+  onCreatePoll: (question: string, options: string[], duration: string) => void;
   disabled?: boolean;
 }
 
@@ -227,7 +227,8 @@ function PollModal({ isOpen, onClose, onCreatePoll, disabled }: PollModalProps) 
   const handleCreate = () => {
     if (!question.trim()) { setQuestionErr(true); return; }
     const filled = options.filter((o) => o.trim());
-    onCreatePoll(question.trim(), filled);
+    if (filled.length < 2) return;
+    onCreatePoll(question.trim(), filled, duration);
     setQuestion('');
     setOptions(['Yes', 'No', '']);
     onClose();
@@ -261,24 +262,6 @@ function PollModal({ isOpen, onClose, onCreatePoll, disabled }: PollModalProps) 
               disabled={disabled}
             />
             {questionErr && <p className="cp-poll-err-msg">Question is required</p>}
-          </div>
-
-          {/* Description – optional with rich text */}
-          <div className="cp-poll-field">
-            <label className="cp-poll-label">
-              Description <span className="cp-poll-optional">(optional)</span>
-            </label>
-            <div className="cp-rich-wrap">
-              <RichToolbar editorRef={descEditorRef} />
-              <div
-                ref={descEditorRef}
-                className="cp-rich-editor cp-rich-editor--poll"
-                contentEditable={!disabled}
-                suppressContentEditableWarning
-                data-placeholder="Add context for your question…"
-                aria-label="Poll description"
-              />
-            </div>
           </div>
 
           {/* Options */}
@@ -538,9 +521,16 @@ export default function CreatePost() {
     localStorage.setItem('paoblem-drafts', JSON.stringify(next));
   }
 
-  function handlePollCreate(question: string, options: string[]) {
+  function handlePollCreate(question: string, options: string[], duration: string) {
     setPollQuestion(question);
     setOpenPanel('poll');
+    const pollBody = `${question}\n\n${options.map((option, index) => `${index + 1}. ${option}`).join('\n')}\n\nDuration: ${duration}`;
+    if (!title.trim()) setTitle(question);
+    if (!bodyEditorRef.current || !bodyEditorRef.current.innerText.trim()) {
+      bodyEditorRef.current && (bodyEditorRef.current.innerText = pollBody);
+      setBodyText(pollBody);
+    }
+    setCustomTags((tags) => tags);
     setShowPollModal(false);
   }
 
@@ -570,8 +560,10 @@ export default function CreatePost() {
     e?.preventDefault();
     if (!session) { setError('You must be logged in to post.'); return; }
     const bodyHtml = getBodyHtml();
-    if (bodyText.trim().length < 10) { setError('Describe the problem in at least 10 characters.'); return; }
-    if (!title.trim()) { setError('Please add a title.'); return; }
+    const isPollPost = openPanel === 'poll';
+    if (!isPollPost && bodyText.trim().length < 10) { setError('Describe the problem in at least 10 characters.'); return; }
+    if (!isPollPost && !title.trim()) { setError('Please add a title.'); return; }
+    if (isPollPost && !pollQuestion.trim()) { setError('Please add a poll question.'); return; }
 
     setSubmitting(true);
     setError(null);
@@ -581,18 +573,29 @@ export default function CreatePost() {
       ? (/^https?:\/\//i.test(trimmedLink) ? trimmedLink : `https://${trimmedLink}`)
       : null;
 
+    const pollOptions = isPollPost
+      ? bodyText
+          .split('\n')
+          .map((line) => line.trim())
+          .filter((line) => /^[0-9]+\.\s+/.test(line))
+          .map((line) => line.replace(/^[0-9]+\.\s+/, '').trim())
+      : [];
+
     try {
       const res = await fetch('/api/posts/create', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          title: title.trim(),
-          body: bodyHtml,
+          title: isPollPost ? pollQuestion.trim() : title.trim(),
+          body: isPollPost
+            ? `${pollQuestion.trim()}\n\n${pollOptions.map((option, index) => `${index + 1}. ${option}`).join('\n')}`
+            : bodyHtml,
           type,
           image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           external_link: formattedLink,
           link_name: linkName || null,
-          poll_question: openPanel === 'poll' ? pollQuestion : null,
+          poll_question: isPollPost ? pollQuestion.trim() : null,
+          metadata: isPollPost ? { poll: pollOptions } : undefined,
           category: selectedCategory,
           tags: customTags,
         }),

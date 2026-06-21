@@ -3,7 +3,7 @@
 import React, { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { Loader2, Bell, CheckCircle, Trash2 } from 'lucide-react';
+import { Loader2, Bell, CheckCircle, Trash2, MoreVertical } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Navbar from '@/components/Navbar';
 import SidebarLeft from '@/components/SidebarLeft';
@@ -16,6 +16,14 @@ export default function NotificationsPage() {
   const queryClient = useQueryClient();
   const [session, setSession] = useState<any>(null);
   const [loadingSession, setLoadingSession] = useState(true);
+  const [menuOpen, setMenuOpen] = useState(false);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleOutsideClick = () => setMenuOpen(false);
+    window.addEventListener('click', handleOutsideClick);
+    return () => window.removeEventListener('click', handleOutsideClick);
+  }, [menuOpen]);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: s } }) => {
@@ -117,35 +125,57 @@ export default function NotificationsPage() {
         
         <div className="center-feed">
           <div className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-                <h2 style={{ fontSize: '1.5rem', fontWeight: 700, color: 'var(--text-main)' }}>Notifications</h2>
+            <div className="notif-page-header">
+              <div className="notif-page-title-wrap">
+                <h2 className="notif-page-title">Notifications</h2>
                 {unreadCount > 0 && (
-                  <span style={{ fontSize: '0.75rem', padding: '0.15rem 0.5rem', borderRadius: '10px', backgroundColor: 'var(--accent-blue)', color: 'white', fontWeight: 700 }}>
+                  <span className="notif-page-badge">
                     {unreadCount} new
                   </span>
                 )}
               </div>
-              <div style={{ display: 'flex', gap: '1rem', marginLeft: 'auto' }}>
-                {unreadCount > 0 && (
+              {(unreadCount > 0 || notifications.length > 0) && (
+                <div className="action-dropdown-wrapper">
                   <button
-                    onClick={handleMarkAllRead}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--accent-blue)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setMenuOpen(!menuOpen);
+                    }}
+                    className="action-dropdown-trigger"
+                    aria-label="Notification actions"
                   >
-                    <CheckCircle size={14} />
-                    Mark all as read
+                    <MoreVertical size={20} />
                   </button>
-                )}
-                {notifications.length > 0 && (
-                  <button
-                    onClick={() => clearNotifsMutation.mutate()}
-                    style={{ display: 'flex', alignItems: 'center', gap: '0.25rem', fontSize: '0.78rem', color: 'var(--text-muted)', background: 'transparent', border: 'none', cursor: 'pointer', fontWeight: 600 }}
-                  >
-                    <Trash2 size={14} />
-                    Clear all
-                  </button>
-                )}
-              </div>
+                  {menuOpen && (
+                    <div className="action-dropdown-menu" onClick={(e) => e.stopPropagation()}>
+                      {unreadCount > 0 && (
+                        <button
+                          onClick={() => {
+                            handleMarkAllRead();
+                            setMenuOpen(false);
+                          }}
+                          className="action-menu-item"
+                        >
+                          <CheckCircle size={14} />
+                          Mark all as read
+                        </button>
+                      )}
+                      {notifications.length > 0 && (
+                        <button
+                          onClick={() => {
+                            clearNotifsMutation.mutate();
+                            setMenuOpen(false);
+                          }}
+                          className="action-menu-item danger"
+                        >
+                          <Trash2 size={14} />
+                          Clear all
+                        </button>
+                      )}
+                    </div>
+                  )}
+                </div>
+              )}
             </div>
           </div>
 

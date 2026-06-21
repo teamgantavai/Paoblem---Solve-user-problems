@@ -9,21 +9,69 @@ const supabaseAdmin = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey
 );
 
+async function authenticate(req: NextRequest) {
+  const authHeader = req.headers.get('authorization');
+  if (!authHeader?.startsWith('Bearer ')) return null;
+  const token = authHeader.replace('Bearer ', '');
+  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
+  if (error || !user) return null;
+  return user;
+}
+
+export async function PATCH(
+  req: NextRequest,
+  { params }: { params: Promise<{ id: string }> }
+) {
+  try {
+    const { id: conversationId } = await params;
+    const user = await authenticate(req);
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const body = await req.json();
+    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
+    if (typeof body.name === 'string') updates.name = body.name.trim();
+    if (typeof body.avatar_url === 'string') updates.avatar_url = body.avatar_url;
+    if (Object.keys(updates).length === 1) {
+      return NextResponse.json({ error: 'No valid updates supplied' }, { status: 400 });
+    }
+
+    const { data: membership } = await supabaseAdmin
+      .from('conversation_members')
+      .select('role')
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
+
+    const { data, error } = await supabaseAdmin
+      .from('conversations')
+      .update(updates)
+      .eq('id', conversationId)
+      .select('id, type, name, avatar_url, created_by, updated_at')
+      .single();
+
+    if (error) throw error;
+    return NextResponse.json({ conversation: data });
+  } catch (err: any) {
+    console.error('[PATCH /api/conversations/[id]]', err);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 export async function DELETE(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
     const { id: conversationId } = await params;
-    const authHeader = req.headers.get('authorization');
-    if (!authHeader?.startsWith('Bearer ')) {
+    const user = await authenticate(req);
+    if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    const token = authHeader.replace('Bearer ', '');
-    const { data: { user }, error: authError } = await supabaseAdmin.auth.getUser(token);
-    if (authError || !user) {
-      return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
 
     const action = req.nextUrl.searchParams.get('action'); // 'delete' or 'leave'
