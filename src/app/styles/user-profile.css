@@ -25,6 +25,12 @@
   flex-direction: column;
 }
 
+.profile-inner-wrapper {
+  width: 100%;
+  max-width: 860px;
+  padding: 1.5rem 1rem;
+}
+
 /* ── Header Card ─────────────────────────────────────────────────────────── */
 .upf-header-card {
   background: var(--bg-card);
@@ -84,9 +90,9 @@
   position: absolute;
   inset: -3px;
   border-radius: 50%;
-  background: linear-gradient(135deg, var(--accent-blue), #a855f7);
+  background: var(--text-main);
   z-index: 0;
-  opacity: 0.7;
+  opacity: 0.2;
 }
 
 .upf-identity-body {
@@ -122,9 +128,9 @@
   gap: 5px;
   font-size: 0.72rem;
   font-weight: 600;
-  color: var(--accent-blue);
-  background: rgba(0, 132, 255, 0.12);
-  border: 1px solid rgba(0, 132, 255, 0.25);
+  color: var(--bg-card);
+  background: var(--text-main);
+  border: 1px solid var(--text-main);
   padding: 3px 10px;
   border-radius: 20px;
   width: fit-content;
@@ -592,6 +598,13 @@
    RESPONSIVE — TABLET  ≤ 768px
    ═══════════════════════════════════════════════════════════════════════════ */
 @media (max-width: 768px) {
+  .profile-main-wrapper {
+    padding: 0 !important;
+  }
+  .profile-inner-wrapper {
+    padding: 0;
+  }
+
   .upf-page-body {
     padding: 0.75rem 0 5rem;   /* 5rem bottom for mobile nav */
   }
@@ -662,8 +675,8 @@
   }
   .upf-stats-bar::-webkit-scrollbar { display: none; }
   .upf-stat        { min-width: 52px; padding: 0 0.3rem; flex: 1; }
-  .upf-stat-num    { font-size: 0.85rem; }
-  .upf-stat-label  { font-size: 0.5rem; letter-spacing: 0.03em; }
+  .upf-stat-num    { font-size: 1.1rem; }
+  .upf-stat-label  { font-size: 0.65rem; letter-spacing: 0.03em; }
   .upf-stat-divider { height: 22px; }
 
   /* ── Tabs: sticky pill row ── */
@@ -737,12 +750,12 @@
   .upf-stats-bar    { display: flex; flex-wrap: nowrap; }
   .upf-stat-divider { display: none; }
   .upf-stat         { min-width: 0; padding: 0 0.2rem; }
-  .upf-stat-num     { font-size: 0.78rem; }
-  .upf-stat-label   { font-size: 0.45rem; letter-spacing: 0; }
+  .upf-stat-num     { font-size: 1rem; }
+  .upf-stat-label   { font-size: 0.6rem; letter-spacing: 0; }
 
   /* Tabs: icon only */
-  .upf-tab-btn      { padding: 0.35rem 0.45rem; gap: 0; }
-  .upf-tab-label    { display: none; }
+  .upf-tab-btn      { padding: 0.35rem 0.45rem; gap: 4px; }
+  .upf-tab-label    { display: inline; }
   .upf-tab-count    { font-size: 0.55rem; min-width: 14px; height: 14px; }
 
   .upf-content      { padding: 0.7rem 0.5rem; }

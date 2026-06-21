@@ -470,7 +470,7 @@
 
 .drawer-menu-item.active {
   color: var(--text-main);
-  background: linear-gradient(90deg, rgba(99, 102, 241, 0.1) 0%, transparent 100%);
+  background: var(--bg-hover);
   font-weight: 600;
 }
 
@@ -481,12 +481,12 @@
   top: 15%;
   height: 70%;
   width: 3px;
-  background-color: #6366f1;
+  background-color: var(--text-main);
   border-radius: 0 4px 4px 0;
 }
 
 .drawer-menu-item.active svg {
-  color: #6366f1;
+  color: var(--text-main);
 }
 
 .drawer-menu-divider {

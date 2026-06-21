@@ -6,8 +6,8 @@
   --text-body: #c9c9cf;   /* High-contrast body text, WCAG AA on dark bg */
   --text-muted: #7f7f84;
   --border-color: #1e1e21;
-  --accent-blue: #0084ff;
-  --accent-yellow: #ffbf00;
+  --accent-blue: #ffffff;
+  --accent-yellow: #e2e2e5;
   --nav-bg: #070708;
   --search-bg: #1a1a1e;
   --card-shadow: rgba(0, 0, 0, 0.4);
@@ -24,8 +24,8 @@
   --text-body: #374151;   /* High-contrast body text for light mode */
   --text-muted: #6b7280;
   --border-color: #e5e7eb;
-  --accent-blue: #2563eb;
-  --accent-yellow: #d97706;
+  --accent-blue: #111827;
+  --accent-yellow: #4b5563;
   --nav-bg: #ffffff;
   --search-bg: #f3f4f6;
   --card-shadow: rgba(0, 0, 0, 0.05);

@@ -19,7 +19,7 @@ export default function GSAPAnimations() {
   const handleMouseup = contextSafe((e: MouseEvent) => {
     const target = (e.target as HTMLElement).closest('button, a, .composer-action-btn, .action-btn');
     if (target) {
-      gsap.to(target, { scale: 1, duration: 0.4, ease: 'elastic.out(1, 0.3)', overwrite: 'auto' });
+      gsap.to(target, { scale: 1, duration: 0.35, ease: 'power3.out', overwrite: 'auto' });
     }
   });
 
