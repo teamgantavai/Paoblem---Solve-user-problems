@@ -316,7 +316,7 @@ export interface PostGridItem {
   id: string;
   title: string;
   slug: string | null;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'solution';
   image_url: string | null;
   created_at: string;
   views: number;
@@ -359,7 +359,7 @@ export interface PostAnalyticsDetailResponse {
     title: string;
     slug: string | null;
     body: string;
-    type: 'problem' | 'idea';
+    type: 'problem' | 'idea' | 'solution';
     image_url: string | null;
     created_at: string;
   };

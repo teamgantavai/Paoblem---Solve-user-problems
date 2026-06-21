@@ -1,4 +1,19 @@
 /* Components */
+/* Hide scrollbar for Chrome, Edge, Safari */
+::-webkit-scrollbar {
+  display: none;
+}
+
+/* Hide scrollbar for Firefox */
+html {
+  scrollbar-width: none;
+}
+
+/* Hide scrollbar for IE/Edge */
+body {
+  -ms-overflow-style: none;
+}
+
 .card {
   background-color: var(--bg-card);
   border-radius: 18px;
@@ -506,10 +521,73 @@
 
 /* Component Overrides on Mobile Layouts */
 @media (max-width: 768px) {
+  /* ── Cards ── */
   .card {
     border-radius: 14px !important;
-    padding: 1rem !important;
+    padding: 0.9rem !important;
   }
+
+  /* ── Global body text ── */
+  body {
+    font-size: 14px;
+  }
+
+  /* ── Headings ── */
+  h1 { font-size: 1.35rem !important; }
+  h2 { font-size: 1.1rem !important; }
+  h3 { font-size: 0.95rem !important; }
+  h4 { font-size: 0.88rem !important; }
+  h5, h6 { font-size: 0.82rem !important; }
+
+  /* ── Buttons ── */
+  .btn {
+    font-size: 0.75rem !important;
+    padding: 0.35rem 0.9rem !important;
+  }
+
+  /* ── Post card text ── */
+  .post-title,
+  .sticker-tag,
+  .post-body-text {
+    font-size: 0.88rem;
+  }
+
+  .post-meta,
+  .post-footer,
+  .vote-count,
+  .comment-count {
+    font-size: 0.72rem;
+  }
+
+  /* ── Form inputs ── */
+  input, textarea, select {
+    font-size: 0.85rem !important;
+  }
+
+  /* ── Misc small text ── */
+  .text-muted, small {
+    font-size: 0.72rem;
+  }
+
+  /* ── Sticker tags / labels ── */
+  .sticker-tag {
+    font-size: 0.65rem !important;
+    padding: 2px 8px !important;
+  }
+
+  /* ── Sidebar profile card ── */
+  .profile-name    { font-size: 0.8rem; }
+  .profile-role    { font-size: 0.65rem; }
+  .profile-footer  { font-size: 0.68rem; }
+
+  /* ── Modal adjustments ── */
+  .modal-header h3   { font-size: 1rem !important; }
+  .modal-body        { padding: 1rem !important; }
+  .auth-input-wrap input { font-size: 0.85rem !important; }
+  .auth-submit-btn   { font-size: 0.85rem !important; padding: 0.65rem !important; }
+
+  /* ── Share toast ── */
+  .share-toast { font-size: 0.78rem; padding: 0.4rem 1rem; }
 }
 
 /* Share Dropdown Menu */
@@ -561,7 +639,7 @@
   font-size: 0.85rem;
   font-weight: 500;
   z-index: 999;
-  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.3);
   animation: fadeInUp 0.2s ease;
 }
 
@@ -570,6 +648,7 @@
     opacity: 0;
     transform: translate(-50%, 10px);
   }
+
   to {
     opacity: 1;
     transform: translate(-50%, 0);
@@ -625,11 +704,15 @@
 }
 
 @keyframes typingBounce {
-  0%, 80%, 100% { 
+
+  0%,
+  80%,
+  100% {
     transform: scale(0);
     background-color: #6b7280;
   }
-  40% { 
+
+  40% {
     transform: scale(1);
     background-color: #d4d4d8;
   }
@@ -640,6 +723,7 @@
     opacity: 0;
     transform: scale(0.8) translateY(10px);
   }
+
   100% {
     opacity: 1;
     transform: scale(1) translateY(0);
@@ -667,8 +751,18 @@
     opacity: 0;
     transform: translateY(-10px) scale(0.5);
   }
+
   100% {
     opacity: 1;
     transform: translateY(0) scale(1);
   }
+}
+
+.hover-underline-target {
+  transition: color 0.15s ease, text-decoration 0.15s ease;
+}
+
+.hover-underline-target:hover {
+  text-decoration: underline !important;
+  color: var(--text-main) !important;
 }

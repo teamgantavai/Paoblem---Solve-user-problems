@@ -18,6 +18,10 @@
   animation: overlayFadeIn 0.2s cubic-bezier(0.19, 1, 0.22, 1) forwards;
 }
 
+.light-theme .search-overlay-backdrop {
+  background-color: rgba(255, 255, 255, 0.85);
+}
+
 @keyframes overlayFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -41,6 +45,7 @@
   background-color: #ffffff;
   border-left: 1px solid #efefef;
   border-right: 1px solid #efefef;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.08);
 }
 
 /* Header Section */
@@ -72,7 +77,7 @@
 }
 
 .light-theme .search-back-btn {
-  color: #000000;
+  color: #000000 !important;
 }
 
 .search-back-btn:hover {
@@ -404,11 +409,11 @@
 }
 
 .instagram-delete-btn:hover {
-  color: #ffffff;
+  color: #ffffff !important;
 }
 
 .light-theme .instagram-delete-btn:hover {
-  color: #000000;
+  color: #000000 !important;
 }
 
 .instagram-row-arrow {

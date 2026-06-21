@@ -414,47 +414,47 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                 }}
               />
               <button
-                type="submit"
-                disabled={loading}
-                className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
-                style={{
-                  width: '100%',
-                  backgroundColor: 'var(--auth-primary-bg)',
-                  color: 'var(--auth-primary-text)',
-                  fontWeight: 600,
-                  padding: '0.85rem',
-                  borderRadius: '16px',
-                  fontSize: '0.88rem',
-                  border: '1px solid var(--auth-primary-border)',
-                  cursor: 'pointer',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  gap: '0.5rem',
-                }}
-              >
-                {loading ? 'Checking...' : 'Continue'}
-              </button>
-            </form>
+              type="submit"
+              disabled={loading}
+              className="w-full bg-neutral-900 text-white hover:bg-neutral-800 font-semibold py-3.5 rounded-2xl text-sm transition-all cursor-pointer disabled:opacity-50 flex items-center justify-center gap-2"
+              style={{
+                width: '100%',
+                backgroundColor: 'var(--auth-primary-bg)',
+                color: 'var(--auth-primary-text)',
+                fontWeight: 600,
+                padding: '0.85rem',
+                borderRadius: '16px',
+                fontSize: '0.88rem',
+                border: '1px solid var(--auth-primary-border)',
+                cursor: 'pointer',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '0.5rem',
+              }}
+            >
+              {loading ? 'Checking...' : 'Continue'}
+            </button>
+          </form>
 
-            {error && (
-              <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
-            )}
+          {error && (
+            <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
+          )}
 
-            <p className="text-[11px] text-neutral-400 text-center leading-relaxed" style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
-              By continuing, you agree to our{' '}
-              <a href="#" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline' }}>Terms</a> and{' '}
-              <a href="#" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline' }}>Privacy Policy</a>.
-            </p>
-          </div>
-        )}
+          <p className="text-[11px] text-neutral-400 text-center leading-relaxed" style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4' }}>
+            By continuing, you agree to our{' '}
+            <a href="/terms" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Terms</a> and{' '}
+            <a href="/privacy" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Privacy Policy</a>.
+          </p>
+        </div>
+      )}
 
-        {/* ═══════════════════════════════════════ */}
-        {/* Step: Password Login                    */}
-        {/* ═══════════════════════════════════════ */}
-        {step === 'password_login' && (
-          <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
-            <BackButton to="email" />
+      {/* ═══════════════════════════════════════ */}
+      {/* Step: Password Login                    */}
+      {/* ═══════════════════════════════════════ */}
+      {step === 'password_login' && (
+        <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          <BackButton to="email" />
             <div className="pt-1">
               <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Enter your password</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
@@ -595,6 +595,12 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             {error && (
               <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
             )}
+
+            <p className="text-[11px] text-neutral-400 text-center leading-relaxed" style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4', marginTop: '0.5rem' }}>
+              By continuing, you agree to our{' '}
+              <a href="/terms" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Terms</a> and{' '}
+              <a href="/privacy" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Privacy Policy</a>.
+            </p>
           </div>
         )}
 
@@ -654,6 +660,12 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             {error && (
               <p className="text-red-500 text-xs text-center font-medium" style={{ color: '#ef4444', fontSize: '0.78rem', textAlign: 'center' }}>{error}</p>
             )}
+
+            <p className="text-[11px] text-neutral-400 text-center leading-relaxed" style={{ fontSize: '0.68rem', color: 'var(--text-muted)', textAlign: 'center', lineHeight: '1.4', marginTop: '0.5rem' }}>
+              By continuing, you agree to our{' '}
+              <a href="/terms" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Terms</a> and{' '}
+              <a href="/privacy" className="underline hover:text-neutral-600" style={{ textDecoration: 'underline', color: 'var(--accent-blue)' }}>Privacy Policy</a>.
+            </p>
           </div>
         )}
 

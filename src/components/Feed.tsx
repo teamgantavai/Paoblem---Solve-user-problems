@@ -569,7 +569,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
+                  <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start' }}>
                     <button
                       onClick={() => handleToggleSave(post.id)}
                       style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}

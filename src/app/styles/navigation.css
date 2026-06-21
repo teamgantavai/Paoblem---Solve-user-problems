@@ -10,6 +10,13 @@
   justify-content: center;
 }
 
+/* Logo — responsive size */
+.nav-logo {
+  height: 38px;
+  object-fit: contain;
+  cursor: pointer;
+}
+
 .navbar-container {
   display: flex;
   align-items: center;
@@ -540,21 +547,39 @@
     display: flex !important;
   }
 
-  .nav-brand {
-    width: auto !important;
-    gap: 0.75rem !important;
-    padding-left: 0 !important;
-    display: flex !important;
-    align-items: center !important;
+  /* ── Navbar height & logo shrink on mobile ── */
+  .navbar {
+    height: 52px !important;
+  }
+
+  .nav-logo {
+    height: 26px !important;
+  }
+
+  .navbar-container {
+    padding: 0 0.75rem !important;
   }
 
   .menu-toggle-btn {
     padding: 4px !important;
-    margin-right: 0.25rem !important;
+    margin-right: 0.15rem !important;
     display: flex !important;
     align-items: center !important;
     justify-content: center !important;
-    height: 38px !important;
-    width: 38px !important;
+    height: 34px !important;
+    width: 34px !important;
+  }
+
+  /* Profile tab tabs that were sticky at 70px now at 52px */
+  .upf-tabs {
+    top: 52px !important;
+  }
+
+  .nav-brand {
+    width: auto !important;
+    gap: 0.5rem !important;
+    padding-left: 0 !important;
+    display: flex !important;
+    align-items: center !important;
   }
 }

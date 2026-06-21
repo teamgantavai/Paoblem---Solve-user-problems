@@ -312,12 +312,12 @@ function NavbarInner() {
               onClick={() => setIsOpen(true)}
               aria-label="Open menu"
             >
-              <AlignLeft size={24} strokeWidth={2.5} />
+              <AlignLeft size={20} strokeWidth={2.5} />
             </button>
             <img 
               src={theme === 'light' ? '/logo-light.svg' : '/logo.svg'} 
               alt="Paoblem Logo" 
-              style={{ height: '38px', objectFit: 'contain', cursor: 'pointer' }} 
+              className="nav-logo"
               onClick={() => router.push('/')}
             />
           </div>
@@ -417,12 +417,12 @@ function NavbarInner() {
 
           <button 
             className="search-btn mobile-only" 
-            style={{ marginRight: '8px', background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+            style={{ marginRight: '6px', background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
             aria-label="Open Search"
             onClick={() => setIsSearchOpen(true)}
             type="button"
           >
-            <Search size={20} strokeWidth={2} />
+            <Search size={18} strokeWidth={2} />
           </button>
 
           {session ? (
@@ -432,7 +432,7 @@ function NavbarInner() {
               aria-label="Notifications"
               onClick={() => router.push('/notifications')}
             >
-              <Bell size={20} strokeWidth={2} />
+            <Bell size={18} strokeWidth={2} />
               {unreadNotifCount > 0 && (
                 <span className="nav-badge">
                   {unreadNotifCount > 9 ? '9+' : unreadNotifCount}
@@ -440,7 +440,7 @@ function NavbarInner() {
               )}
             </button>
           ) : (
-            <button className="btn btn-primary mobile-only" style={{ padding: '0.35rem 0.85rem' }} onClick={() => setIsAuthOpen(true)}>
+            <button className="btn btn-primary mobile-only" style={{ padding: '0.3rem 0.7rem', fontSize: '0.75rem' }} onClick={() => setIsAuthOpen(true)}>
               Sign In
             </button>
           )}

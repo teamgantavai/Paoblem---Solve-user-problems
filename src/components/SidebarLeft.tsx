@@ -310,7 +310,30 @@ function SidebarLeftInner() {
         )}
       </div>
 
-
+      {/* Legal Footer Links */}
+      <div 
+        style={{ 
+          display: 'flex', 
+          flexWrap: 'wrap', 
+          justifyContent: 'center', 
+          gap: '0.4rem 0.6rem', 
+          padding: '0.5rem 0.75rem', 
+          fontSize: '0.7rem', 
+          color: 'var(--text-muted)', 
+          textAlign: 'center',
+          marginTop: '0.25rem',
+          lineHeight: '1.4'
+        }}
+      >
+        <Link href="/privacy" style={{ color: 'inherit', textDecoration: 'none' }} className="hover-underline-target">Privacy Policy</Link>
+        <span>•</span>
+        <Link href="/terms" style={{ color: 'inherit', textDecoration: 'none' }} className="hover-underline-target">Terms</Link>
+        <span>•</span>
+        <Link href="/cookies" style={{ color: 'inherit', textDecoration: 'none' }} className="hover-underline-target">Cookies</Link>
+        <div style={{ width: '100%', fontSize: '0.65rem', marginTop: '0.25rem', opacity: 0.85 }}>
+          © {new Date().getFullYear()} Paoblem
+        </div>
+      </div>
 
       {/* Modals rendered inline */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />

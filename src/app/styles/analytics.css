@@ -195,6 +195,11 @@
   color: #10b981;
 }
 
+.analytics-type-badge.solution {
+  background: rgba(59, 130, 246, 0.12);
+  color: #3b82f6;
+}
+
 /* Detail view */
 .analytics-back-btn {
   display: inline-flex;

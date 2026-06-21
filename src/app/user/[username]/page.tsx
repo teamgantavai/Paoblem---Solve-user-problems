@@ -1,12 +1,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { Metadata } from 'next';
 import { notFound } from 'next/navigation';
-import Link from 'next/link';
 import Navbar from '@/components/Navbar';
-import SidebarLeft from '@/components/SidebarLeft';
-import SidebarRight from '@/components/SidebarRight';
-import ProfileMessageButton from '@/components/ProfileMessageButton';
-import { Post } from '@/lib/types';
+import UserProfileClient from '@/components/UserProfileClient';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
@@ -17,8 +13,8 @@ interface UserPageProps {
 
 async function getUserProfile(username: string) {
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
-  
-  // Fetch profile details
+
+  // Fetch profile
   const { data: profile, error: pErr } = await supabase
     .from('profiles')
     .select('*')
@@ -27,51 +23,65 @@ async function getUserProfile(username: string) {
 
   if (pErr || !profile) return null;
 
-  // Fetch user's posts
+  // Fetch all posts (problems + ideas)
   const { data: posts } = await supabase
     .from('posts')
-    .select('*, profiles:user_id(full_name, avatar_url, role, username)')
+    .select('id, title, body, slug, type, upvotes, comments_count, created_at')
     .eq('user_id', profile.id)
     .order('created_at', { ascending: false });
 
-  // Fetch user's comments count
-  const { count: commentCount } = await supabase
-    .from('comments')
-    .select('id', { count: 'exact', head: true })
-    .eq('user_id', profile.id);
+  // Fetch solutions
+  const { data: solutions } = await supabase
+    .from('solutions')
+    .select('id, title, body, upvotes, comments_count, created_at, external_link, link_name, problem:problem_id(id, title, slug)')
+    .eq('user_id', profile.id)
+    .order('created_at', { ascending: false });
 
-  // Fetch total upvotes received on user's posts
-  const totalUpvotes = posts?.reduce((sum, p) => sum + (p.upvotes || 0), 0) ?? 0;
+  // Fetch comments (with post info)
+  const { data: comments } = await supabase
+    .from('comments')
+    .select('id, body, created_at, post_id, post:post_id(id, title, slug)')
+    .eq('user_id', profile.id)
+    .is('parent_id', null)   // top-level comments only
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const totalUpvotes = (posts || []).reduce((sum, p) => sum + (p.upvotes || 0), 0)
+    + (solutions || []).reduce((sum, s) => sum + (s.upvotes || 0), 0);
 
   return {
     profile,
-    posts: (posts || []) as Post[],
+    posts: (posts || []) as any[],
+    solutions: (solutions || []) as any[],
+    comments: (comments || []) as any[],
     stats: {
       postCount: posts?.length || 0,
-      commentCount: commentCount || 0,
+      solutionCount: solutions?.length || 0,
+      commentCount: comments?.length || 0,
       totalUpvotes,
-    }
+    },
   };
 }
 
 export async function generateMetadata({ params }: UserPageProps): Promise<Metadata> {
   const { username } = await params;
   const data = await getUserProfile(username);
-  if (!data) {
-    return {
-      title: 'User Not Found | Paoblem',
-    };
-  }
+  if (!data) return { title: 'User Not Found | Paoblem' };
 
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com';
   const name = data.profile.full_name || username;
-  const bio = data.profile.bio || `View ${name}'s startup problems, ideas, and solutions on Paoblem.`;
+  const bio = data.profile.bio || `View ${name}'s problems, ideas, and solutions on Paoblem.`;
 
   return {
-    title: `${name} (${data.profile.role || 'Innovator'}) Profile | Paoblem`,
+    title: `${name} (@${username}) | Paoblem`,
     description: bio.substring(0, 160),
-    alternates: {
-      canonical: `${siteUrl}/user/${username}`,
+    alternates: { canonical: `${siteUrl}/user/${username}` },
+    openGraph: {
+      title: `${name} | Paoblem`,
+      description: bio.substring(0, 160),
+      type: 'profile',
+      url: `${siteUrl}/user/${username}`,
+      images: data.profile.avatar_url ? [{ url: data.profile.avatar_url }] : [],
     },
   };
 }
@@ -80,149 +90,33 @@ export default async function UserPage({ params }: UserPageProps) {
   const { username } = await params;
   const data = await getUserProfile(username);
 
-  if (!data) {
-    notFound();
-  }
+  if (!data) notFound();
 
-  const { profile, posts, stats } = data;
-  const name = profile.full_name || username;
-  const avatar = profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id}`;
+  const { profile, posts, solutions, comments, stats } = data;
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com';
+  const name = profile.full_name || username;
 
-  // Breadcrumbs JSON-LD
   const jsonLd = {
-    "@context": "https://schema.org",
-    "@type": "BreadcrumbList",
-    "itemListElement": [
-      {
-        "@type": "ListItem",
-        "position": 1,
-        "name": "Home",
-        "item": siteUrl
-      },
-      {
-        "@type": "ListItem",
-        "position": 2,
-        "name": name,
-        "item": `${siteUrl}/user/${username}`
-      }
-    ]
+    '@context': 'https://schema.org',
+    '@type': 'BreadcrumbList',
+    itemListElement: [
+      { '@type': 'ListItem', position: 1, name: 'Home', item: siteUrl },
+      { '@type': 'ListItem', position: 2, name: name, item: `${siteUrl}/user/${username}` },
+    ],
   };
 
   return (
-    <div className="app-container">
-      <script
-        type="application/ld+json"
-        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }}
-      />
+    <div className="upf-page">
+      <script type="application/ld+json" dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd) }} />
       <Navbar />
-      <div className="main-content">
-        <SidebarLeft />
-        
-        <main className="center-feed">
-          {/* User Identity Header Card */}
-          <div className="card" style={{ padding: 0, marginBottom: '1.5rem', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
-            {/* Cover Banner */}
-            <div 
-              style={{ 
-                height: '110px', 
-                background: profile.cover_url ? `url(${profile.cover_url}) center/cover` : 'linear-gradient(135deg, #1a1a2e 0%, #16213e 40%, #0f3460 75%, #1a1a3e 100%)' 
-              }} 
-            />
-            <div style={{ padding: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-              <div style={{ display: 'flex', gap: '1.25rem', alignItems: 'center', marginTop: '-3rem' }}>
-                <img
-                  src={avatar}
-                  alt={name}
-                  style={{ width: '72px', height: '72px', borderRadius: '50%', border: '3px solid var(--bg-card)', objectFit: 'cover', backgroundColor: '#27272a' }}
-                />
-              <div style={{ flex: 1 }}>
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', flexWrap: 'wrap' }}>
-                  <h1 style={{ fontSize: '1.4rem', fontWeight: 700, color: 'var(--text-main)', display: 'flex', alignItems: 'center', gap: '0.5rem', flexWrap: 'wrap' }}>
-                    {name}
-                    <span style={{ fontSize: '0.7rem', fontWeight: 500, background: 'var(--bg-hover)', padding: '2px 8px', borderRadius: '12px', color: 'var(--text-muted)' }}>
-                      {profile.role || 'Innovator'}
-                    </span>
-                  </h1>
-                  <ProfileMessageButton profileId={profile.id} />
-                </div>
-                <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-                  @{profile.username || username}
-                </p>
-                {profile.location && (
-                  <p style={{ fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: '4px' }}>
-                    📍 {profile.location}
-                  </p>
-                )}
-              </div>
-            </div>
-
-            {profile.bio && (
-              <p style={{ fontSize: '0.88rem', lineHeight: '1.5', color: 'var(--text-main)', marginTop: '0.5rem' }}>
-                {profile.bio}
-              </p>
-            )}
-
-            <div style={{ display: 'flex', gap: '1.5rem', borderTop: '1px solid var(--border-color)', paddingTop: '1rem', marginTop: '0.5rem' }}>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{stats.postCount}</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Posts</span>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{stats.commentCount}</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Comments</span>
-              </div>
-              <div style={{ textAlign: 'center' }}>
-                <span style={{ display: 'block', fontSize: '1.1rem', fontWeight: 700, color: 'var(--text-main)' }}>{stats.totalUpvotes}</span>
-                <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)' }}>Upvotes</span>
-              </div>
-            </div>
-          </div>
-          </div>
-
-          {/* User Posts List */}
-          <h2 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '1rem' }}>
-            Discussions by {name}
-          </h2>
-
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-            {posts.length === 0 ? (
-              <div className="card" style={{ textAlign: 'center', padding: '3rem', color: 'var(--text-muted)' }}>
-                No discussions posted yet.
-              </div>
-            ) : (
-              posts.map((post) => (
-                <article key={post.id} className="card" style={{ padding: '1.25rem' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.6rem' }}>
-                    <span className={`sticker-tag ${post.type}`} style={{ marginLeft: 0 }}>
-                      {post.type === 'problem' ? 'Problem' : 'Idea'}
-                    </span>
-                    <span style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginLeft: 'auto' }}>
-                      {new Date(post.created_at).toLocaleDateString()}
-                    </span>
-                  </div>
-
-                  <h3 style={{ fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem' }}>
-                    <Link href={`/post/${post.slug || post.id}`} style={{ color: 'var(--text-main)', textDecoration: 'none' }}>
-                      {post.title}
-                    </Link>
-                  </h3>
-
-                  <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', lineHeight: '1.5', display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical', overflow: 'hidden', textOverflow: 'ellipsis', marginBottom: '0.75rem' }}>
-                    {post.body}
-                  </p>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-                    <span>↑ {post.upvotes} upvotes</span>
-                    <span>💬 {post.comments_count} comments</span>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        </main>
-        
-        <SidebarRight />
+      <div className="upf-page-body">
+        <UserProfileClient
+          profile={profile}
+          posts={posts}
+          solutions={solutions}
+          comments={comments}
+          stats={stats}
+        />
       </div>
     </div>
   );

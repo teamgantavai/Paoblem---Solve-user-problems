@@ -121,7 +121,7 @@ function AnalyticsDashboardInner() {
           )}
           <div>
             <span className={`analytics-type-badge ${post.type}`}>
-              {post.type === 'problem' ? 'Problem' : 'Idea'}
+              {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Solution'}
             </span>
             <h1>{decodeHTMLEntities(post.title)}</h1>
             <p className="analytics-detail-date">
@@ -135,7 +135,7 @@ function AnalyticsDashboardInner() {
         <div className="analytics-stats-row">
           <StatBox icon={<Eye size={20} />} label="Views" value={stats.views} />
           <StatBox icon={<TrendingUp size={20} />} label="Impressions" value={stats.impressions} accent="#8b5cf6" />
-          <StatBox icon={<ThumbsUp size={20} />} label="Upvotes" value={stats.upvotes} accent="#10b981" />
+          <StatBox icon={<TriangleIcon size={20} />} label="Upvotes" value={stats.upvotes} accent="#10b981" />
           <StatBox icon={<TriangleIcon size={20} style={{ transform: 'rotate(180deg)' }} />} label="Downvotes" value={stats.downvotes} accent="#ef4444" />
           <StatBox icon={<MessageCircle size={20} />} label="Comments" value={stats.comments} accent="#06b6d4" />
           <StatBox icon={<UserPlus size={20} />} label="Followers Gained" value={stats.followsGained} accent="var(--accent-yellow)" />
@@ -197,7 +197,7 @@ function AnalyticsDashboardInner() {
 
       <div className="analytics-totals-row">
         <TotalCard icon={<Eye size={22} />} label="Total Views" value={totals.views} />
-        <TotalCard icon={<ThumbsUp size={22} />} label="Total Votes" value={totals.votes} />
+        <TotalCard icon={<TriangleIcon size={22} />} label="Total Votes" value={totals.votes} />
         <TotalCard icon={<MessageCircle size={22} />} label="Total Comments" value={totals.comments} />
         <TotalCard icon={<UserPlus size={22} />} label="Followers Gained" value={totals.followsGained} />
       </div>
@@ -230,12 +230,12 @@ function AnalyticsDashboardInner() {
                   )}
                   <div className="analytics-post-card-body">
                     <span className={`analytics-type-badge ${post.type}`}>
-                      {post.type === 'problem' ? 'Problem' : 'Idea'}
+                      {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Solution'}
                     </span>
                     <h3>{decodeHTMLEntities(post.title)}</h3>
                     <div className="analytics-post-card-stats">
                       <span><Eye size={13} /> {post.views.toLocaleString()}</span>
-                      <span><ThumbsUp size={13} /> {post.votes.toLocaleString()}</span>
+                      <span><TriangleIcon size={13} /> {post.votes.toLocaleString()}</span>
                       <span><MessageCircle size={13} /> {post.comments.toLocaleString()}</span>
                       <span><UserPlus size={13} /> {post.followsGained.toLocaleString()}</span>
                     </div>
