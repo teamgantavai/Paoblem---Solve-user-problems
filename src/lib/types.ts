@@ -7,6 +7,8 @@ export interface Post {
   body: string;
   type: 'problem' | 'idea';
   image_url: string | null;
+  video_url?: string | null;
+  metadata?: any;
   external_link: string | null;
   link_name: string | null;
   upvotes: number;

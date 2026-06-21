@@ -25,6 +25,8 @@ const createPostSchema = z.object({
   }),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
+  metadata: z.any().optional(),
+  video_url: z.string().url().nullable().optional(),
 });
 
 // Simple in-memory rate limiter
@@ -88,7 +90,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    const { title, body: postBody, type, image_url, external_link, link_name } = parsed.data;
+    const { title, body: postBody, type, image_url, external_link, link_name, metadata, video_url } = parsed.data;
 
     const sanitizedTitle = sanitize(title);
     const sanitizedBody = sanitize(postBody);
@@ -100,6 +102,8 @@ export async function POST(req: NextRequest) {
       type,
       image_url: image_url || null,
       external_link: external_link || null,
+      metadata: metadata || {},
+      video_url: video_url || null,
     };
 
     // Add link_name if provided (requires the column to exist in DB)
