@@ -40,6 +40,9 @@ interface ProfileStats {
   postCount: number;
   commentCount: number;
   totalUpvotes: number;
+  solutionCount?: number;
+  problemCount?: number;
+  ideaCount?: number;
 }
 
 interface UserPost {

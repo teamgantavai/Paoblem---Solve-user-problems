@@ -127,7 +127,7 @@ export interface AIEnhanceResponse {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'upvote' | 'comment' | 'follow' | 'downvote' | 'system';
+  type: 'upvote' | 'comment' | 'follow' | 'downvote' | 'system' | 'new_post';
   title: string;
   body: string;
   read: boolean;
