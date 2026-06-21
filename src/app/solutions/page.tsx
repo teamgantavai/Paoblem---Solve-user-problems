@@ -40,14 +40,37 @@ export default function SolutionsPage() {
   const [hasMore, setHasMore] = useState(false);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [votingSolutionIds, setVotingSolutionIds] = useState<Record<string, boolean>>({});
+  const [userVotes, setUserVotes] = useState<Record<string, 'up' | 'down'>>({});
   const loadMoreRef = useRef<HTMLDivElement>(null);
   const viewedSolutionsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => setSession(currentSession));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => setSession(currentSession));
+    supabase.auth.getSession().then(({ data: { session: s } }) => {
+      setSession(s);
+      if (s?.user) fetchUserVotes(s.user.id);
+    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_e, s) => {
+      setSession(s);
+      if (s?.user) fetchUserVotes(s.user.id);
+    });
     return () => subscription.unsubscribe();
   }, []);
+
+  const fetchUserVotes = async (userId: string) => {
+    try {
+      const { data } = await supabase
+        .from('solution_votes')
+        .select('solution_id, vote_type')
+        .eq('user_id', userId);
+      if (data && data.length > 0) {
+        const map: Record<string, 'up' | 'down'> = {};
+        data.forEach((v: any) => { map[v.solution_id] = v.vote_type as 'up' | 'down'; });
+        setUserVotes(map);
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  };
 
   async function fetchSolutions(cursor?: string | null, append = false) {
     if (append) {
@@ -123,20 +146,42 @@ export default function SolutionsPage() {
     if (votingSolutionIds[solutionId]) return;
 
     setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: true }));
+    const previousVote = userVotes[solutionId];
 
     // Optimistic update (simplified)
     setSolutions((current) =>
       current.map((sol) => {
         if (sol.id === solutionId) {
-          return {
-            ...sol,
-            upvotes: type === 'up' ? (sol.upvotes || 0) + 1 : sol.upvotes,
-            downvotes: type === 'down' ? (sol.downvotes || 0) + 1 : sol.downvotes,
-          };
+          let nextUpvotes = sol.upvotes || 0;
+          let nextDownvotes = sol.downvotes || 0;
+
+          if (previousVote === type) {
+            // Removing vote
+            if (type === 'up') nextUpvotes = Math.max(0, nextUpvotes - 1);
+            if (type === 'down') nextDownvotes = Math.max(0, nextDownvotes - 1);
+          } else {
+            // Adding/changing vote
+            if (type === 'up') {
+              nextUpvotes += 1;
+              if (previousVote === 'down') nextDownvotes = Math.max(0, nextDownvotes - 1);
+            } else {
+              nextDownvotes += 1;
+              if (previousVote === 'up') nextUpvotes = Math.max(0, nextUpvotes - 1);
+            }
+          }
+
+          return { ...sol, upvotes: nextUpvotes, downvotes: nextDownvotes };
         }
         return sol;
       })
     );
+
+    setUserVotes((prev) => {
+      const next = { ...prev };
+      if (previousVote === type) delete next[solutionId];
+      else next[solutionId] = type;
+      return next;
+    });
 
     try {
       const res = await fetch('/api/solutions/vote', {
@@ -164,6 +209,11 @@ export default function SolutionsPage() {
             return sol;
           })
         );
+        setUserVotes((prev) => {
+          const next = { ...prev };
+          delete next[solutionId];
+          return next;
+        });
       }
     } catch (err) {
       console.error(err);
@@ -171,15 +221,31 @@ export default function SolutionsPage() {
       setSolutions((current) =>
         current.map((sol) => {
           if (sol.id === solutionId) {
-            return {
-              ...sol,
-              upvotes: type === 'up' ? Math.max(0, (sol.upvotes || 0) - 1) : sol.upvotes,
-              downvotes: type === 'down' ? Math.max(0, (sol.downvotes || 0) - 1) : sol.downvotes,
-            };
+            let nextUpvotes = sol.upvotes || 0;
+            let nextDownvotes = sol.downvotes || 0;
+            if (previousVote === type) {
+              if (type === 'up') nextUpvotes += 1;
+              if (type === 'down') nextDownvotes += 1;
+            } else {
+              if (type === 'up') {
+                nextUpvotes = Math.max(0, nextUpvotes - 1);
+                if (previousVote === 'down') nextDownvotes += 1;
+              } else {
+                nextDownvotes = Math.max(0, nextDownvotes - 1);
+                if (previousVote === 'up') nextUpvotes += 1;
+              }
+            }
+            return { ...sol, upvotes: nextUpvotes, downvotes: nextDownvotes };
           }
           return sol;
         })
       );
+      setUserVotes((prev) => {
+        const next = { ...prev };
+        if (previousVote) next[solutionId] = previousVote;
+        else delete next[solutionId];
+        return next;
+      });
     } finally {
       setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: false }));
     }
@@ -349,8 +415,8 @@ export default function SolutionsPage() {
                       style={{ cursor: 'pointer' }}
                       title="View post to vote and comment"
                     >
-                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'up')}><TriangleIcon size={15} /> <span className="vote-label up">+{solution.upvotes || 0}</span></button>
-                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'down')}><TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} /> <span className="vote-label down">-{solution.downvotes || 0}</span></button>
+                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''} ${userVotes[solution.id] === 'up' ? 'user-voted-up' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'up')}><TriangleIcon size={15} /> <span className="vote-label up">+{solution.upvotes || 0}</span></button>
+                      <button type="button" className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''} ${userVotes[solution.id] === 'down' ? 'user-voted-down' : ''}`} disabled={votingSolutionIds[solution.id]} onClick={(e) => handleVote(e, solution.id, 'down')}><TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} /> <span className="vote-label down">-{solution.downvotes || 0}</span></button>
                       <button type="button" className="solution-comments-pill"><MessageCircle size={14} /> {solution.comments_count}</button>
                     </div>
                   </article>

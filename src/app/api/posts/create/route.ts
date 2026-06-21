@@ -4,6 +4,8 @@ import { z } from 'zod';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
 const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey;
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 const createPostSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(300, 'Title too long'),
@@ -120,6 +122,41 @@ export async function POST(req: NextRequest) {
     if (error) {
       console.error('[posts/create] Insert error:', JSON.stringify(error));
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // --- NOTIFY FOLLOWERS ---
+    try {
+      // 1. Get all users following this user (follower_id)
+      const { data: followers } = await supabaseAdmin
+        .from('follows')
+        .select('follower_id')
+        .eq('following_id', user.id);
+
+      if (followers && followers.length > 0) {
+        // 2. Fetch the poster's username to construct the message
+        const { data: profile } = await supabaseAdmin
+          .from('profiles')
+          .select('username')
+          .eq('id', user.id)
+          .single();
+
+        const posterName = profile?.username ? `@${profile.username}` : 'Someone you follow';
+
+        // 3. Create notifications
+        const notifications = followers.map((f: { follower_id: string }) => ({
+          user_id: f.follower_id,
+          type: 'new_post',
+          title: 'New Post',
+          body: `${posterName} just published a new ${type}.`,
+          post_id: data.id,
+          read: false
+        }));
+
+        await supabaseAdmin.from('notifications').insert(notifications);
+      }
+    } catch (notifErr) {
+      console.error('[posts/create] Notification error:', notifErr);
+      // Don't fail the post creation if notifications fail
     }
 
     return NextResponse.json({ post: data }, { status: 201 });

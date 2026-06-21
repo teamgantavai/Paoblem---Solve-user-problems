@@ -3,11 +3,12 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  MapPin, Pencil, MoreVertical, ChevronDown, ChevronUp,
-  Check, Camera, MessageCircle, Phone, Loader2, ExternalLink,
+  MapPin, Pencil, MoreVertical, ChevronDown, ChevronUp, ChevronRight,
+  Check, Camera, MessageCircle, MessageSquare, Phone, Loader2, ExternalLink,
   AlertTriangle, Lightbulb, Bookmark, Share2, User, UserPlus, UserMinus, LogOut, Settings,
-  Sun, Moon, BarChart2
+  Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar
 } from 'lucide-react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
@@ -57,6 +58,38 @@ interface UserComment {
   created_at: string;
   post_id: string;
   post_title?: string;
+}
+
+/* ── Utilities ────────────────────────────────────────────── */
+function formatDate(d: string) {
+  return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function avatarUrl(profile: { id?: string; avatar_url?: string | null; username?: string | null }) {
+  return profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id || profile.username || 'guest'}`;
+}
+
+function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
+  return (
+    <div className="upf-empty">
+      <div className="upf-empty-icon">{icon}</div>
+      <p>{text}</p>
+    </div>
+  );
+}
+
+function UserCard({ user }: { user: any }) {
+  return (
+    <Link href={`/user/${user.username}`} className="upf-user-card">
+      <img src={avatarUrl(user)} alt={user.full_name || user.username || 'User'} className="upf-user-card-avatar" />
+      <div className="upf-user-card-info">
+        <span className="upf-user-card-name">{user.full_name || user.username}</span>
+        <span className="upf-user-card-role">@{user.username} {user.role ? `· ${user.role}` : ''}</span>
+        {user.bio && <p className="upf-user-card-bio">{user.bio.substring(0, 80)}{user.bio.length > 80 ? '…' : ''}</p>}
+      </div>
+      <ChevronRight size={16} className="upf-user-card-arrow" />
+    </Link>
+  );
 }
 
 /* ────────────────────────────────────────────────────────
@@ -133,10 +166,26 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
   const displayUserId = isOwnProfile ? currentUserId : targetUserId;
 
-  const [activeTab, setActiveTab] = useState<'about' | 'posts' | 'comments' | 'saved' | 'history' | 'hidden' | 'upvoted' | 'downvoted' | 'settings' | 'signout'>('about');
+  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'followers' | 'following' | 'settings' | 'signout'>('problems');
   const [bioExpanded, setBioExpanded] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const rolePickerRef = useRef<HTMLDivElement>(null);
+
+  // Follow lists
+  const [followersList, setFollowersList] = useState<any[]>([]);
+  const [followingList, setFollowingList] = useState<any[]>([]);
+  const [listsLoaded, setListsLoaded] = useState(false);
+
+  const loadLists = async () => {
+    if (listsLoaded || !displayUserId) return;
+    setListsLoaded(true);
+    const [fersRes, fingRes] = await Promise.all([
+      fetch(`/api/follows/list?userId=${displayUserId}&type=followers`),
+      fetch(`/api/follows/list?userId=${displayUserId}&type=following`),
+    ]);
+    if (fersRes.ok) { const d = await fersRes.json(); setFollowersList(d.users || []); }
+    if (fingRes.ok) { const d = await fingRes.json(); setFollowingList(d.users || []); }
+  };
 
   // Avatar upload states
   const [avatarUploading, setAvatarUploading] = useState(false);
@@ -315,6 +364,21 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
     enabled: !!displayUserId,
   });
 
+  // Fetch user's solutions
+  const { data: userSolutions = [] } = useQuery<any[]>({
+    queryKey: ['profile-solutions', displayUserId],
+    queryFn: async () => {
+      const { data, error } = await supabase
+        .from('solutions')
+        .select('id, title, body, upvotes, comments_count, created_at, external_link, link_name, problem:problem_id(id, title, slug)')
+        .eq('user_id', displayUserId)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      return data || [];
+    },
+    enabled: !!displayUserId,
+  });
+
   // Fetch user's comments
   const { data: userComments = [] } = useQuery<UserComment[]>({
     queryKey: ['profile-comments', displayUserId],
@@ -479,34 +543,24 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const coverSrc = tempCover || profile?.cover_url;
 
   return (
-    <div className="profile-page-wrap">
-      {/* ── Main Profile Header ── */}
-      <div className="profile-main-card">
-        {/* Cover Banner */}
-        <div 
-          className="profile-cover" 
-          onClick={handleCoverClick} 
-          style={{ 
+    <div className="upf-root" style={{ margin: '0 auto' }}>
+      {/* ── Cover + Avatar + Actions ─────────────────────────────── */}
+      <div className="upf-header-card">
+        <div
+          className="upf-cover"
+          onClick={handleCoverClick}
+          style={{
             cursor: isOwnProfile ? 'pointer' : 'default',
             backgroundImage: coverSrc ? `url(${coverSrc})` : undefined,
-            backgroundSize: 'cover',
-            backgroundPosition: 'center',
-            position: 'relative'
           }}
         >
+          <div className="upf-cover-overlay" />
           {isOwnProfile && (
             <div className="cover-edit-overlay" style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
+              position: 'absolute', inset: 0,
               background: 'rgba(0, 0, 0, 0.3)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              opacity: 0,
-              transition: 'opacity 0.2s',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              opacity: 0, transition: 'opacity 0.2s', zIndex: 10
             }}>
               <Camera size={24} color="white" />
               <span style={{ color: 'white', marginLeft: '0.5rem', fontSize: '0.85rem', fontWeight: 600 }}>Change Cover</span>
@@ -514,30 +568,13 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
           )}
           {coverUploading && (
             <div style={{
-              position: 'absolute',
-              top: 0,
-              left: 0,
-              width: '100%',
-              height: '100%',
+              position: 'absolute', inset: 0,
               background: 'rgba(0, 0, 0, 0.5)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
+              display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 20
             }}>
               <Loader2 size={24} className="spin" color="white" />
             </div>
           )}
-          <div className="profile-cover-actions" onClick={(e) => e.stopPropagation()}>
-            {isOwnProfile && (
-              <button
-                className="profile-edit-btn"
-                onClick={() => setActiveTab('settings')}
-              >
-                <Pencil size={13} />
-                Edit Profile
-              </button>
-            )}
-          </div>
           {isOwnProfile && (
             <input
               type="file"
@@ -549,56 +586,41 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
           )}
         </div>
 
-        {/* Identity Section */}
-        <div className="profile-identity-section">
-          <div className="profile-avatar-col">
-            <div
-              className={`profile-full-avatar-wrap ${isOwnProfile ? 'editable-avatar' : ''}`}
-              onClick={handleAvatarClick}
-              style={{ position: 'relative', cursor: isOwnProfile ? 'pointer' : 'default', overflow: 'hidden', borderRadius: '50%' }}
-            >
-              <img
-                src={avatarSrc}
-                alt={displayName}
-                onError={(e) => {
-                  e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest";
-                }}
-                className="profile-full-avatar"
-                style={{ opacity: avatarUploading ? 0.6 : 1, transition: 'opacity 0.2s', width: '100%', height: '100%', objectFit: 'cover' }}
-              />
-              {isOwnProfile && (
-                <div className="avatar-edit-overlay" style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  background: 'rgba(0, 0, 0, 0.4)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                  opacity: 0,
-                  transition: 'opacity 0.2s',
-                }}>
-                  <Camera size={20} color="white" />
-                </div>
-              )}
-              {avatarUploading && (
-                <div style={{
-                  position: 'absolute',
-                  top: 0,
-                  left: 0,
-                  width: '100%',
-                  height: '100%',
-                  background: 'rgba(0, 0, 0, 0.5)',
-                  display: 'flex',
-                  alignItems: 'center',
-                  justifyContent: 'center',
-                }}>
-                  <Loader2 size={24} className="spin" color="white" />
-                </div>
-              )}
-            </div>
+        <div className="upf-identity">
+          <div
+            className="upf-avatar-wrap"
+            onClick={handleAvatarClick}
+            style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
+          >
+            <img
+              src={avatarSrc}
+              alt={displayName}
+              onError={(e) => { e.currentTarget.src = "https://api.dicebear.com/7.x/bottts/svg?seed=guest"; }}
+              className="upf-avatar"
+              style={{ opacity: avatarUploading ? 0.6 : 1, transition: 'opacity 0.2s' }}
+            />
+            <div className="upf-avatar-ring" />
+            {isOwnProfile && (
+              <div className="avatar-edit-overlay" style={{
+                position: 'absolute', inset: -3,
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.4)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center',
+                opacity: 0, transition: 'opacity 0.2s', zIndex: 5
+              }}>
+                <Camera size={20} color="white" />
+              </div>
+            )}
+            {avatarUploading && (
+              <div style={{
+                position: 'absolute', inset: -3,
+                borderRadius: '50%',
+                background: 'rgba(0, 0, 0, 0.5)',
+                display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6
+              }}>
+                <Loader2 size={24} className="spin" color="white" />
+              </div>
+            )}
             {isOwnProfile && (
               <input
                 type="file"
@@ -610,193 +632,314 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
             )}
             <style dangerouslySetInnerHTML={{
               __html: `
-              .profile-full-avatar-wrap:hover .avatar-edit-overlay {
-                opacity: 1 !important;
-              }
-              .profile-cover:hover .cover-edit-overlay {
-                opacity: 1 !important;
-              }
+              .upf-avatar-wrap:hover .avatar-edit-overlay { opacity: 1 !important; }
+              .upf-cover:hover .cover-edit-overlay { opacity: 1 !important; }
             ` }} />
           </div>
 
-          <div className="profile-info-col">
-            <div className="profile-name-line">
-              <span className="profile-full-name">{displayName}</span>
-
-              {/* Role Tag (Editable for owner, readonly for guests) */}
-              <div style={{ position: 'relative' }} ref={rolePickerRef}>
-                <button
-                  className="profile-role-tag"
-                  onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
-                  style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
-                  title={isOwnProfile ? "Change your role tag" : undefined}
-                >
-                  {isOwnProfile && (
-                    updateRoleMutation.isPending ? (
-                      <Loader2 size={10} className="spin" />
-                    ) : (
-                      <Pencil size={10} />
-                    )
-                  )}
-                  {currentRole}
-                </button>
-
-                {isOwnProfile && rolePickerOpen && (
-                  <div className="profile-role-picker">
-                    {VALID_ROLES.map((r) => (
-                      <button
-                        key={r}
-                        className={`profile-role-option ${r === currentRole ? 'active' : ''}`}
-                        onClick={() => updateRoleMutation.mutate(r)}
-                        disabled={updateRoleMutation.isPending}
-                      >
-                        {r === currentRole && <Check size={12} />}
-                        {r}
-                      </button>
-                    ))}
-                  </div>
-                )}
+          <div className="upf-identity-body">
+            <div className="upf-name-row">
+              <div>
+                <h1 className="upf-name">{displayName}</h1>
+                <p className="upf-username">@{profile?.username || 'member'}</p>
               </div>
             </div>
 
-            {location && (
-              <div className="profile-location-row" style={{ marginTop: '0.2rem' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: '0.25rem' }}><MapPin size={13} /> {location}</span>
-                <span>•</span>
-                <span>{followData?.followersCount || 0} followers</span>
-                <span>•</span>
-                <span>{stats?.postCount || 0} contributions</span>
-              </div>
-            )}
-            {!location && (
-              <div className="profile-location-row" style={{ marginTop: '0.2rem' }}>
-                <span>{followData?.followersCount || 0} followers</span>
-                <span>•</span>
-                <span>{stats?.postCount || 0} contributions</span>
+            {isOwnProfile && (
+              <div className="upf-actions">
+                <button onClick={() => setActiveTab('settings')} className="upf-btn-follow">
+                  <Settings size={15} /> Edit Profile
+                </button>
+                <button onClick={() => router.push('/analytics')} className="upf-btn-message">
+                  <BarChart2 size={15} /> Analytics
+                </button>
               </div>
             )}
 
-            <div className="profile-action-buttons-row" style={{ display: 'flex', gap: '0.5rem', marginBottom: '1rem', marginTop: '0.5rem' }}>
-              {!isOwnProfile ? (
-                <>
-                  <button
-                    className={`profile-action-btn ${followData?.isFollowing ? '' : 'primary'}`}
-                    onClick={() => toggleFollowMutation.mutate()}
-                    disabled={toggleFollowMutation.isPending}
-                  >
-                    {toggleFollowMutation.isPending ? (
-                      <Loader2 size={14} className="spin" />
-                    ) : followData?.isFollowing ? (
-                      <>
-                        <UserMinus size={14} /> Unfollow
-                      </>
-                    ) : (
-                      <>
-                        <UserPlus size={14} /> Follow
-                      </>
-                    )}
-                  </button>
-                  <button className="profile-action-btn" onClick={handleMessageUser}>
-                    <MessageCircle size={14} /> Message
-                  </button>
-                </>
-              ) : (
-                <>
-                  <button onClick={() => setActiveTab('settings')} className="profile-action-btn primary">
-                    <User size={14} /> Edit Profile
-                  </button>
-                  <button onClick={() => router.push('/analytics')} className="profile-action-btn">
-                    <BarChart2 size={14} /> Analytics
-                  </button>
-                </>
+            {!isOwnProfile && (
+              <div className="upf-actions">
+                <button
+                  className={`upf-btn-follow ${followData?.isFollowing ? 'upf-btn-follow--active' : ''}`}
+                  onClick={() => toggleFollowMutation.mutate()}
+                  disabled={toggleFollowMutation.isPending}
+                >
+                  {toggleFollowMutation.isPending ? (
+                    <Loader2 size={14} className="spin" />
+                  ) : followData?.isFollowing ? (
+                    <>
+                      <UserMinus size={15} /> Unfollow
+                    </>
+                  ) : (
+                    <>
+                      <UserPlus size={15} /> Follow
+                    </>
+                  )}
+                </button>
+                <button className="upf-btn-message" onClick={handleMessageUser}>
+                  <MessageCircle size={15} /> Message
+                </button>
+              </div>
+            )}
+
+            <div style={{ position: 'relative', width: 'fit-content' }} ref={rolePickerRef}>
+              <button
+                className="upf-role-badge"
+                onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
+                style={{ cursor: isOwnProfile ? 'pointer' : 'default', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-main)', padding: '4px 12px' }}
+                title={isOwnProfile ? "Change your role tag" : undefined}
+              >
+                {isOwnProfile && (
+                  updateRoleMutation.isPending ? (
+                    <Loader2 size={11} className="spin" style={{ marginRight: '4px' }} />
+                  ) : (
+                    <Pencil size={11} style={{ marginRight: '4px' }} />
+                  )
+                )}
+                {currentRole}
+              </button>
+
+              {isOwnProfile && rolePickerOpen && (
+                <div className="profile-role-picker" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 100 }}>
+                  {VALID_ROLES.map((r) => (
+                    <button
+                      key={r}
+                      className={`profile-role-option ${r === currentRole ? 'active' : ''}`}
+                      onClick={() => updateRoleMutation.mutate(r)}
+                      disabled={updateRoleMutation.isPending}
+                    >
+                      {r === currentRole && <Check size={12} />}
+                      {r}
+                    </button>
+                  ))}
+                </div>
               )}
             </div>
 
-            {bio && (
-              <p className="profile-bio-text">
+            {location && (
+              <p className="upf-location"><MapPin size={12} /> {location}</p>
+            )}
+
+            {bio ? (
+              <p className="upf-bio">
                 {displayBio}
                 {bio.length > BIO_PREVIEW_LENGTH && (
                   <button
                     className="profile-bio-see-more"
                     onClick={() => setBioExpanded(!bioExpanded)}
-                    style={{ marginLeft: '0.4rem' }}
+                    style={{ marginLeft: '0.4rem', background: 'none', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', fontSize: '0.8rem' }}
                   >
                     {bioExpanded ? 'See less' : 'SEE MORE'}
-                    {bioExpanded ? <ChevronUp size={12} /> : <ChevronDown size={12} />}
                   </button>
                 )}
               </p>
+            ) : (
+              isOwnProfile && (
+                <p className="upf-bio" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
+                  No bio yet.{' '}
+                  <button
+                    style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem', padding: 0, fontStyle: 'normal' }}
+                    onClick={() => setActiveTab('settings')}
+                  >
+                    Add one
+                  </button>
+                </p>
+              )
             )}
 
-            {!bio && isOwnProfile && (
-              <p className="profile-bio-text" style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                No bio yet.{' '}
-                <button
-                  style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.875rem', padding: 0, fontStyle: 'normal' }}
-                  onClick={() => setActiveTab('settings')}
-                >
-                  Add one
-                </button>
-              </p>
-            )}
+            <div className="upf-stats-bar">
+              <div className="upf-stat">
+                <span className="upf-stat-num">{stats?.postCount || 0}</span>
+                <span className="upf-stat-label">Posts</span>
+              </div>
+              <div className="upf-stat-divider" />
+              <div className="upf-stat">
+                <span className="upf-stat-num">{stats?.solutionCount || 0}</span>
+                <span className="upf-stat-label">Solutions</span>
+              </div>
+              <div className="upf-stat-divider" />
+              <div className="upf-stat">
+                <span className="upf-stat-num">{stats?.totalUpvotes || 0}</span>
+                <span className="upf-stat-label">Upvotes</span>
+              </div>
+              <div className="upf-stat-divider" />
+              <div className="upf-stat">
+                <span className="upf-stat-num">{followData?.followersCount || 0}</span>
+                <span className="upf-stat-label">Followers</span>
+              </div>
+              <div className="upf-stat-divider" />
+              <div className="upf-stat">
+                <span className="upf-stat-num">{followData?.followingCount || 0}</span>
+                <span className="upf-stat-label">Following</span>
+              </div>
+            </div>
 
-            {/* Action buttons and stats have moved to the right sidebar */}
           </div>
         </div>
       </div>
 
-      {/* ── Reddit Style Horizontal Nav ── */}
-      <div className="profile-horizontal-nav">
-        <button className={`profile-tab-btn ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>Overview</button>
-        <button className={`profile-tab-btn ${activeTab === 'posts' ? 'active' : ''}`} onClick={() => setActiveTab('posts')}>Posts</button>
-        <button className={`profile-tab-btn ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>Comments</button>
+      {/* ── Tab Navigation ── */}
+      <div className="upf-tabs">
+        <button className={`upf-tab-btn ${activeTab === 'problems' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('problems')}>
+          <BookOpen size={15} /> <span className="upf-tab-label">Problems</span>
+          <span className="upf-tab-count">{problemsList.length}</span>
+        </button>
+        <button className={`upf-tab-btn ${activeTab === 'ideas' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('ideas')}>
+          <Lightbulb size={15} /> <span className="upf-tab-label">Ideas</span>
+          <span className="upf-tab-count">{ideasList.length}</span>
+        </button>
+        <button className={`upf-tab-btn ${activeTab === 'solutions' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('solutions')}>
+          <Award size={15} /> <span className="upf-tab-label">Solutions</span>
+          <span className="upf-tab-count">{userSolutions.length}</span>
+        </button>
+        <button className={`upf-tab-btn ${activeTab === 'comments' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('comments')}>
+          <MessageSquare size={15} /> <span className="upf-tab-label">Comments</span>
+          <span className="upf-tab-count">{userComments.length}</span>
+        </button>
+        <button className={`upf-tab-btn ${activeTab === 'followers' ? 'upf-tab-btn--active' : ''}`} onClick={() => { setActiveTab('followers'); loadLists(); }}>
+          <Users size={15} /> <span className="upf-tab-label">Followers</span>
+          <span className="upf-tab-count">{followData?.followersCount || 0}</span>
+        </button>
+        <button className={`upf-tab-btn ${activeTab === 'following' ? 'upf-tab-btn--active' : ''}`} onClick={() => { setActiveTab('following'); loadLists(); }}>
+          <Heart size={15} /> <span className="upf-tab-label">Following</span>
+          <span className="upf-tab-count">{followData?.followingCount || 0}</span>
+        </button>
         {isOwnProfile && (
-          <>
-            <button className={`profile-tab-btn ${activeTab === 'saved' ? 'active' : ''}`} onClick={() => setActiveTab('saved')}>Saved</button>
-            <button className={`profile-tab-btn ${activeTab === 'history' ? 'active' : ''}`} onClick={() => setActiveTab('history')}>History</button>
-            <button className={`profile-tab-btn ${activeTab === 'hidden' ? 'active' : ''}`} onClick={() => setActiveTab('hidden')}>Hidden</button>
-            <button className={`profile-tab-btn ${activeTab === 'upvoted' ? 'active' : ''}`} onClick={() => setActiveTab('upvoted')}>Upvoted</button>
-            <button className={`profile-tab-btn ${activeTab === 'downvoted' ? 'active' : ''}`} onClick={() => setActiveTab('downvoted')}>Downvoted</button>
-          </>
+          <button className={`upf-tab-btn ${activeTab === 'settings' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('settings')} style={{ marginLeft: 'auto' }}>
+            <Settings size={15} /> <span className="upf-tab-label">Settings</span>
+          </button>
         )}
       </div>
 
-      <div className="profile-content-container" style={{ display: 'block', marginTop: '1rem' }}>
-        {/* Tab Content Display Area (Main Feed Column) */}
-        <div className="profile-tab-main-content">
-          {activeTab === 'about' && (
-            <AboutTab bio={bio} userComments={userComments} onAddBioClick={() => setActiveTab('settings')} />
-          )}
-
-          {activeTab === 'posts' && (
-            <ProblemsTab posts={userPosts} />
-          )}
-
-          {activeTab === 'comments' && (
-            <div className="card profile-content-card">
-              <h3 className="profile-section-title" style={{ marginBottom: '1rem' }}>Comments</h3>
-              <CommentsTab comments={userComments} />
+      <div className="upf-content">
+          {activeTab === 'problems' && (
+            <div className="upf-list">
+              {problemsList.length === 0
+                ? <EmptyState icon={<BookOpen size={36} />} text={`${displayName} hasn't posted any problems yet.`} />
+                : problemsList.map((post) => (
+                  <article key={post.id} className="upf-post-card">
+                    <div className="upf-post-meta">
+                      <span className="upf-tag upf-tag--problem">Problem</span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                    </div>
+                    <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
+                    {post.body && (
+                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                    )}
+                    <div className="upf-post-footer">
+                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                    </div>
+                  </article>
+                ))
+              }
             </div>
           )}
 
-          {activeTab === 'saved' && isOwnProfile && (
-            <ProblemsTab posts={savedPosts} isSavedTab={true} />
+          {activeTab === 'ideas' && (
+            <div className="upf-list">
+              {ideasList.length === 0
+                ? <EmptyState icon={<Lightbulb size={36} />} text={`${displayName} hasn't shared any ideas yet.`} />
+                : ideasList.map((post) => (
+                  <article key={post.id} className="upf-post-card">
+                    <div className="upf-post-meta">
+                      <span className="upf-tag upf-tag--idea">Idea</span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                    </div>
+                    <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
+                    {post.body && (
+                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                    )}
+                    <div className="upf-post-footer">
+                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                    </div>
+                  </article>
+                ))
+              }
+            </div>
           )}
 
-          {['history', 'hidden', 'upvoted', 'downvoted'].includes(activeTab) && isOwnProfile && (
-            <div className="profile-empty-state card">
-              <p style={{ color: 'var(--text-muted)' }}>This section is currently empty or under construction.</p>
+          {activeTab === 'solutions' && (
+            <div className="upf-list">
+              {userSolutions.length === 0
+                ? <EmptyState icon={<Award size={36} />} text={`${displayName} hasn't proposed any solutions yet.`} />
+                : userSolutions.map((sol) => (
+                  <article key={sol.id} className="upf-post-card">
+                    <div className="upf-post-meta">
+                      <span className="upf-tag upf-tag--solution">Solution</span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
+                    </div>
+                    <span className="upf-post-title">{sol.title}</span>
+                    {sol.problem && (
+                      <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
+                        <BookOpen size={12} /> Re: {sol.problem.title}
+                      </Link>
+                    )}
+                    {sol.body && (
+                      <p className="upf-post-body">{sol.body.substring(0, 200)}{sol.body.length > 200 ? '…' : ''}</p>
+                    )}
+                    {sol.external_link && (
+                      <a href={sol.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link">
+                        <ExternalLink size={12} /> {sol.link_name || 'View Resource'}
+                      </a>
+                    )}
+                    <div className="upf-post-footer">
+                      <span className="upf-post-stat"><ArrowUp size={13} />{sol.upvotes}</span>
+                      <span className="upf-post-stat"><MessageSquare size={13} />{sol.comments_count || 0}</span>
+                    </div>
+                  </article>
+                ))
+              }
+            </div>
+          )}
+
+          {activeTab === 'comments' && (
+            <div className="upf-list">
+              {userComments.length === 0
+                ? <EmptyState icon={<MessageSquare size={36} />} text={`${displayName} hasn't commented yet.`} />
+                : userComments.map((c) => (
+                  <article key={c.id} className="upf-comment-card">
+                    <div className="upf-post-meta">
+                      <span className="upf-tag upf-tag--comment">Comment</span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(c.created_at)}</span>
+                    </div>
+                    {c.post_title && (
+                      <Link href={`/post/${c.post_id}`} className="upf-comment-context">
+                        <BookOpen size={12} /> On: {c.post_title || 'a post'}
+                      </Link>
+                    )}
+                    <p className="upf-comment-body">{c.body}</p>
+                  </article>
+                ))
+              }
+            </div>
+          )}
+
+          {activeTab === 'followers' && (
+            <div className="upf-follow-grid">
+              {followersList.length === 0
+                ? <EmptyState icon={<Users size={36} />} text={`${displayName} has no followers yet.`} />
+                : followersList.map((u) => <UserCard key={u.id} user={u} />)
+              }
+            </div>
+          )}
+
+          {activeTab === 'following' && (
+            <div className="upf-follow-grid">
+              {followingList.length === 0
+                ? <EmptyState icon={<Heart size={36} />} text={`${displayName} isn't following anyone yet.`} />
+                : followingList.map((u) => <UserCard key={u.id} user={u} />)
+              }
             </div>
           )}
 
           {activeTab === 'settings' && isOwnProfile && (
-            <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('about'); }} />
+            <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} />
           )}
 
           {activeTab === 'signout' && isOwnProfile && (
             <SignOutTab onLogout={handleLogout} />
           )}
-        </div>
       </div>
 
       <PhotoEditorModal

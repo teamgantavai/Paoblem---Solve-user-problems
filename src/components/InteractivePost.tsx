@@ -50,6 +50,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const [userSolutionVotes, setUserSolutionVotes] = useState<Record<string, 'up' | 'down'>>({});
+  const [votingSolutionIds, setVotingSolutionIds] = useState<Record<string, boolean>>({});
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [solutions, setSolutions] = useState<Solution[]>([]);
   const [isSolutionsLoading, setIsSolutionsLoading] = useState(false);
@@ -360,7 +361,9 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       setIsAuthOpen(true);
       return;
     }
+    if (votingSolutionIds[solutionId]) return;
 
+    setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: true }));
     const previousVote = userSolutionVotes[solutionId] || null;
     const isToggleOff = previousVote === voteType;
 
@@ -406,6 +409,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       console.error(err);
       fetchSolutions();
       if (session?.user?.id) fetchUserSolutionVotes(session.user.id);
+    } finally {
+      setVotingSolutionIds((prev) => ({ ...prev, [solutionId]: false }));
     }
   };
 
@@ -1018,6 +1023,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                   solution={solution}
                   isOwner={session?.user?.id === solution.user_id}
                   userVote={userSolutionVotes[solution.id] || null}
+                  votingSolutionIds={votingSolutionIds}
                   session={session}
                   onVote={handleSolutionVote}
                   onAuthRequired={() => setIsAuthOpen(true)}
@@ -1172,6 +1178,7 @@ function SolutionCard({
   solution,
   isOwner,
   userVote,
+  votingSolutionIds,
   session,
   onVote,
   onAuthRequired,
@@ -1182,6 +1189,7 @@ function SolutionCard({
   solution: Solution;
   isOwner: boolean;
   userVote: 'up' | 'down' | null;
+  votingSolutionIds: Record<string, boolean>;
   session: any;
   onVote: (solutionId: string, voteType: 'up' | 'down') => void;
   onAuthRequired: () => void;
@@ -1293,29 +1301,34 @@ function SolutionCard({
 
       <div className="solution-card-footer">
         {/* Upvote */}
-        <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34, 197, 94, 0.08)' : undefined }}>
-          <button
-            className="vote-btn"
-            onClick={(e) => { animateUpvote(e.currentTarget); onVote(solution.id, 'up'); }}
-            style={{ color: hasUpvoted ? '#22c55e' : undefined }}
-            aria-label="Upvote solution"
-          >
-            <TriangleIcon size={15} fill={hasUpvoted ? 'currentColor' : 'none'} />
-          </button>
+        <button
+          type="button"
+          className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''} ${hasUpvoted ? 'active' : ''}`}
+          disabled={votingSolutionIds[solution.id]}
+          onClick={(e) => {
+            animateUpvote(e.currentTarget);
+            onVote(solution.id, 'up');
+          }}
+          aria-label="Upvote solution"
+          style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34, 197, 94, 0.08)' : undefined }}
+        >
+          <TriangleIcon size={15} fill={hasUpvoted ? 'currentColor' : 'none'} />
           <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? '#22c55e' : undefined }}>+{solution.upvotes}</span>
-        </div>
+        </button>
+
         {/* Downvote */}
-        <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}>
-          <button
-            className="vote-btn"
-            onClick={() => onVote(solution.id, 'down')}
-            style={{ color: hasDownvoted ? '#ef4444' : undefined }}
-            aria-label="Downvote solution"
-          >
-            <TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
-          </button>
+        <button
+          type="button"
+          className={`vote-container ${votingSolutionIds[solution.id] ? 'loading' : ''} ${hasDownvoted ? 'active' : ''}`}
+          disabled={votingSolutionIds[solution.id]}
+          onClick={() => onVote(solution.id, 'down')}
+          aria-label="Downvote solution"
+          style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239, 68, 68, 0.08)' : undefined }}
+        >
+          <TriangleIcon size={15} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
           <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>-{solution.downvotes}</span>
-        </div>
+        </button>
+
         {/* Comments pill */}
         <button
           type="button"

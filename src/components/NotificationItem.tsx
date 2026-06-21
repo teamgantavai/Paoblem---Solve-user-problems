@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { TriangleIcon, MessageCircle, User, Bell } from 'lucide-react';
+import { TriangleIcon, MessageCircle, User, Bell, BookOpen } from 'lucide-react';
 import { Notification } from '@/lib/types';
 
 interface NotificationItemProps {
@@ -23,6 +23,8 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
         return <User size={16} className="notif-icon-follow" />;
       case 'downvote':
         return <TriangleIcon size={16} className="notif-icon-downvote" style={{ transform: 'rotate(180deg)' }} />;
+      case 'new_post':
+        return <BookOpen size={16} className="notif-icon-system" />;
       default:
         return <Bell size={16} className="notif-icon-system" />;
     }
@@ -67,6 +69,10 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
       const username = match ? match[1] : '';
       if (username) {
         router.push(`/user/${username}`);
+      }
+    } else if (notification.type === 'new_post') {
+      if (notification.post_id) {
+        router.push(`/post/${notification.post_id}`);
       }
     }
   };
