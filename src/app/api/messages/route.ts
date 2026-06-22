@@ -260,8 +260,17 @@ export async function GET(req: NextRequest) {
 
     return NextResponse.json({ messages: formattedMessages });
   } catch (err: any) {
-    console.error('[GET /api/messages]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[GET /api/messages] Unhandled error:', {
+      message: err.message,
+      code: err.code,
+      statusCode: err.statusCode,
+      details: err.details,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
+    });
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    }, { status: 500 });
   }
 }
 
@@ -480,13 +489,19 @@ export async function POST(req: NextRequest) {
         resolvedRecipientId = (members || []).map((m: any) => m.user_id).find((id: string) => id !== user.id) || null;
       }
 
-      const { data: partnerProfile } = resolvedRecipientId
-        ? await supabaseAdmin
-            .from('profiles')
-            .select('username, full_name, avatar_url, online, last_seen')
-            .eq('id', resolvedRecipientId)
-            .single()
-        : { data: null };
+      let partnerProfile = null;
+      if (resolvedRecipientId) {
+        const { data, error: profileErr } = await supabaseAdmin
+          .from('profiles')
+          .select('username, full_name, avatar_url, online, last_seen')
+          .eq('id', resolvedRecipientId)
+          .maybeSingle();
+        
+        if (profileErr) {
+          console.warn(`[POST /api/messages] Warning: Could not fetch partner profile for ${resolvedRecipientId}:`, profileErr.message);
+        }
+        partnerProfile = data;
+      }
 
       const formattedMessage = {
         id: newMsg.id,
@@ -516,69 +531,30 @@ export async function POST(req: NextRequest) {
 
       return NextResponse.json({ message: formattedMessage }, { status: 201 });
     } catch (newSchemaErr: any) {
-      console.warn('New schema insert failed, falling back to legacy messages table:', newSchemaErr.message);
-    }
-
-    // FALLBACK: Insert into legacy messages table
-    const { data, error } = await supabaseAdmin
-      .from('messages')
-      .insert({
-        sender_id: user.id,
-        recipient_id: recipientId,
-        body: body || '',
-      })
-      .select('*, sender:sender_id(username, full_name, avatar_url), recipient:recipient_id(username, full_name, avatar_url)')
-      .single();
-
-    if (error) throw error;
-
-    try {
-      await enqueueNotification('message', {
-        user_id: recipientId,
-        actor_id: user.id,
-        type: 'system',
-        title: 'New Message',
-        bodyTemplate: `{name} sent you a message.`,
+      console.error('[POST /api/messages] New schema insertion failed:', {
+        message: newSchemaErr.message,
+        code: newSchemaErr.code,
+        details: newSchemaErr.details,
+        hint: newSchemaErr.hint,
+        recipientId,
+        conversationId,
+        userId: user.id,
       });
-    } catch (notifErr) {
-      console.error('Failed to enqueue message notification:', notifErr);
+      throw newSchemaErr;
     }
 
-    try {
-      await sendChatEmailNotifications({
-        senderId: user.id,
-        recipientIds: recipientId ? [recipientId] : [],
-        body: body || '',
-      });
-    } catch (emailErr) {
-      console.error('Failed to send chat email notification:', emailErr);
-    }
-
-    const isSentByMe = data.sender_id === user.id;
-    const partner = isSentByMe ? data.recipient : data.sender;
-    const partnerId = isSentByMe ? data.recipient_id : data.sender_id;
-
-    const formattedMessage = {
-      id: data.id,
-      sender_id: data.sender_id,
-      recipient_id: data.recipient_id,
-      partner_id: partnerId,
-      partner_name: partner?.full_name || 'Member',
-      partner_avatar: partner?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${partnerId}`,
-      partner_username: partner?.username,
-      body: data.body || '',
-      read: data.read || false,
-      created_at: data.created_at,
-      edited_at: data.edited_at,
-      sender_name: data.sender?.full_name || 'Member',
-      sender_avatar: data.sender?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.sender_id}`,
-      sender_username: data.sender?.username,
-    };
-
-    return NextResponse.json({ message: formattedMessage }, { status: 201 });
   } catch (err: any) {
-    console.error('[POST /api/messages]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[POST /api/messages] Unhandled error:', {
+      message: err.message,
+      code: err.code,
+      statusCode: err.statusCode,
+      details: err.details,
+      stack: err.stack?.split('\n').slice(0, 3).join('\n'),
+    });
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: process.env.NODE_ENV === 'development' ? err.message : undefined,
+    }, { status: 500 });
   }
 }
 
