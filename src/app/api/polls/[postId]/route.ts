@@ -7,9 +7,9 @@ const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnon
 
 export async function GET(
   req: NextRequest,
-  { params }: { params: { postId: string } },
+  { params }: { params: Promise<{ postId: string }> },
 ) {
-  const { postId } = params;
+  const { postId } = await params;
   if (!postId) {
     return NextResponse.json({ error: 'postId is required' }, { status: 400 });
   }
