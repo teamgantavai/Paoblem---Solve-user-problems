@@ -216,6 +216,17 @@ function ChatsPageContent() {
   const [newChatUsername, setNewChatUsername] = useState('');
   const [newChatLoading, setNewChatLoading] = useState(false);
   const [newChatError, setNewChatError] = useState('');
+
+  // Holds the profile of the person we're opening a chat with before any message has been sent.
+  // This lets the chat window render even when there are no existing messages.
+  const [pendingChatProfile, setPendingChatProfile] = useState<{
+    id: string;
+    full_name: string;
+    avatar_url: string;
+    username?: string;
+    online?: boolean;
+    last_seen?: string | null;
+  } | null>(null);
   const [pinnedChatIds, setPinnedChatIds] = useState<string[]>([]);
   const [savedMessageIds, setSavedMessageIds] = useState<string[]>([]);
   const [mutedChatIds, setMutedChatIds] = useState<string[]>([]);
@@ -604,6 +615,20 @@ function ChatsPageContent() {
     scrollToBottom('auto');
   }, [messages, localMessages, activeChatId]);
 
+  // Persist targetProfileData into pendingChatProfile as soon as it loads
+  useEffect(() => {
+    if (targetUserId && targetProfileData?.profile) {
+      setPendingChatProfile({
+        id: targetUserId,
+        full_name: targetProfileData.profile.full_name || 'Member',
+        avatar_url: targetProfileData.profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUserId}`,
+        username: targetProfileData.profile.username,
+        online: targetProfileData.profile.online || false,
+        last_seen: targetProfileData.profile.last_seen || null,
+      });
+    }
+  }, [targetUserId, targetProfileData]);
+
   // Set active partner ID
   useEffect(() => {
     if (targetUserId) {
@@ -819,6 +844,9 @@ function ChatsPageContent() {
           }
           return m;
         }));
+        // Real message sent — the partner will now appear in the messages list, so
+        // we no longer need the manually injected pending profile entry.
+        setPendingChatProfile(prev => (prev?.id === _newMsg.partnerId ? null : prev));
       }
       queryClient.invalidateQueries({ queryKey: ['chats-messages', session?.access_token] });
     }
@@ -986,6 +1014,15 @@ function ChatsPageContent() {
         setNewChatError('User not found. Please check the username.');
         return;
       }
+      // Persist profile so chat window can render even before any message is sent
+      setPendingChatProfile({
+        id: data.id,
+        full_name: data.full_name || data.username || 'Member',
+        avatar_url: data.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${data.id}`,
+        username: data.username,
+        online: data.online || false,
+        last_seen: data.last_seen || null,
+      });
       setIsNewChatModalOpen(false);
       setNewChatUsername('');
       openConversation(data.id);
@@ -1332,20 +1369,20 @@ function ChatsPageContent() {
     }
   });
 
-  // Target user injected if empty chat (legacy routing)
-  if (targetUserId && targetProfileData?.profile && !chatGroups[targetUserId]) {
-    chatGroups[targetUserId] = {
-      partnerName: targetProfileData.profile.full_name || 'Member',
-      partnerAvatar: targetProfileData.profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${targetUserId}`,
-      partnerUsername: targetProfileData.profile.username,
+  // Inject pending chat profile so the window renders before any message is sent
+  if (pendingChatProfile && !chatGroups[pendingChatProfile.id]) {
+    chatGroups[pendingChatProfile.id] = {
+      partnerName: pendingChatProfile.full_name,
+      partnerAvatar: pendingChatProfile.avatar_url,
+      partnerUsername: pendingChatProfile.username,
       latestMessage: 'Start a conversation...',
       timestamp: new Date().toISOString(),
       unread: false,
-      online: targetProfileData.profile.online || false,
-      lastSeen: targetProfileData.profile.last_seen || null,
-      pinned: true,
+      online: pendingChatProfile.online || false,
+      lastSeen: pendingChatProfile.last_seen || null,
+      pinned: false,
       isGroup: false,
-      members: [targetProfileData.profile]
+      members: []
     };
   }
 
