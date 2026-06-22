@@ -469,21 +469,33 @@ export async function POST(req: NextRequest) {
         console.error('Failed to send chat email notification:', emailErr);
       }
 
-      // Fetch partner info
-      const { data: partnerProfile } = await supabaseAdmin
-        .from('profiles')
-        .select('username, full_name, avatar_url, online, last_seen')
-        .eq('id', recipientId)
-        .single();
+      // Resolve partner: prefer the explicit recipientId; fall back to looking up the
+      // other member of the conversation (covers the case where only conversationId was sent).
+      let resolvedRecipientId = recipientId;
+      if (!resolvedRecipientId && activeConversationId) {
+        const { data: members } = await supabaseAdmin
+          .from('conversation_members')
+          .select('user_id')
+          .eq('conversation_id', activeConversationId);
+        resolvedRecipientId = (members || []).map((m: any) => m.user_id).find((id: string) => id !== user.id) || null;
+      }
+
+      const { data: partnerProfile } = resolvedRecipientId
+        ? await supabaseAdmin
+            .from('profiles')
+            .select('username, full_name, avatar_url, online, last_seen')
+            .eq('id', resolvedRecipientId)
+            .single()
+        : { data: null };
 
       const formattedMessage = {
         id: newMsg.id,
         conversation_id: activeConversationId,
         sender_id: user.id,
-        recipient_id: recipientId,
-        partner_id: recipientId,
+        recipient_id: resolvedRecipientId,
+        partner_id: resolvedRecipientId,
         partner_name: partnerProfile?.full_name || 'Member',
-        partner_avatar: partnerProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${recipientId}`,
+        partner_avatar: partnerProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${resolvedRecipientId}`,
         partner_username: partnerProfile?.username,
         partner_online: partnerProfile?.online || false,
         partner_last_seen: partnerProfile?.last_seen || null,

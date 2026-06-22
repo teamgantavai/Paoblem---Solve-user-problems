@@ -45,43 +45,43 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance, animateUpvote } = useMicroAnimations();
   const feedListRef = useRef<HTMLDivElement>(null);
 
-  const router       = useRouter();
+  const router = useRouter();
   const searchParams = useSearchParams();
-  const queryClient  = useQueryClient();
+  const queryClient = useQueryClient();
 
   const activeFilter = searchParams.get('filter') || defaultFilter || 'all';
-  const [filterType,             setFilterType]             = useState<string>('all');
-  const [session,                setSession]                = useState<any>(null);
-  const [commentsModalPostId,    setCommentsModalPostId]    = useState<string | null>(null);
-  const [shuffledPosts,          setShuffledPosts]          = useState<Post[]>([]);
-  const [isAuthOpen,             setIsAuthOpen]             = useState(false);
-  const [editingPost,            setEditingPost]            = useState<Post | null>(null);
-  const [deletingPostId,         setDeletingPostId]         = useState<string | null>(null);
-  const [savedIds,               setSavedIds]               = useState<string[]>([]);
-  const [activeShareMenuPostId,  setActiveShareMenuPostId]  = useState<string | null>(null);
-  const [showSubSharePostId,     setShowSubSharePostId]     = useState<string | null>(null);
-  const [toastMessage,           setToastMessage]           = useState<string | null>(null);
-  const [votingPostIds,          setVotingPostIds]          = useState<Record<string, boolean>>({});
-  const dwellStartRef       = useRef<Record<string, number>>({});
-  const viewedPostIdsRef    = useRef<Set<string>>(new Set());
-  const shareMenuRef        = useRef<HTMLDivElement>(null);
+  const [filterType, setFilterType] = useState<string>('all');
+  const [session, setSession] = useState<any>(null);
+  const [commentsModalPostId, setCommentsModalPostId] = useState<string | null>(null);
+  const [shuffledPosts, setShuffledPosts] = useState<Post[]>([]);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
+  const [editingPost, setEditingPost] = useState<Post | null>(null);
+  const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
+  const [savedIds, setSavedIds] = useState<string[]>([]);
+  const [activeShareMenuPostId, setActiveShareMenuPostId] = useState<string | null>(null);
+  const [showSubSharePostId, setShowSubSharePostId] = useState<string | null>(null);
+  const [toastMessage, setToastMessage] = useState<string | null>(null);
+  const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
+  const dwellStartRef = useRef<Record<string, number>>({});
+  const viewedPostIdsRef = useRef<Set<string>>(new Set());
+  const shareMenuRef = useRef<HTMLDivElement>(null);
 
   const formatPostTime = (dateStr: string) => {
     const diffMs = Date.now() - new Date(dateStr).getTime();
-    const sec    = Math.max(0, Math.floor(diffMs / 1000));
-    if (sec < 60)  return 'just now';
+    const sec = Math.max(0, Math.floor(diffMs / 1000));
+    if (sec < 60) return 'just now';
     const min = Math.floor(sec / 60);
-    if (min < 60)  return `${min}m ago`;
-    const hr  = Math.floor(min / 60);
-    if (hr  < 24)  return `${hr}h ago`;
+    if (min < 60) return `${min}m ago`;
+    const hr = Math.floor(min / 60);
+    if (hr < 24) return `${hr}h ago`;
     const day = Math.floor(hr / 24);
-    if (day < 7)   return `${day}d ago`;
+    if (day < 7) return `${day}d ago`;
     return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
   };
 
-  const getPostCategory    = (post: Post) => post.category     || post.metadata?.category      || null;
+  const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
   const getPostPollQuestion = (post: Post) => post.poll_question || post.metadata?.poll_question || null;
-  const getPostTags        = (post: Post) => post.tags         || post.metadata?.tags           || [];
+  const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
 
   // ── Helper: is this post a poll? ─────────────────────────────────────────
   // A post is treated as a poll when it has a poll_question OR poll data in metadata.
@@ -183,9 +183,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     mutationFn: async ({ postId, voteType }: { postId: string; voteType: 'up' | 'down' }) => {
       if (!session) throw new Error('Must be logged in to vote');
       const res = await fetch('/api/posts/vote', {
-        method : 'POST',
+        method: 'POST',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-        body   : JSON.stringify({ post_id: postId, vote_type: voteType }),
+        body: JSON.stringify({ post_id: postId, vote_type: voteType }),
       });
       if (!res.ok) throw new Error('Failed to vote');
       return res.json();
@@ -194,8 +194,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       await queryClient.cancelQueries({ queryKey: ['posts'] });
       await queryClient.cancelQueries({ queryKey: ['userVotes', session?.user?.id] });
       const previousPostsSnapshots = queryClient.getQueriesData({ queryKey: ['posts'] });
-      const previousUserVotes      = queryClient.getQueryData(['userVotes', session?.user?.id]);
-      const currentVote            = (previousUserVotes as any)?.[postId];
+      const previousUserVotes = queryClient.getQueryData(['userVotes', session?.user?.id]);
+      const currentVote = (previousUserVotes as any)?.[postId];
 
       queryClient.setQueryData(['userVotes', session?.user?.id], (old: any) => {
         const newMap = { ...(old || {}) };
@@ -242,7 +242,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     mutationFn: async (postId: string) => {
       if (!session) throw new Error('Must be logged in');
       const res = await fetch(`/api/posts/delete?id=${postId}`, {
-        method : 'DELETE',
+        method: 'DELETE',
         headers: { Authorization: `Bearer ${session.access_token}` },
       });
       if (!res.ok) throw new Error('Failed to delete post');
@@ -275,8 +275,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     } catch (err) { console.warn('[feed] Failed to track event', err); }
   };
 
-  const rawPosts       = data?.pages.flatMap(page => page.posts) || [];
-  const posts          = rawPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
+  const rawPosts = data?.pages.flatMap(page => page.posts) || [];
+  const posts = rawPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
 
   useEffect(() => {
     if (!session && posts.length > 0 && shuffledPosts.length === 0) {
@@ -287,7 +287,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
   useEffect(() => { if (session) setShuffledPosts([]); }, [session]);
 
-  const displayedPosts  = session ? posts : shuffledPosts;
+  const displayedPosts = session ? posts : shuffledPosts;
   const commentsModalPost = commentsModalPostId
     ? displayedPosts.find(p => p.id === commentsModalPostId) || null
     : null;
@@ -371,10 +371,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       {!singlePostId && (
         <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none' }}>
           {[
-            { id: 'all',     label: 'All Feed'  },
-            { id: 'problem', label: 'Problems'  },
-            { id: 'idea',    label: 'Ideas'     },
-            { id: 'poll',    label: '📊 Polls'  },   // ← NEW poll filter tab
+            { id: 'all', label: 'All Feed' },
+            { id: 'problem', label: 'Problems' },
+            { id: 'idea', label: 'Ideas' },
+            { id: 'poll', label: '📊 Polls' },   // ← NEW poll filter tab
           ].map(tab => (
             <button key={tab.id} className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
               style={{ background: filterType === tab.id ? undefined : 'var(--bg-card)', color: 'var(--text-main)', border: filterType === tab.id ? 'none' : '1px solid var(--border-color)', flexShrink: 0 }}
@@ -391,7 +391,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
         {isError && (
           <div className="card" style={{ textAlign: 'center', padding: '2rem' }}>
-            <p style={{ color: '#ef4444' }}>Error fetching posts. Please check your Supabase connection.</p>
+            <p style={{ color: '#ef4444' }}>Some error, please reload the website</p>
           </div>
         )}
 
@@ -402,10 +402,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         )}
 
         {displayedPosts.map((post: Post) => {
-          const hasUpvoted  = userVotes?.[post.id] === 'up';
+          const hasUpvoted = userVotes?.[post.id] === 'up';
           const hasDownvoted = userVotes?.[post.id] === 'down';
-          const isOwner     = session?.user?.id === post.user_id;
-          const isPoll      = isPostPoll(post);    // ← NEW
+          const isOwner = session?.user?.id === post.user_id;
+          const isPoll = isPostPoll(post);    // ← NEW
 
           return (
             <ErrorBoundary key={post.id}>
@@ -696,7 +696,7 @@ function ExpandableBody({ body }: { body: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const maxLength = 250;
   const decodedBody = decodeHTMLEntities(body);   // keep as-is if you have this util
-  const segments    = parseLinksInText(decodedBody);
+  const segments = parseLinksInText(decodedBody);
 
   const baseStyle = {
     fontSize: '0.925rem', color: 'var(--text-body)', lineHeight: '1.65',
@@ -708,7 +708,7 @@ function ExpandableBody({ body }: { body: string }) {
     return <p className="post-body-text" style={baseStyle}><RenderSegments segments={segments} /></p>;
   }
 
-  const displayText     = isExpanded ? decodedBody : decodedBody.slice(0, maxLength) + '…';
+  const displayText = isExpanded ? decodedBody : decodedBody.slice(0, maxLength) + '…';
   const displaySegments = parseLinksInText(displayText);
 
   return (
