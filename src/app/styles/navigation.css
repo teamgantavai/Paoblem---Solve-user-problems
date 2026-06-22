@@ -3,11 +3,18 @@
   height: 70px;
   border-bottom: 1px solid var(--border-color);
   background-color: var(--nav-bg);
-  position: sticky;
+  /* Fixed so it always stays at the top regardless of overflow/scroll context */
+  position: fixed;
   top: 0;
-  z-index: 50;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 100;
   display: flex;
   justify-content: center;
+  /* Subtle blur for depth */
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 /* Logo — responsive size */

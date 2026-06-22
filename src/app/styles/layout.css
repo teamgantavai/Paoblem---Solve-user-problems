@@ -4,6 +4,8 @@
   flex-direction: column;
   min-height: 100vh;
   background-color: var(--bg-dark);
+  /* Push content below the fixed navbar */
+  padding-top: 70px;
 }
 
 .main-content {

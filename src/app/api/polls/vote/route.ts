@@ -12,8 +12,8 @@ const voteSchema = z.object({
   option_id : z.string().uuid('option_id must be a UUID'),
 });
 
-// Simple rate-limiter: max 30 votes per minute per user
-const rateLimitMap  = new Map<string, { count: number; resetTime: number }>();
+// Simple in-memory rate-limiter: max 30 votes / minute / user
+const rateLimitMap      = new Map<string, { count: number; resetTime: number }>();
 const RATE_LIMIT_WINDOW = 60_000;
 const RATE_LIMIT_MAX    = 30;
 
@@ -41,7 +41,6 @@ export async function POST(req: NextRequest) {
     const supabaseUser = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: `Bearer ${token}` } },
     });
-
     const { data: { user }, error: authError } = await supabaseUser.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid or expired session.' }, { status: 401 });
@@ -60,26 +59,112 @@ export async function POST(req: NextRequest) {
     }
     const { poll_id, option_id } = parsed.data;
 
-    // 4. Call the atomic vote function (SECURITY DEFINER — handles race conditions)
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: result, error: rpcErr } = await supabaseAdmin
-      .rpc('vote_on_poll', {
-        p_poll_id   : poll_id,
-        p_option_id : option_id,
-        p_user_id   : user.id,
+    // 4. Verify poll exists and is not expired
+    const { data: poll, error: pollErr } = await supabaseAdmin
+      .from('polls')
+      .select('id, expires_at, multiple_choice')
+      .eq('id', poll_id)
+      .maybeSingle();
+
+    if (pollErr || !poll) {
+      return NextResponse.json({ error: 'Poll not found.' }, { status: 404 });
+    }
+    if (new Date(poll.expires_at).getTime() < Date.now()) {
+      return NextResponse.json({ error: 'This poll has ended.' }, { status: 400 });
+    }
+
+    // 5. Verify option belongs to this poll
+    const { data: option, error: optErr } = await supabaseAdmin
+      .from('poll_options')
+      .select('id')
+      .eq('id', option_id)
+      .eq('poll_id', poll_id)
+      .maybeSingle();
+
+    if (optErr || !option) {
+      return NextResponse.json({ error: 'Invalid poll option.' }, { status: 400 });
+    }
+
+    // 6. Check existing vote
+    const { data: existingVote } = await supabaseAdmin
+      .from('poll_votes')
+      .select('id, option_id')
+      .eq('poll_id', poll_id)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    let action          = 'voted';
+    let votedOptionId   = option_id;
+
+    if (existingVote) {
+      if (existingVote.option_id === option_id) {
+        // Toggle off: remove vote
+        await supabaseAdmin.from('poll_votes').delete().eq('id', existingVote.id);
+        // Decrement vote count
+        await supabaseAdmin.rpc('decrement_poll_vote', {
+          p_option_id: option_id,
+        }).catch(() => {
+          // Fallback if RPC doesn't exist: read-then-write
+          supabaseAdmin
+            .from('poll_options')
+            .select('vote_count')
+            .eq('id', option_id)
+            .maybeSingle()
+            .then(({ data }) => {
+              if (data) {
+                supabaseAdmin
+                  .from('poll_options')
+                  .update({ vote_count: Math.max(0, (data.vote_count ?? 1) - 1) })
+                  .eq('id', option_id);
+              }
+            });
+        });
+        action        = 'unvoted';
+        votedOptionId = '';
+      } else {
+        // Change vote: decrement old, increment new
+        await supabaseAdmin.from('poll_votes').update({ option_id }).eq('id', existingVote.id);
+
+        // Decrement old option
+        const { data: oldOpt } = await supabaseAdmin
+          .from('poll_options').select('vote_count').eq('id', existingVote.option_id).maybeSingle();
+        if (oldOpt) {
+          await supabaseAdmin
+            .from('poll_options')
+            .update({ vote_count: Math.max(0, (oldOpt.vote_count ?? 1) - 1) })
+            .eq('id', existingVote.option_id);
+        }
+        // Increment new option
+        const { data: newOpt } = await supabaseAdmin
+          .from('poll_options').select('vote_count').eq('id', option_id).maybeSingle();
+        if (newOpt) {
+          await supabaseAdmin
+            .from('poll_options')
+            .update({ vote_count: (newOpt.vote_count ?? 0) + 1 })
+            .eq('id', option_id);
+        }
+        action = 'changed';
+      }
+    } else {
+      // New vote: insert row and increment count
+      await supabaseAdmin.from('poll_votes').insert({
+        poll_id,
+        option_id,
+        user_id: user.id,
       });
-
-    if (rpcErr) {
-      console.error('[polls/vote] RPC error:', rpcErr);
-      return NextResponse.json({ error: 'Vote failed. Please try again.' }, { status: 500 });
+      const { data: newOpt } = await supabaseAdmin
+        .from('poll_options').select('vote_count').eq('id', option_id).maybeSingle();
+      if (newOpt) {
+        await supabaseAdmin
+          .from('poll_options')
+          .update({ vote_count: (newOpt.vote_count ?? 0) + 1 })
+          .eq('id', option_id);
+      }
     }
 
-    if (result?.error) {
-      return NextResponse.json({ error: result.error }, { status: 400 });
-    }
-
-    // 5. Return updated options so the client can refresh percentages without a refetch
+    // 7. Return fresh option counts
     const { data: updatedOptions } = await supabaseAdmin
       .from('poll_options')
       .select('id, option_text, vote_count, position')
@@ -87,9 +172,9 @@ export async function POST(req: NextRequest) {
       .order('position', { ascending: true });
 
     return NextResponse.json({
-      action           : result?.action           ?? 'unknown',
-      voted_option_id  : result?.voted_option_id  ?? null,
-      options          : updatedOptions ?? [],
+      action,
+      voted_option_id: votedOptionId || null,
+      options        : updatedOptions ?? [],
     });
   } catch (err) {
     console.error('[polls/vote] Unexpected error:', err);
