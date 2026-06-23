@@ -61,6 +61,18 @@ export default function TopLoader() {
     return () => document.removeEventListener('click', handleClick);
   }, []);
 
+  useEffect(() => {
+    const handleStart = () => startBar();
+    const handleFinish = () => finishBar();
+
+    window.addEventListener('top-loader:start', handleStart);
+    window.addEventListener('top-loader:finish', handleFinish);
+    return () => {
+      window.removeEventListener('top-loader:start', handleStart);
+      window.removeEventListener('top-loader:finish', handleFinish);
+    };
+  }, []);
+
   return (
     <>
       {/* Bar container */}

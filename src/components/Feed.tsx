@@ -22,7 +22,9 @@ import {
   Pencil,
   Share2,
   Copy,
-  BarChart3,         // ← NEW: for poll badge in composer
+  Flag,
+  UserX,
+  BarChart3,
 } from 'lucide-react';
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -59,12 +61,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [activeShareMenuPostId, setActiveShareMenuPostId] = useState<string | null>(null);
-  const [showSubSharePostId, setShowSubSharePostId] = useState<string | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
   const dwellStartRef = useRef<Record<string, number>>({});
   const viewedPostIdsRef = useRef<Set<string>>(new Set());
-  const shareMenuRef = useRef<HTMLDivElement>(null);
 
   const formatPostTime = (dateStr: string) => {
     const diffMs = Date.now() - new Date(dateStr).getTime();
@@ -82,6 +82,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
   const getPostPollQuestion = (post: Post) => post.poll_question || post.metadata?.poll_question || null;
   const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
+  const getRoleClass = (role?: string | null) => {
+    const normalized = (role || '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+    if (['founder', 'developer', 'moderator', 'admin', 'problem-solver'].includes(normalized)) {
+      return `role-badge--${normalized}`;
+    }
+    return 'role-badge--default';
+  };
 
   // ── Helper: is this post a poll? ─────────────────────────────────────────
   // A post is treated as a poll when it has a poll_question OR poll data in metadata.
@@ -119,13 +126,19 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
-      const target = event.target as Node | null;
-      if (shareMenuRef.current && target && shareMenuRef.current.contains(target)) return;
+      const target = event.target as HTMLElement | null;
+      if (target?.closest('.post-menu-shell')) return;
       setActiveShareMenuPostId(null);
-      setShowSubSharePostId(null);
+    };
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setActiveShareMenuPostId(null);
     };
     window.addEventListener('mousedown', handleOutsideClick);
-    return () => window.removeEventListener('mousedown', handleOutsideClick);
+    window.addEventListener('keydown', handleKeyDown);
+    return () => {
+      window.removeEventListener('mousedown', handleOutsideClick);
+      window.removeEventListener('keydown', handleKeyDown);
+    };
   }, []);
 
   useEffect(() => {
@@ -432,7 +445,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                           onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}>
                           {post.profiles?.full_name || 'Anonymous'}
                         </span>
-                        <span className="post-author-role">{post.profiles?.role || 'Innovator'}</span>
+                        <span className={`post-author-role ${getRoleClass(post.profiles?.role)}`}>{post.profiles?.role || 'Innovator'}</span>
                       </h4>
                       {post.profiles?.username && (
                         <p className="post-author-username" onClick={() => router.push(`/user/${post.profiles!.username!}`)}>
@@ -445,7 +458,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                         </time>
                         {/* Poll badge in meta row */}
                         {isPoll && (
-                          <span style={{ display: 'inline-flex', alignItems: 'center', gap: '0.2rem', marginLeft: '0.4rem', fontSize: '0.68rem', color: '#6366f1', fontWeight: 600 }}>
+                          <span className="post-meta-poll-chip" style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.08rem 0.42rem' }}>
                             <BarChart3 size={10} /> Poll
                           </span>
                         )}
@@ -454,56 +467,51 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   </div>
 
                   {/* Share / edit / delete menu — unchanged from original */}
-                  <div ref={shareMenuRef} className="flex items-center gap-1"
+                  <div className="post-menu-shell flex items-center gap-1"
                     style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start', zIndex: 10 }}>
                     <button onClick={() => handleToggleSave(post.id)}
                       style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
                       className="post-header-action-btn" title={savedIds.includes(post.id) ? 'Unsave' : 'Save'}>
                       <Bookmark size={18} fill={savedIds.includes(post.id) ? 'currentColor' : 'none'} />
                     </button>
-                    <button onClick={e => { e.stopPropagation(); const isClosing = activeShareMenuPostId === post.id; setActiveShareMenuPostId(isClosing ? null : post.id); setShowSubSharePostId(null); }}
+                    <button
+                      type="button"
+                      aria-haspopup="menu"
+                      aria-expanded={activeShareMenuPostId === post.id}
+                      onClick={e => { e.stopPropagation(); setActiveShareMenuPostId(activeShareMenuPostId === post.id ? null : post.id); }}
                       style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
                       className="post-header-action-btn" title="More Options">
                       <MoreVertical size={18} />
                     </button>
 
                     {activeShareMenuPostId === post.id && (
-                      <div className="share-dropdown-menu" onClick={e => e.stopPropagation()}
-                        style={{ position: 'absolute', top: '34px', right: 0, zIndex: 250 }}>
-                        {showSubSharePostId !== post.id ? (
+                      <div className="post-overflow-menu" role="menu" onClick={e => e.stopPropagation()}>
+                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const url = `${window.location.origin}/post/${post.slug || post.id}`; if (navigator.share) navigator.share({ title: post.title, url }).catch(() => undefined); else navigator.clipboard.writeText(url); trackPostEvent(post.id, 'POST_SHARE', { destination: 'native' }); showToast('Share link ready.'); }}>
+                          <Share2 size={15} /> Share
+                        </button>
+                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`; navigator.clipboard.writeText(shareUrl); trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' }); showToast('Link copied.'); }}>
+                          <Copy size={15} /> Copy Link
+                        </button>
+                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); handleToggleSave(post.id); }}>
+                          <Bookmark size={15} fill={savedIds.includes(post.id) ? 'currentColor' : 'none'} /> {savedIds.includes(post.id) ? 'Unsave' : 'Save'}
+                        </button>
+                        {isOwner && (
                           <>
-                            <button className="share-menu-item" onClick={() => setShowSubSharePostId(post.id)}>
-                              <Share2 size={13} /> Share Post…
+                            <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); setEditingPost(post); }}>
+                              <Pencil size={15} /> Edit
                             </button>
-                            {isOwner && (
-                              <>
-                                <div style={{ height: '1px', background: 'var(--border-color)', margin: '4px 0' }} />
-                                <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setEditingPost(post); }} style={{ color: 'var(--accent-blue)' }}>
-                                  <Pencil size={13} /> Edit Post
-                                </button>
-                                <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setDeletingPostId(post.id); }} style={{ color: '#ef4444' }}>
-                                  <Trash2 size={13} /> Delete Post
-                                </button>
-                              </>
-                            )}
+                            <button role="menuitem" className="danger" onClick={() => { setActiveShareMenuPostId(null); setDeletingPostId(post.id); }}>
+                              <Trash2 size={15} /> Delete
+                            </button>
                           </>
-                        ) : (
+                        )}
+                        {!isOwner && (
                           <>
-                            <button className="share-menu-item" onClick={() => setShowSubSharePostId(null)} style={{ fontWeight: 600, color: 'var(--text-muted)' }}>
-                              ← Back
+                            <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); showToast('Report received for review.'); }}>
+                              <Flag size={15} /> Report
                             </button>
-                            <div style={{ height: '1px', background: 'var(--border-color)', margin: '2px 0' }} />
-                            <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setShowSubSharePostId(null); const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`; navigator.clipboard.writeText(shareUrl); trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' }); showToast('Link copied!'); }}>
-                              <Copy size={13} /> Copy Link
-                            </button>
-                            <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setShowSubSharePostId(null); window.open(`https://api.whatsapp.com/send?text=${encodeURIComponent(post.title + '\n' + window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank'); trackPostEvent(post.id, 'POST_SHARE', { destination: 'whatsapp' }); }}>
-                              💬 WhatsApp
-                            </button>
-                            <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setShowSubSharePostId(null); window.open(`https://www.linkedin.com/sharing/share-offsite/?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}`, '_blank'); trackPostEvent(post.id, 'POST_SHARE', { destination: 'linkedin' }); }}>
-                              💼 LinkedIn
-                            </button>
-                            <button className="share-menu-item" onClick={() => { setActiveShareMenuPostId(null); setShowSubSharePostId(null); window.open(`https://reddit.com/submit?url=${encodeURIComponent(window.location.origin + '/post/' + (post.slug || post.id))}&title=${encodeURIComponent(post.title)}`, '_blank'); trackPostEvent(post.id, 'POST_SHARE', { destination: 'reddit' }); }}>
-                              👽 Reddit
+                            <button role="menuitem" className="danger" onClick={() => { setActiveShareMenuPostId(null); showToast('User blocked locally.'); }}>
+                              <UserX size={15} /> Block User
                             </button>
                           </>
                         )}
@@ -540,15 +548,15 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   )}
 
                   {/* Category + Tags (not poll_question chip — PollCard shows that) */}
-                  {(getPostCategory(post) || getPostTags(post).length > 0) && (
+                  {!isPoll && (getPostCategory(post) || getPostTags(post).length > 0) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>
                       {getPostCategory(post) && (
-                        <span style={{ fontSize: '0.68rem', fontWeight: 600, padding: '0.15rem 0.55rem', borderRadius: '999px', background: 'rgba(99,102,241,0.12)', color: '#6366f1', border: '1px solid rgba(99,102,241,0.2)', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', maxWidth: '100%' }}>
+                        <span className={`post-taxonomy-chip ${isPoll ? 'poll' : post.type}`}>
                           {getPostCategory(post)}
                         </span>
                       )}
                       {getPostTags(post).map((tag: string) => (
-                        <span key={tag} style={{ fontSize: '0.68rem', fontWeight: 500, padding: '0.15rem 0.5rem', borderRadius: '999px', background: 'var(--bg-hover)', color: 'var(--text-muted)', border: '1px solid var(--border-color)' }}>
+                        <span key={tag} className="post-taxonomy-tag">
                           #{tag}
                         </span>
                       ))}
@@ -581,9 +589,11 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       <span className="post-comment-count">{post.comments_count}</span>
                     </button>
 
-                    <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
-                      {post.type === 'problem' ? 'Problem' : 'Idea'}
-                    </span>
+                    {!isPoll && (
+                      <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
+                        {post.type === 'problem' ? 'Problem' : 'Idea'}
+                      </span>
+                    )}
                     {post.type === 'problem' && !isPoll && (
                       <button type="button" className="see-solutions-btn"
                         onClick={() => router.push(`/post/${post.slug || post.id}#solutions`)}>

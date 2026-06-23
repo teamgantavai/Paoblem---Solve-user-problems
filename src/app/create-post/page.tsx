@@ -18,7 +18,7 @@ import ImageUploader from '@/components/ImageUploader';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 type PostType    = 'problem' | 'idea';
-type PostMode    = 'post' | 'poll';
+type PostMode    = 'post' | 'poll' | 'solution';
 type ComposePanel = 'media' | 'link' | null;   // 'poll' removed — poll has its own form
 
 // ─── Constants ────────────────────────────────────────────────────────────────
@@ -501,6 +501,16 @@ export default function CreatePost() {
       // Close any post panels
       setOpenPanel(null);
       setAiPreviewOpen(false);
+    } else if (mode === 'solution') {
+      setType('idea');
+      setPollQuestion('');
+      setPollOptions(['', '']);
+      setPollDuration('3 days');
+      setPollCustomDate('');
+      setPollImageUrls([]);
+      setPollErrors({});
+      setOpenPanel(null);
+      setAiPreviewOpen(false);
     } else {
       // Back to post mode: clear poll fields
       setPollQuestion('');
@@ -636,7 +646,7 @@ export default function CreatePost() {
         body   : JSON.stringify({
           title         : title.trim(),
           body          : bodyHtml,
-          type,
+          type         : postMode === 'solution' ? 'idea' : type,
           image_url     : imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
           external_link : formattedLink,
           link_name     : linkName || null,
@@ -699,6 +709,7 @@ export default function CreatePost() {
             duration       : pollDuration,
             expires_at,
             multiple_choice: false,
+            allow_vote_changes: false,
           },
         }),
       });
@@ -761,9 +772,9 @@ export default function CreatePost() {
               <button type="button" className="cp-thread-cancel" onClick={handleBackClick}>Cancel</button>
               <div className="cp-thread-title-wrap">
                 <h1 id="cp-modal-title">
-                  {postMode === 'poll' ? 'New poll' : 'New post'}
+                  {postMode === 'poll' ? 'New poll' : postMode === 'solution' ? 'New solution' : 'New post'}
                 </h1>
-                {postMode === 'post' && lastSaved && (
+                {postMode !== 'poll' && lastSaved && (
                   <span className="cp-thread-saved">
                     <Save size={10} /> Saved {lastSaved}
                   </span>
@@ -771,7 +782,7 @@ export default function CreatePost() {
               </div>
               <div className="cp-thread-header-actions">
                 {/* Drafts icon (post mode only) */}
-                {postMode === 'post' && (
+                {postMode !== 'poll' && (
                   <div style={{ position: 'relative' }}>
                     <button
                       type="button"
@@ -829,6 +840,7 @@ export default function CreatePost() {
                   {/* Identity row */}
                   <div className="cp-thread-identity">
                     <strong>{session?.user?.user_metadata?.full_name || 'You'}</strong>
+                    {postMode === 'post' && (
                     <div className="cp-type-tag-row">
                       <button
                         type="button"
@@ -847,6 +859,7 @@ export default function CreatePost() {
                         <Lightbulb size={14} /> Idea
                       </button>
                     </div>
+                    )}
                   </div>
 
                   {/* ── MODE TABS ── */}
@@ -864,6 +877,16 @@ export default function CreatePost() {
                     <button
                       type="button"
                       role="tab"
+                      aria-selected={postMode === 'solution'}
+                      className={`cp-mode-tab ${postMode === 'solution' ? 'active' : ''}`}
+                      onClick={() => switchMode('solution')}
+                      disabled={submitting}
+                    >
+                      <Handshake size={13} /> Solution
+                    </button>
+                    <button
+                      type="button"
+                      role="tab"
                       aria-selected={postMode === 'poll'}
                       className={`cp-mode-tab ${postMode === 'poll' ? 'active' : ''}`}
                       onClick={() => switchMode('poll')}
@@ -874,12 +897,12 @@ export default function CreatePost() {
                   </div>
 
                   {/* ══ POST FORM ══ */}
-                  {postMode === 'post' && (
+                  {postMode !== 'poll' && (
                     <>
                       <input
                         ref={titleInputRef}
                         className="cp-thread-title-input"
-                        placeholder="Add a title (required)"
+                        placeholder={postMode === 'solution' ? 'Solution title (required)' : 'Add a title (required)'}
                         value={title}
                         onChange={(e) => setTitle(e.target.value)}
                         disabled={submitting}
@@ -893,7 +916,7 @@ export default function CreatePost() {
                           className="cp-rich-editor cp-rich-editor--body"
                           contentEditable={!submitting}
                           suppressContentEditableWarning
-                          data-placeholder="What's the problem you're facing?"
+                          data-placeholder={postMode === 'solution' ? 'Describe the fix, workflow, product, or approach...' : "What's the problem you're facing?"}
                           aria-label="Post body"
                           aria-multiline="true"
                         />
@@ -973,14 +996,14 @@ export default function CreatePost() {
               </div>
 
               {/* ── Media panel (post mode) ── */}
-              {postMode === 'post' && openPanel === 'media' && (
+              {postMode !== 'poll' && openPanel === 'media' && (
                 <div className="cp-thread-panel">
                   <ImageUploader imageUrls={imageUrls} onChange={setImageUrls} maxFiles={10} />
                 </div>
               )}
 
               {/* ── Link panel (post mode) ── */}
-              {postMode === 'post' && openPanel === 'link' && (
+              {postMode !== 'poll' && openPanel === 'link' && (
                 <div className="cp-thread-panel cp-thread-link-panel">
                   <div className="cp-link-input-wrap cp-link-input-wrap--url">
                     <Globe size={13} className="cp-link-icon" />
@@ -1006,7 +1029,7 @@ export default function CreatePost() {
               )}
 
               {/* ── AI preview (post mode) ── */}
-              {postMode === 'post' && aiPreviewOpen && (
+              {postMode !== 'poll' && aiPreviewOpen && (
                 <div className="cp-ai-split cp-thread-ai-split">
                   <div className="cp-ai-split-header">
                     <span className="cp-ai-split-label">AI Enhancement Preview</span>
@@ -1039,6 +1062,7 @@ export default function CreatePost() {
               )}
 
               {/* ── Category chips & custom tags (both modes) ── */}
+              {postMode !== 'poll' && (
               <div className="cp-thread-cat-row">
                 {CATEGORY_CHIPS.map((cat) => (
                   <button
@@ -1097,8 +1121,9 @@ export default function CreatePost() {
                   </div>
                 )}
               </div>
+              )}
 
-              {customTags.length > 0 && (
+              {postMode !== 'poll' && customTags.length > 0 && (
                 <div className="cp-custom-tags-list cp-thread-custom-tags">
                   {customTags.map((tag) => (
                     <span key={tag} className="cp-custom-tag-chip">
@@ -1117,7 +1142,7 @@ export default function CreatePost() {
 
             {/* ── Footer ── */}
             <footer className="cp-thread-footer" style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              {postMode === 'post' && (
+              {postMode !== 'poll' && (
                 <button
                   type="button"
                   onClick={() => { saveDraft(); router.push('/'); }}
@@ -1134,7 +1159,7 @@ export default function CreatePost() {
               >
                 {submitting ? (
                   <><Loader2 size={13} className="cp-spin" /> Posting…</>
-                ) : success ? 'Posted!' : postMode === 'poll' ? 'Create Poll' : 'Post'}
+                ) : success ? 'Posted!' : postMode === 'poll' ? 'Create Poll' : postMode === 'solution' ? 'Publish Solution' : 'Post'}
               </button>
             </footer>
           </form>

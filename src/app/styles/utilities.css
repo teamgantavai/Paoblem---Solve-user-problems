@@ -51,6 +51,170 @@
   height: 100%;
 }
 
+/* Selection behavior
+   Keep UI chrome from accidental drag-selection, while preserving copyable content. */
+.no-select,
+:where(
+  button,
+  [role="button"],
+  [role="tab"],
+  [role="menuitem"],
+  [role="option"],
+  summary,
+  label,
+  nav,
+  svg,
+  .btn,
+  .nav-item,
+  .nav-icon-wrap,
+  .nav-badge,
+  .mobile-nav-item,
+  .mobile-nav-badge,
+  .menu-item,
+  .drawer-menu-item,
+  .drawer-close-btn,
+  .menu-toggle-btn,
+  .search-btn,
+  .clear-btn,
+  .clear-all-btn,
+  .view-all-results-action-btn,
+  .card-action,
+  .action-btn,
+  .post-send-btn,
+  .post-comment-btn,
+  .vote-btn,
+  .btn-summarize,
+  .composer-action-btn,
+  .composer-send-btn,
+  .solution-delete-btn,
+  .solution-owner-btn,
+  .see-solutions-btn,
+  .solution-submit-btn,
+  .solution-secondary-btn,
+  .solution-modal-open-btn,
+  .solution-modal-close,
+  .solution-modal-cancel,
+  .solutions-clear-search,
+  .solutions-filter-menu,
+  .sidebar-solutions-head,
+  .comment-thread-send,
+  .comment-tree-action-btn,
+  .comment-tree-reply-btn,
+  .comment-tree-edit-save,
+  .comment-tree-edit-cancel,
+  .cp-mode-tab,
+  .cp-poll-option-remove,
+  .cp-poll-add-option-btn,
+  .cp-poll-dur-chip,
+  .poll-option,
+  .poll-option-btn,
+  .poll-vote-btn,
+  .sticker-tag,
+  .post-meta-poll-chip,
+  .post-taxonomy-chip,
+  .role-badge,
+  .comment-count-badge,
+  .notif-page-badge,
+  .modal-header,
+  .modal-footer,
+  .modal-close-btn,
+  .chat-sidebar-header,
+  .conversation-card-item,
+  .chat-icon-btn,
+  .chat-send-btn,
+  .chat-floating-menu,
+  .chat-menu-item,
+  .message-actions-overlay,
+  .emoji-picker,
+  .composer-context,
+  .chat-user-results,
+  .chat-window-header,
+  .upf-btn-follow,
+  .upf-btn-message,
+  .upf-role-badge,
+  .profile-role-picker,
+  .profile-role-option,
+  .profile-bio-see-more,
+  .upf-tabs,
+  .upf-tab-btn,
+  .upf-role-badge,
+  .upf-user-card,
+  .profile-action-btn,
+  .settings-section-title,
+  .analytics-metric-card,
+  .analytics-filter,
+  .analytics-tab,
+  .search-overlay-header,
+  .search-back-btn,
+  .instagram-delete-btn,
+  .verified-badge-blue
+) {
+  -webkit-user-select: none;
+  -moz-user-select: none;
+  -ms-user-select: none;
+  user-select: none;
+  -webkit-touch-callout: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.select-text,
+:where(
+  input,
+  textarea,
+  [contenteditable="true"],
+  pre,
+  code,
+  article,
+  .legal-content,
+  .legal-content *,
+  .post-content,
+  .post-content *,
+  .post-body-text,
+  .rich-post-content,
+  .rich-post-content *,
+  .comment-text,
+  .comment-tree-text,
+  .comment-tree-text *,
+  .comments-modal-post-title,
+  .message-bubble,
+  .message-bubble p,
+  .message-reply-preview span,
+  .solution-card-body,
+  .solution-card-body *,
+  .upf-post-body,
+  .upf-post-body *,
+  .upf-comment-body,
+  .upf-comment-body *,
+  .upf-user-card-bio,
+  .modal-body,
+  .modal-body p,
+  .modal-body li,
+  .search-highlight
+) {
+  -webkit-user-select: text;
+  -moz-user-select: text;
+  -ms-user-select: text;
+  user-select: text;
+  -webkit-touch-callout: default;
+}
+
+:where(
+  button,
+  a,
+  svg,
+  .nav-logo,
+  .avatar,
+  .comment-avatar,
+  .profile-avatar,
+  .drawer-profile-avatar,
+  .chat-avatar,
+  .upf-user-card-avatar,
+  .instagram-profile-avatar
+) {
+  -webkit-user-drag: none;
+  user-drag: none;
+}
+
 /* Visibility Control rules */
 .desktop-only {
   display: flex !important;

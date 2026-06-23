@@ -533,6 +533,12 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
   const avatarSrc = tempAvatar || profile?.avatar_url || (isOwnProfile ? session?.user?.user_metadata?.avatar_url : null) || `https://api.dicebear.com/7.x/bottts/svg?seed=${displayUserId}`;
   const displayName = profile?.full_name || (isOwnProfile ? session?.user?.user_metadata?.full_name : null) || 'Member';
   const currentRole = profile?.role || 'Innovator';
+  const roleClass = (() => {
+    const normalized = currentRole.toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+    return ['founder', 'developer', 'moderator', 'admin', 'problem-solver'].includes(normalized)
+      ? `role-badge--${normalized}`
+      : 'role-badge--default';
+  })();
   const bio = profile?.bio || '';
   const location = profile?.location || '';
 
@@ -686,9 +692,9 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
 
             <div style={{ position: 'relative', width: 'fit-content' }} ref={rolePickerRef}>
               <button
-                className="upf-role-badge"
+                className={`upf-role-badge ${roleClass}`}
                 onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
-                style={{ cursor: isOwnProfile ? 'pointer' : 'default', background: 'transparent', border: '1px solid var(--border-color)', color: 'var(--text-main)', padding: '4px 12px' }}
+                style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
                 title={isOwnProfile ? "Change your role tag" : undefined}
               >
                 {isOwnProfile && (

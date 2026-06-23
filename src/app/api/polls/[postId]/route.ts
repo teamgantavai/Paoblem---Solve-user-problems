@@ -20,7 +20,7 @@ export async function GET(
   // 1. Fetch poll row for this post
   const { data: poll, error: pollErr } = await supabaseAdmin
     .from('polls')
-    .select('id, post_id, expires_at, multiple_choice, created_at')
+    .select('id, post_id, expires_at, multiple_choice, allow_vote_changes, created_at')
     .eq('post_id', postId)
     .single();
 

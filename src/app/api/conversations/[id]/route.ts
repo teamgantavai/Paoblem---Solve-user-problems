@@ -1,21 +1,33 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 
-const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-const supabaseKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+/* eslint-disable @typescript-eslint/no-explicit-any */
 
-const supabaseAdmin = createClient(
-  supabaseUrl,
-  process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseKey
-);
+const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
+const supabaseAnonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!;
+const supabaseAdmin = createClient(supabaseUrl, process.env.SUPABASE_SERVICE_ROLE_KEY || supabaseAnonKey);
 
 async function authenticate(req: NextRequest) {
   const authHeader = req.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) return null;
-  const token = authHeader.replace('Bearer ', '');
-  const { data: { user }, error } = await supabaseAdmin.auth.getUser(token);
-  if (error || !user) return null;
-  return user;
+  const { data, error } = await supabaseAdmin.auth.getUser(authHeader.slice('Bearer '.length));
+  if (error || !data.user) return null;
+  return data.user;
+}
+
+async function isParticipant(conversationId: string, userId: string) {
+  const { data, error } = await supabaseAdmin
+    .from('conversation_participants')
+    .select('conversation_id')
+    .eq('conversation_id', conversationId)
+    .eq('user_id', userId)
+    .maybeSingle();
+  if (error) throw error;
+  return !!data;
+}
+
+function jsonError(message: string, status: number) {
+  return NextResponse.json({ error: message }, { status });
 }
 
 export async function PATCH(
@@ -23,98 +35,74 @@ export async function PATCH(
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: conversationId } = await params;
     const user = await authenticate(req);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return jsonError('Unauthorized', 401);
+
+    const { id: conversationId } = await params;
+    if (!(await isParticipant(conversationId, user.id))) return jsonError('Forbidden', 403);
 
     const body = await req.json();
-    const updates: Record<string, unknown> = { updated_at: new Date().toISOString() };
-    if (typeof body.name === 'string') updates.name = body.name.trim();
-    if (typeof body.avatar_url === 'string') updates.avatar_url = body.avatar_url;
-    if (Object.keys(updates).length === 1) {
-      return NextResponse.json({ error: 'No valid updates supplied' }, { status: 400 });
+    const now = new Date().toISOString();
+    const updates: Record<string, string | null> = {};
+
+    if (body.action === 'pin') updates.pinned_at = body.enabled ? now : null;
+    if (body.action === 'archive') updates.archived_at = body.enabled ? now : null;
+    if (body.action === 'mute') updates.muted_at = body.enabled ? now : null;
+    if (body.action === 'block') updates.blocked_at = body.enabled ? now : null;
+
+    if (!Object.keys(updates).length) {
+      return jsonError('Unsupported conversation action', 400);
     }
 
-    const { data: membership } = await supabaseAdmin
-      .from('conversation_members')
-      .select('role')
-      .eq('conversation_id', conversationId)
-      .eq('user_id', user.id)
-      .maybeSingle();
-
-    if (!membership) {
-      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
-    }
-
-    const { data, error } = await supabaseAdmin
-      .from('conversations')
+    const { error } = await supabaseAdmin
+      .from('conversation_participants')
       .update(updates)
-      .eq('id', conversationId)
-      .select('id, type, name, avatar_url, created_by, updated_at')
-      .single();
+      .eq('conversation_id', conversationId)
+      .eq('user_id', user.id);
 
     if (error) throw error;
-    return NextResponse.json({ conversation: data });
+    return NextResponse.json({ success: true });
   } catch (err: any) {
     console.error('[PATCH /api/conversations/[id]]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    return jsonError(err.message || 'Internal server error', 500);
   }
 }
 
-export async function DELETE(
+export async function POST(
   req: NextRequest,
   { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const { id: conversationId } = await params;
     const user = await authenticate(req);
-    if (!user) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
+    if (!user) return jsonError('Unauthorized', 401);
 
-    const action = req.nextUrl.searchParams.get('action'); // 'delete' or 'leave'
+    const { id: conversationId } = await params;
+    if (!(await isParticipant(conversationId, user.id))) return jsonError('Forbidden', 403);
 
-    if (action === 'leave') {
-      // Leave group or delete direct chat from my side
-      const { error } = await supabaseAdmin
-        .from('conversation_members')
-        .delete()
-        .eq('conversation_id', conversationId)
-        .eq('user_id', user.id);
+    const body = await req.json();
+    if (body.action !== 'report') return jsonError('Unsupported action', 400);
 
-      if (error) throw error;
-      return NextResponse.json({ success: true });
-    } 
-    
-    if (action === 'delete') {
-      // Find the creator by getting the first message
-      const { data: firstMessage } = await supabaseAdmin
-        .from('messages')
-        .select('sender_id')
-        .eq('conversation_id', conversationId)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .single();
+    const { data: participants } = await supabaseAdmin
+      .from('conversation_participants')
+      .select('user_id')
+      .eq('conversation_id', conversationId);
 
-      if (firstMessage && firstMessage.sender_id !== user.id) {
-        return NextResponse.json({ error: 'Only the creator can delete the group chat' }, { status: 403 });
-      }
+    const reportedUserId = body.reportedUserId || (participants || []).find((row: any) => row.user_id !== user.id)?.user_id;
+    if (!reportedUserId) return jsonError('Reported user is required', 400);
 
-      // Delete the conversation (cascades to members and messages)
-      const { error } = await supabaseAdmin
-        .from('conversations')
-        .delete()
-        .eq('id', conversationId);
+    const { error } = await supabaseAdmin
+      .from('user_reports')
+      .insert({
+        reporter_id: user.id,
+        reported_user_id: reportedUserId,
+        conversation_id: conversationId,
+        reason: String(body.reason || 'Conversation reported').slice(0, 500),
+      });
 
-      if (error) throw error;
-      return NextResponse.json({ success: true });
-    }
-
-    return NextResponse.json({ error: 'Invalid action' }, { status: 400 });
+    if (error) throw error;
+    return NextResponse.json({ success: true });
   } catch (err: any) {
-    console.error('[DELETE /api/conversations/[id]]', err);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('[POST /api/conversations/[id]]', err);
+    return jsonError(err.message || 'Internal server error', 500);
   }
 }

@@ -1,371 +1,280 @@
 'use client';
-// components/PollCard.tsx
 
-import React, { useState, useEffect, useCallback } from 'react';
-import { BarChart3, CheckCircle, Clock, Loader2, AlertCircle } from 'lucide-react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { AlertCircle, BarChart3, CheckCircle2, Clock, Loader2 } from 'lucide-react';
+import { supabase } from '@/lib/supabase';
 
-// ─── Types ─────────────────────────────────────────────────────────────────────
 export interface PollOption {
-  id         : string;
+  id: string;
   option_text: string;
-  vote_count : number;
-  position   : number;
+  vote_count: number;
+  position: number;
 }
 
 export interface PollData {
-  id                  : string;
-  post_id             : string;
-  expires_at          : string;
-  multiple_choice     : boolean;
-  options             : PollOption[];
+  id: string;
+  post_id: string;
+  expires_at: string;
+  multiple_choice: boolean;
+  allow_vote_changes?: boolean;
+  options: PollOption[];
   user_voted_option_id: string | null;
 }
 
 interface PollCardProps {
-  postId         : string;
-  pollQuestion   : string;
-  session        : { access_token: string; user: { id: string } } | null;
-  onAuthRequired : () => void;
+  postId: string;
+  pollQuestion: string;
+  session: { access_token: string; user: { id: string } } | null;
+  onAuthRequired: () => void;
 }
 
-// ─── Helpers ───────────────────────────────────────────────────────────────────
-function getRemainingTime(expiresAt: string): string {
+function formatVotes(count: number) {
+  return count === 1 ? '1 vote' : `${count.toLocaleString()} votes`;
+}
+
+function formatEndsAt(value: string) {
+  return new Date(value).toLocaleString(undefined, {
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+  });
+}
+
+function getTimeRemaining(expiresAt: string) {
   const diff = new Date(expiresAt).getTime() - Date.now();
-  if (diff <= 0) return 'Ended';
-  const days    = Math.floor(diff / 86_400_000);
-  const hours   = Math.floor((diff % 86_400_000) / 3_600_000);
-  const minutes = Math.floor((diff % 3_600_000)  / 60_000);
-  if (days > 1)  return `${days}d ${hours}h left`;
-  if (days === 1) return `1d ${hours}h left`;
-  if (hours > 0) return `${hours}h ${minutes}m left`;
-  if (minutes > 0) return `${minutes}m left`;
-  return 'Ending soon';
+  if (diff <= 0) return 'Poll Closed';
+
+  const minute = 60_000;
+  const hour = 60 * minute;
+  const day = 24 * hour;
+  const week = 7 * day;
+
+  if (diff >= week) {
+    const weeks = Math.max(1, Math.round(diff / week));
+    return `Ends in ${weeks} ${weeks === 1 ? 'week' : 'weeks'}`;
+  }
+  if (diff >= day) {
+    const days = Math.max(1, Math.round(diff / day));
+    return `Ends in ${days} ${days === 1 ? 'day' : 'days'}`;
+  }
+  if (diff >= hour) {
+    const hours = Math.max(1, Math.round(diff / hour));
+    return `Ends in ${hours} ${hours === 1 ? 'hour' : 'hours'}`;
+  }
+
+  const minutes = Math.max(1, Math.round(diff / minute));
+  return `Ends in ${minutes} ${minutes === 1 ? 'minute' : 'minutes'}`;
 }
 
-// ─── Component ─────────────────────────────────────────────────────────────────
-export default function PollCard({
-  postId, pollQuestion, session, onAuthRequired,
-}: PollCardProps) {
-  const [poll,          setPoll]          = useState<PollData | null>(null);
-  const [loading,       setLoading]       = useState(true);
-  const [voting,        setVoting]        = useState(false);
-  const [votedOptionId, setVotedOptionId] = useState<string | null>(null);
-  const [fetchError,    setFetchError]    = useState<string | null>(null);
-  const [voteError,     setVoteError]     = useState<string | null>(null);
-  // Tick every 30 s so "time remaining" stays fresh
+export default function PollCard({ postId, pollQuestion, session, onAuthRequired }: PollCardProps) {
+  const [poll, setPoll] = useState<PollData | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [votingOptionId, setVotingOptionId] = useState<string | null>(null);
+  const [fetchError, setFetchError] = useState<string | null>(null);
+  const [voteError, setVoteError] = useState<string | null>(null);
   const [, setTick] = useState(0);
 
-  useEffect(() => {
-    const id = setInterval(() => setTick(t => t + 1), 30_000);
-    return () => clearInterval(id);
-  }, []);
-
-  // Fetch poll data
-  const fetchPoll = useCallback(async () => {
-    setLoading(true);
+  const fetchPoll = useCallback(async (showLoader = false) => {
+    if (showLoader) setLoading(true);
     setFetchError(null);
+
     try {
       const headers: Record<string, string> = {};
       if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
 
-      const res  = await fetch(`/api/polls/${postId}`, { headers });
+      const res = await fetch(`/api/polls/${postId}`, { headers, cache: 'no-store' });
       const json = await res.json();
-
       if (!res.ok) throw new Error(json.error || 'Failed to load poll');
-      if (json.poll) {
-        setPoll(json.poll);
-        setVotedOptionId(json.poll.user_voted_option_id ?? null);
-      }
-    } catch (err: unknown) {
+
+      setPoll(json.poll ?? null);
+    } catch (err) {
       setFetchError(err instanceof Error ? err.message : 'Failed to load poll');
     } finally {
       setLoading(false);
     }
   }, [postId, session?.access_token]);
 
-  useEffect(() => { fetchPoll(); }, [fetchPoll]);
+  useEffect(() => {
+    fetchPoll(true);
+  }, [fetchPoll]);
 
-  // ── Vote handler ──────────────────────────────────────────────────────────
+  useEffect(() => {
+    const timer = window.setInterval(() => setTick((value) => value + 1), 30_000);
+    return () => window.clearInterval(timer);
+  }, []);
+
+  useEffect(() => {
+    if (!poll?.id) return;
+
+    const channel = supabase
+      .channel(`poll-results:${poll.id}`)
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'poll_votes', filter: `poll_id=eq.${poll.id}` },
+        () => fetchPoll(),
+      )
+      .on(
+        'postgres_changes',
+        { event: '*', schema: 'public', table: 'poll_options', filter: `poll_id=eq.${poll.id}` },
+        () => fetchPoll(),
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [fetchPoll, poll?.id]);
+
+  const totals = useMemo(() => {
+    const totalVotes = poll?.options.reduce((sum, option) => sum + option.vote_count, 0) ?? 0;
+    const maxVotes = Math.max(0, ...(poll?.options.map((option) => option.vote_count) ?? [0]));
+    return { totalVotes, maxVotes };
+  }, [poll?.options]);
+
   async function handleVote(optionId: string) {
-    if (!session) { onAuthRequired(); return; }
-    if (!poll || voting) return;
-    if (new Date(poll.expires_at).getTime() < Date.now()) return;
+    if (!session) {
+      onAuthRequired();
+      return;
+    }
+    if (!poll || votingOptionId) return;
 
+    const isExpired = new Date(poll.expires_at).getTime() <= Date.now();
+    const hasVoted = Boolean(poll.user_voted_option_id);
+    const canChangeVote = poll.allow_vote_changes === true;
+    if (isExpired || (hasVoted && !canChangeVote) || poll.user_voted_option_id === optionId) return;
+
+    const previousPoll = poll;
     setVoteError(null);
-    setVoting(true);
+    setVotingOptionId(optionId);
 
-    // Optimistic update
-    const isToggleOff = votedOptionId === optionId;
-    const prevPoll    = poll;
-    const prevVoted   = votedOptionId;
-
-    setPoll(prev => {
-      if (!prev) return prev;
+    setPoll((current) => {
+      if (!current) return current;
       return {
-        ...prev,
-        options: prev.options.map(opt => {
-          if (isToggleOff && opt.id === optionId)
-            return { ...opt, vote_count: Math.max(0, opt.vote_count - 1) };
-          if (!isToggleOff && opt.id === optionId)
-            return { ...opt, vote_count: opt.vote_count + 1 };
-          if (!isToggleOff && votedOptionId && opt.id === votedOptionId)
-            return { ...opt, vote_count: Math.max(0, opt.vote_count - 1) };
-          return opt;
+        ...current,
+        user_voted_option_id: optionId,
+        options: current.options.map((option) => {
+          if (option.id === optionId) return { ...option, vote_count: option.vote_count + 1 };
+          if (option.id === current.user_voted_option_id) return { ...option, vote_count: Math.max(0, option.vote_count - 1) };
+          return option;
         }),
       };
     });
-    setVotedOptionId(isToggleOff ? null : optionId);
 
     try {
       const res = await fetch('/api/polls/vote', {
-        method : 'POST',
+        method: 'POST',
         headers: {
           'Content-Type': 'application/json',
-          Authorization : `Bearer ${session.access_token}`,
+          Authorization: `Bearer ${session.access_token}`,
         },
         body: JSON.stringify({ poll_id: poll.id, option_id: optionId }),
       });
       const data = await res.json();
-
       if (!res.ok) throw new Error(data.error || 'Vote failed');
 
-      // Sync server counts
-      if (data.options) {
-        setPoll(prev => prev ? { ...prev, options: data.options } : prev);
-      }
-      setVotedOptionId(data.voted_option_id ?? null);
-    } catch (err: unknown) {
-      // Roll back optimistic update
-      setPoll(prevPoll);
-      setVotedOptionId(prevVoted);
-      setVoteError(err instanceof Error ? err.message : 'Failed to vote.');
+      setPoll((current) => current
+        ? { ...current, options: data.options ?? current.options, user_voted_option_id: data.voted_option_id ?? optionId }
+        : current);
+    } catch (err) {
+      setPoll(previousPoll);
+      setVoteError(err instanceof Error ? err.message : 'Failed to save vote');
     } finally {
-      setVoting(false);
+      setVotingOptionId(null);
     }
   }
 
-  // ── Loading ────────────────────────────────────────────────────────────────
   if (loading) {
     return (
-      <div style={{
-        display    : 'flex',
-        alignItems : 'center',
-        gap        : '0.5rem',
-        padding    : '0.75rem 0',
-        color      : 'var(--text-muted)',
-        fontSize   : '0.8rem',
-      }}>
-        <Loader2 size={13} className="spin" />
-        Loading poll…
+      <div className="poll-card poll-card--loading">
+        <Loader2 size={16} className="spin" />
+        Loading poll...
       </div>
     );
   }
 
-  // ── Fetch error ────────────────────────────────────────────────────────────
   if (fetchError || !poll) {
     return (
-      <div style={{
-        display      : 'flex',
-        alignItems   : 'center',
-        gap          : '0.4rem',
-        padding      : '0.6rem 0.75rem',
-        background   : 'var(--bg-hover)',
-        borderRadius : '10px',
-        fontSize     : '0.78rem',
-        color        : 'var(--text-muted)',
-      }}>
-        <AlertCircle size={13} />
+      <div className="poll-card poll-card--error">
+        <AlertCircle size={16} />
         {fetchError ?? 'Poll not available'}
       </div>
     );
   }
 
-  // ── Derived values ─────────────────────────────────────────────────────────
-  const totalVotes = poll.options.reduce((s, o) => s + o.vote_count, 0);
-  const isExpired  = new Date(poll.expires_at).getTime() < Date.now();
-  const hasVoted   = votedOptionId !== null;
-  const showBars   = hasVoted || isExpired;    // reveal results once voted or ended
-  const maxVotes   = Math.max(...poll.options.map(o => o.vote_count), 0);
+  const isExpired = new Date(poll.expires_at).getTime() <= Date.now();
+  const hasVoted = Boolean(poll.user_voted_option_id);
+  const showResults = hasVoted || isExpired;
+  const canChangeVote = poll.allow_vote_changes === true;
+  const isLockedByVote = hasVoted && !canChangeVote && !isExpired;
 
-  // ── Render ─────────────────────────────────────────────────────────────────
   return (
-    <div style={{
-      border       : '1px solid var(--border-color)',
-      borderRadius : '14px',
-      overflow     : 'hidden',
-      marginTop    : '0.5rem',
-      background   : 'var(--bg-card)',
-    }}>
-      {/* Header */}
-      <div style={{
-        display        : 'flex',
-        alignItems     : 'center',
-        justifyContent : 'space-between',
-        padding        : '0.6rem 0.85rem',
-        borderBottom   : '1px solid var(--border-color)',
-        background     : 'rgba(99,102,241,0.05)',
-      }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-          <BarChart3 size={13} style={{ color: '#6366f1' }} />
-          <span style={{ fontSize: '0.72rem', fontWeight: 700, color: '#6366f1', textTransform: 'uppercase', letterSpacing: '0.05em' }}>
-            Poll
-          </span>
+    <section className={`poll-card ${isExpired ? 'poll-card--closed' : ''}`} aria-label={`Poll: ${pollQuestion}`}>
+      <header className="poll-card__header">
+        <div className="poll-card__type">
+          <BarChart3 size={15} />
+          <span>Poll</span>
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.72rem', color: isExpired ? '#ef4444' : 'var(--text-muted)' }}>
-          <Clock size={11} />
-          {isExpired ? 'Ended' : getRemainingTime(poll.expires_at)}
+        <div className="poll-card__status">
+          <Clock size={14} />
+          <span>{getTimeRemaining(poll.expires_at)}</span>
         </div>
-      </div>
+      </header>
 
-      {/* Options */}
-      <div style={{ padding: '0.65rem 0.85rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-        {[...poll.options]
-          .sort((a, b) => a.position - b.position)
-          .map(option => {
-            const pct       = totalVotes > 0 ? Math.round((option.vote_count / totalVotes) * 100) : 0;
-            const isChosen  = votedOptionId === option.id;
-            const isLeading = showBars && option.vote_count === maxVotes && maxVotes > 0;
+      <h4 className="poll-card__question">{pollQuestion}</h4>
 
-            return (
-              <button
-                key={option.id}
-                type="button"
-                onClick={() => handleVote(option.id)}
-                disabled={isExpired || voting}
-                style={{
-                  position      : 'relative',
-                  display       : 'flex',
-                  alignItems    : 'center',
-                  justifyContent: 'space-between',
-                  padding       : '0.55rem 0.75rem',
-                  border        : `1.5px solid ${isChosen ? '#6366f1' : 'var(--border-color)'}`,
-                  borderRadius  : '10px',
-                  background    : isChosen ? 'rgba(99,102,241,0.06)' : 'transparent',
-                  cursor        : isExpired ? 'default' : 'pointer',
-                  textAlign     : 'left',
-                  overflow      : 'hidden',
-                  transition    : 'border-color 0.15s, background 0.15s',
-                  opacity       : (isExpired || voting) && !isChosen ? 0.7 : 1,
-                }}
-                onMouseEnter={e => {
-                  if (!isExpired && !voting)
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = '#6366f1';
-                }}
-                onMouseLeave={e => {
-                  if (!isChosen)
-                    (e.currentTarget as HTMLButtonElement).style.borderColor = 'var(--border-color)';
-                }}
-                aria-label={`${option.option_text}${showBars ? ` – ${pct}%` : ''}`}
-                aria-pressed={isChosen}
-              >
-                {/* Background percentage bar */}
-                {showBars && (
-                  <div
-                    aria-hidden="true"
-                    style={{
-                      position     : 'absolute',
-                      inset        : 0,
-                      width        : `${pct}%`,
-                      background   : isLeading
-                        ? 'rgba(99,102,241,0.12)'
-                        : 'rgba(255,255,255,0.04)',
-                      borderRadius : '10px',
-                      transition   : 'width 0.4s ease',
-                      pointerEvents: 'none',
-                    }}
-                  />
-                )}
+      <div className="poll-card__options" role="list">
+        {[...poll.options].sort((a, b) => a.position - b.position).map((option) => {
+          const percent = totals.totalVotes > 0 ? Math.round((option.vote_count / totals.totalVotes) * 100) : 0;
+          const selected = poll.user_voted_option_id === option.id;
+          const leading = showResults && option.vote_count === totals.maxVotes && totals.maxVotes > 0;
+          const disabled = isExpired || Boolean(votingOptionId) || isLockedByVote || selected;
 
-                {/* Label */}
-                <span style={{
-                  position   : 'relative',
-                  display    : 'flex',
-                  alignItems : 'center',
-                  gap        : '0.4rem',
-                  fontSize   : '0.85rem',
-                  fontWeight : isChosen ? 600 : 400,
-                  color      : 'var(--text-main)',
-                  flexShrink : 1,
-                  minWidth   : 0,
-                  overflow   : 'hidden',
-                  textOverflow: 'ellipsis',
-                  whiteSpace : 'nowrap',
-                }}>
-                  {isChosen && (
-                    <CheckCircle
-                      size={12}
-                      style={{ color: '#6366f1', flexShrink: 0 }}
-                    />
-                  )}
+          return (
+            <button
+              key={option.id}
+              type="button"
+              className={`poll-option ${selected ? 'poll-option--selected' : ''} ${leading ? 'poll-option--leading' : ''}`}
+              onClick={(event) => {
+                event.stopPropagation();
+                handleVote(option.id);
+              }}
+              disabled={disabled}
+              aria-pressed={selected}
+              aria-label={`${option.option_text}${showResults ? `, ${percent} percent, ${option.vote_count} votes` : ''}`}
+            >
+              {showResults && (
+                <span className="poll-option__bar" style={{ width: `${percent}%` }} aria-hidden="true" />
+              )}
+              <span className="poll-option__content">
+                <span className="poll-option__label">
+                  {selected && <CheckCircle2 size={15} />}
                   {option.option_text}
                 </span>
-
-                {/* Percentage */}
-                {showBars && (
-                  <span style={{
-                    position   : 'relative',
-                    flexShrink : 0,
-                    fontSize   : '0.8rem',
-                    fontWeight : isLeading ? 700 : 500,
-                    color      : isLeading ? '#6366f1' : 'var(--text-muted)',
-                    marginLeft : '0.5rem',
-                  }}>
-                    {pct}%
-                  </span>
-                )}
-              </button>
-            );
-          })}
-      </div>
-
-      {/* Footer */}
-      <div style={{
-        padding        : '0.45rem 0.85rem 0.65rem',
-        display        : 'flex',
-        alignItems     : 'center',
-        justifyContent : 'space-between',
-        fontSize       : '0.72rem',
-        color          : 'var(--text-muted)',
-      }}>
-        <span>
-          {totalVotes === 1 ? '1 vote' : `${totalVotes.toLocaleString()} votes`}
-        </span>
-        <span>
-          {voteError && (
-            <span style={{ color: '#ef4444', display: 'flex', alignItems: 'center', gap: '0.25rem' }}>
-              <AlertCircle size={11} /> {voteError}
-            </span>
-          )}
-          {!voteError && !isExpired && !hasVoted && session && (
-            <span>Tap an option to vote</span>
-          )}
-          {!voteError && !isExpired && !hasVoted && !session && (
-            <button
-              type="button"
-              onClick={onAuthRequired}
-              style={{
-                background  : 'none',
-                border      : 'none',
-                color       : '#6366f1',
-                fontWeight  : 600,
-                cursor      : 'pointer',
-                fontSize    : '0.72rem',
-                padding     : 0,
-              }}
-            >
-              Sign in to vote
+                {showResults && <strong className="poll-option__percent">{percent}%</strong>}
+              </span>
             </button>
-          )}
-          {!voteError && hasVoted && !isExpired && (
-            <span style={{ color: '#6366f1' }}>
-              ✓ Voted — tap again to change
-            </span>
-          )}
-          {isExpired && (
-            <span style={{ color: '#ef4444' }}>Poll closed</span>
-          )}
-        </span>
+          );
+        })}
       </div>
-    </div>
+
+      <footer className="poll-card__footer">
+        <span>{formatVotes(totals.totalVotes)}</span>
+        <span>Ends {formatEndsAt(poll.expires_at)}</span>
+      </footer>
+
+      <div className="poll-card__hint" aria-live="polite">
+        {voteError && <span className="poll-card__error"><AlertCircle size={13} /> {voteError}</span>}
+        {!voteError && isExpired && <span>Voting Disabled. Results Visible.</span>}
+        {!voteError && !isExpired && !session && (
+          <button type="button" onClick={(event) => { event.stopPropagation(); onAuthRequired(); }}>
+            Sign in to vote
+          </button>
+        )}
+        {!voteError && !isExpired && session && !hasVoted && <span>Choose one option to vote.</span>}
+        {!voteError && !isExpired && hasVoted && !canChangeVote && <span>Vote saved. Changes are disabled for this poll.</span>}
+        {!voteError && !isExpired && hasVoted && canChangeVote && <span>Vote saved. You can change it before the poll closes.</span>}
+      </div>
+    </section>
   );
 }

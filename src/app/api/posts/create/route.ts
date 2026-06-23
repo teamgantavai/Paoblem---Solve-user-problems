@@ -15,6 +15,7 @@ const pollDataSchema = z.object({
   duration        : z.string(),
   expires_at      : z.string().datetime(),
   multiple_choice : z.boolean().optional().default(false),
+  allow_vote_changes: z.boolean().optional().default(false),
 });
 
 const createPostSchema = z.object({
@@ -187,6 +188,7 @@ export async function POST(req: NextRequest) {
             post_id         : post.id,
             expires_at      : poll_data.expires_at,
             multiple_choice : poll_data.multiple_choice ?? false,
+            allow_vote_changes: poll_data.allow_vote_changes ?? false,
           })
           .select()
           .single();

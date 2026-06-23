@@ -127,13 +127,14 @@
   align-items: center;
   gap: 5px;
   font-size: 0.72rem;
-  font-weight: 600;
-  color: var(--bg-card);
-  background: var(--text-main);
-  border: 1px solid var(--text-main);
+  font-weight: 800;
+  color: #ffffff;
+  background: linear-gradient(135deg, #6366f1, #3b82f6);
+  border: 1px solid rgba(255, 255, 255, 0.18);
   padding: 3px 10px;
   border-radius: 20px;
   width: fit-content;
+  box-shadow: 0 0 18px rgba(99, 102, 241, 0.28);
 }
 
 .upf-location {

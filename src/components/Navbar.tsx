@@ -33,6 +33,15 @@ import NotificationItem from './NotificationItem';
 import MessageItem from './MessageItem';
 import SearchOverlay from './SearchOverlay';
 
+type NavbarConversationSummary = Message & {
+  unread_count?: number;
+  last_message?: {
+    sender_id?: string;
+    content?: string;
+    attachments?: unknown[];
+  } | null;
+};
+
 const NAVBAR_CACHE_TTL_MS = 5 * 60 * 1000;
 const NAVBAR_NOTIFICATIONS_CACHE_KEY = 'navbar-notifications-cache';
 const NAVBAR_MESSAGES_CACHE_KEY = 'navbar-messages-cache';
@@ -171,7 +180,7 @@ function NavbarInner() {
   });
 
   // Fetch messages counts
-  const { data: messages = [] } = useQuery<Message[]>({
+  const { data: messages = [] } = useQuery<NavbarConversationSummary[]>({
     queryKey: ['messages', session?.access_token],
     queryFn: async () => {
       if (!session?.access_token) return [];
@@ -182,12 +191,12 @@ function NavbarInner() {
       });
       if (!res.ok) return [];
       const data = await res.json();
-      const nextMessages = data.messages || [];
+      const nextMessages = data.conversations || data.messages || [];
       writeCachedNavbarData(NAVBAR_MESSAGES_CACHE_KEY, nextMessages);
       return nextMessages;
     },
     enabled: !!session?.access_token,
-    initialData: () => readCachedNavbarData<Message[]>(NAVBAR_MESSAGES_CACHE_KEY) || undefined,
+    initialData: () => readCachedNavbarData<NavbarConversationSummary[]>(NAVBAR_MESSAGES_CACHE_KEY) || undefined,
     staleTime: NAVBAR_CACHE_TTL_MS,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
@@ -231,14 +240,13 @@ function NavbarInner() {
     const channel = supabase.channel('global-message-notifications')
       .on(
         'postgres_changes',
-        {
-          event: 'INSERT',
-          schema: 'public',
-          table: 'messages',
-          filter: `recipient_id=eq.${session.user.id}`
-        },
+        { event: 'INSERT', schema: 'public', table: 'messages' },
         async (payload) => {
           const newMsg = payload.new;
+          if (newMsg.sender_id === session.user.id) {
+            queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
+            return;
+          }
           
           // Trigger browser notification if allowed and we are not actively looking at the chat
           if ('Notification' in window && Notification.permission === 'granted') {
@@ -253,7 +261,7 @@ function NavbarInner() {
               const senderName = senderProfile?.full_name || senderProfile?.username || 'Someone';
               
               const notification = new Notification(`New message from ${senderName}`, {
-                body: newMsg.body || 'Sent an attachment',
+                body: newMsg.content || 'Sent an attachment',
                 icon: senderProfile?.avatar_url || '/favicon.ico',
               });
 
@@ -297,7 +305,7 @@ function NavbarInner() {
   };
 
   const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const unreadMsgCount = messages.filter(m => !m.read && m.sender_id !== session?.user?.id).length;
+  const unreadMsgCount = messages.reduce((sum, m) => sum + (m.unread_count || 0), 0);
 
   const isHomeActive = pathname === '/' || pathname === '/home';
   const isSolutionsActive = pathname === '/solutions';

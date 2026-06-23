@@ -36,7 +36,7 @@ export async function GET(req: NextRequest) {
       }
     }
 
-    const isDirectFilter = !!postId || type === 'mine' || type === 'saved';
+    const isDirectFilter = !!postId || type === 'mine' || type === 'saved' || type === 'poll';
 
     let query = supabase
       .from('posts')
@@ -105,6 +105,8 @@ export async function GET(req: NextRequest) {
 
       if (type === 'problem' || type === 'idea') {
         query = query.eq('type', type);
+      } else if (type === 'poll') {
+        query = query.not('poll_question', 'is', null);
       } else if (type === 'mine') {
         if (!userId) {
           return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
@@ -187,6 +189,8 @@ export async function GET(req: NextRequest) {
 
         if (type === 'problem' || type === 'idea') {
           fallbackQuery = fallbackQuery.eq('type', type);
+        } else if (type === 'poll') {
+          fallbackQuery = fallbackQuery.not('poll_question', 'is', null);
         } else if (type === 'mine') {
           if (userId) {
             fallbackQuery = fallbackQuery.eq('user_id', userId);

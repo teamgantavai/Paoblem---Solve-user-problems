@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   UserCheck, UserPlus, MessageCircle, MapPin, Briefcase,
   ArrowUp, MessageSquare, Lightbulb, BookOpen, Users, Heart,
-  ExternalLink, ChevronRight, Calendar, Award
+  ExternalLink, ChevronRight, Calendar, Award, User
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 
@@ -86,6 +86,82 @@ function avatarUrl(profile: { id?: string; avatar_url?: string | null; username?
   return profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id || profile.username}`;
 }
 
+const ProfileAvatar = ({
+  src,
+  name,
+  className,
+}: {
+  src?: string | null;
+  name: string;
+  className: string;
+}) => {
+  const [failed, setFailed] = useState(false);
+
+  // Generate unique background gradient color based on the name/username
+  const getAvatarColor = (str: string) => {
+    const colors = [
+      'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', // Indigo to Purple
+      'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)', // Pink to Rose
+      'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)', // Blue to Cyan
+      'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)', // Emerald to Teal
+      'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)', // Amber to Yellow
+      'linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)', // Violet to Fuchsia
+    ];
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      hash = str.charCodeAt(i) + ((hash << 5) - hash);
+    }
+    const index = Math.abs(hash) % colors.length;
+    return colors[index];
+  };
+
+  const showImage = !!src && !failed;
+
+  if (showImage) {
+    return (
+      <img
+        src={src}
+        alt={name}
+        onError={() => setFailed(true)}
+        className={className}
+      />
+    );
+  }
+
+  // Draw user initials
+  const initials = name
+    .split(' ')
+    .map((n) => n[0])
+    .slice(0, 2)
+    .join('')
+    .toUpperCase() || name[0]?.toUpperCase() || '?';
+
+  const isSmall = className.includes('upf-user-card-avatar');
+
+  return (
+    <div
+      className={className}
+      style={{
+        background: getAvatarColor(name),
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+        color: '#ffffff',
+        fontWeight: 700,
+        fontSize: isSmall ? '0.85rem' : '1.8rem',
+        textShadow: '0 2px 4px rgba(0,0,0,0.15)',
+        userSelect: 'none',
+      }}
+    >
+      {isSmall ? (
+        <User size={16} style={{ color: 'rgba(255,255,255,0.95)' }} />
+      ) : (
+        <span>{initials}</span>
+      )}
+    </div>
+  );
+};
+
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
@@ -100,7 +176,7 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
 function UserCard({ user }: { user: FollowUser }) {
   return (
     <Link href={`/user/${user.username}`} className="upf-user-card">
-      <img src={avatarUrl(user)} alt={user.full_name || user.username || 'User'} className="upf-user-card-avatar" />
+      <ProfileAvatar src={user.avatar_url} name={user.full_name || user.username || 'User'} className="upf-user-card-avatar" />
       <div className="upf-user-card-info">
         <span className="upf-user-card-name">{user.full_name || user.username}</span>
         <span className="upf-user-card-role">@{user.username} {user.role ? `· ${user.role}` : ''}</span>
@@ -227,7 +303,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
 
         <div className="upf-identity">
           <div className="upf-avatar-wrap">
-            <img src={avatarUrl(profile)} alt={name} className="upf-avatar" />
+            <ProfileAvatar src={profile.avatar_url} name={name} className="upf-avatar" />
             <div className="upf-avatar-ring" />
           </div>
 

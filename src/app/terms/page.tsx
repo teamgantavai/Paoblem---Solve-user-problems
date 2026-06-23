@@ -24,7 +24,7 @@ export default function TermsAndConditions() {
               Last Updated: June 21, 2026
             </p>
 
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.85rem', lineHeight: '1.6', color: 'var(--text-body)' }}>
+            <div className="legal-content" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem', fontSize: '0.85rem', lineHeight: '1.6', color: 'var(--text-body)' }}>
               <section>
                 <h2 style={{ fontSize: '1.15rem', fontWeight: 600, color: 'var(--text-main)', marginBottom: '0.5rem' }}>
                   1. Acceptance of Terms
