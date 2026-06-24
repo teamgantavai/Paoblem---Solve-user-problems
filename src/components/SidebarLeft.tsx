@@ -4,6 +4,7 @@ import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { usePathname } from 'next/navigation';
 import {
+  Home,
   TrendingUp,
   BarChart2,
   Bookmark,
@@ -88,7 +89,7 @@ function SidebarLeftInner() {
     if (typeof window === 'undefined') return;
     try {
       window.localStorage.setItem(SIDEBAR_PROFILE_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() } satisfies CachedSidebarProfile));
-    } catch {}
+    } catch { }
   };
 
   const readCachedPulse = () => {
@@ -108,7 +109,7 @@ function SidebarLeftInner() {
     if (typeof window === 'undefined') return;
     try {
       window.localStorage.setItem(SIDEBAR_PULSE_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() } satisfies CachedPulseStats));
-    } catch {}
+    } catch { }
   };
 
   useEffect(() => {
@@ -209,9 +210,9 @@ function SidebarLeftInner() {
       {session ? (
         <Link href="/profile" style={{ textDecoration: 'none' }}>
           <div className="profile-card" style={{ cursor: 'pointer' }}>
-            <div 
-              className="profile-banner" 
-              style={{ 
+            <div
+              className="profile-banner"
+              style={{
                 backgroundImage: (profile as any)?.cover_url || session?.user?.user_metadata?.cover_url ? `url(${(profile as any)?.cover_url || session?.user?.user_metadata?.cover_url})` : undefined,
                 backgroundSize: 'cover',
                 backgroundPosition: 'center'
@@ -282,19 +283,19 @@ function SidebarLeftInner() {
           className={`menu-item ${isHomeRoute && (filter === 'all' || filter === 'problem' || filter === 'idea') ? 'active' : ''}`}
           style={{ cursor: 'pointer', textDecoration: 'none' }}
         >
-          <TrendingUp size={20} />
+          <Home size={20} />
           <span>Home Feed</span>
         </Link>
         <div
           className={`menu-item ${isAnalyticsRoute ? 'active' : ''}`}
           style={{ cursor: 'pointer' }}
           onClick={() => {
-          if (!session) {
-            setIsAuthOpen(true);
-          } else {
-            router.push('/analytics');
-          }
-        }}>
+            if (!session) {
+              setIsAuthOpen(true);
+            } else {
+              router.push('/analytics');
+            }
+          }}>
           <BarChart2 size={20} />
           <span>Analytics</span>
         </div>
@@ -322,7 +323,7 @@ function SidebarLeftInner() {
         </div>
       </div>
 
-        <div className="card sidebar-solutions-card">
+      <div className="card sidebar-solutions-card">
         <div className="sidebar-solutions-head">
           <span>
             <Lightbulb size={15} />
@@ -386,15 +387,15 @@ function SidebarLeftInner() {
       </div>
 
       {/* Legal Footer Links */}
-      <div 
-        style={{ 
-          display: 'flex', 
-          flexWrap: 'wrap', 
-          justifyContent: 'center', 
-          gap: '0.4rem 0.6rem', 
-          padding: '0.5rem 0.75rem', 
-          fontSize: '0.7rem', 
-          color: 'var(--text-muted)', 
+      <div
+        style={{
+          display: 'flex',
+          flexWrap: 'wrap',
+          justifyContent: 'center',
+          gap: '0.4rem 0.6rem',
+          padding: '0.5rem 0.75rem',
+          fontSize: '0.7rem',
+          color: 'var(--text-muted)',
           textAlign: 'center',
           marginTop: '0.25rem',
           lineHeight: '1.4'

@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
+import React from 'react';
 import { Post } from '@/lib/types';
-import { Video, FileText, BarChart2, Table2 } from 'lucide-react';
+import { FileText, Table2 } from 'lucide-react';
 
 export default function RichPostContent({ post }: { post: Post }) {
   const { video_url, metadata } = post;
@@ -42,35 +42,6 @@ export default function RichPostContent({ post }: { post: Post }) {
             <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Click to view</div>
           </div>
         </a>
-      )}
-
-      {/* POLL */}
-      {metadata?.poll && Array.isArray(metadata.poll) && (
-        <div style={{ 
-          padding: '16px', background: 'var(--bg-elevated)', border: '1px solid var(--border-color)', 
-          borderRadius: '12px' 
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px', fontWeight: 600, color: 'var(--text-main)' }}>
-            <BarChart2 size={18} style={{ color: 'var(--accent-blue)' }}/> 
-            Community Poll
-          </div>
-          <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-            {metadata.poll.map((opt: string, i: number) => (
-              <button 
-                key={i}
-                style={{ 
-                  padding: '10px 16px', background: 'var(--bg-body)', border: '1px solid var(--border-color)', 
-                  borderRadius: '8px', textAlign: 'left', cursor: 'pointer', transition: 'border-color 0.2s',
-                  color: 'var(--text-main)'
-                }}
-                onMouseOver={(e) => (e.currentTarget.style.borderColor = 'var(--accent-blue)')}
-                onMouseOut={(e) => (e.currentTarget.style.borderColor = 'var(--border-color)')}
-              >
-                {opt}
-              </button>
-            ))}
-          </div>
-        </div>
       )}
 
       {/* TABLE */}

@@ -80,11 +80,9 @@ type Conversation = {
   updated_at: string;
 };
 
-type TypingRow = {
-  conversation_id: string;
-  user_id: string;
-  is_typing: boolean;
-  updated_at: string;
+type MessagesQueryData = {
+  messages: ChatMessage[];
+  nextCursor: string | null;
 };
 
 const EMOJI_OPTIONS = ['😀', '😂', '😊', '😍', '🥳', '😎', '😅', '😢', '😮', '👍', '👏', '🙏', '🔥', '✨', '💡', '❤️', '🚀', '✅'];
@@ -159,6 +157,9 @@ function ChatsPageContent() {
   const messageListRef = useRef<HTMLDivElement | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const typingTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const typingLastSentRef = useRef(0);
+  const typingExpiryRefs = useRef<Record<string, ReturnType<typeof setTimeout>>>({});
+  const typingChannelRef = useRef<ReturnType<typeof supabase.channel> | null>(null);
   const heartbeatRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   const [session, setSession] = useState<Session>(null);
@@ -175,6 +176,7 @@ function ChatsPageContent() {
   const [menuConversation, setMenuConversation] = useState<string | null>(null);
   const [startingUserId, setStartingUserId] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
+  const [conversationView, setConversationView] = useState<'active' | 'archived'>('active');
 
   const me = session?.user.id;
 
@@ -191,9 +193,11 @@ function ChatsPageContent() {
   }, []);
 
   const conversationsQuery = useQuery<Conversation[]>({
-    queryKey: ['messaging', 'conversations', session?.access_token],
+    queryKey: ['messaging', 'conversations', conversationView, session?.access_token],
     queryFn: async () => {
-      const res = await fetch('/api/messages', { headers: await authHeaders(session) });
+      const url = new URL('/api/messages', window.location.origin);
+      if (conversationView === 'archived') url.searchParams.set('archived', 'true');
+      const res = await fetch(url, { headers: await authHeaders(session) });
       if (!res.ok) throw new Error((await res.json()).error || 'Could not load conversations');
       const data = await res.json();
       return data.conversations || [];
@@ -202,7 +206,7 @@ function ChatsPageContent() {
     staleTime: 20_000,
   });
 
-  const messagesQuery = useQuery<{ messages: ChatMessage[]; nextCursor: string | null }>({
+  const messagesQuery = useQuery<MessagesQueryData>({
     queryKey: ['messaging', 'messages', activeConversationId, messageSearch, session?.access_token],
     queryFn: async () => {
       if (!activeConversationId) return { messages: [], nextCursor: null };
@@ -220,6 +224,14 @@ function ChatsPageContent() {
   const activeConversation = conversationsQuery.data?.find((item) => item.id === activeConversationId) || null;
   const messages = messagesQuery.data?.messages || [];
   const activeTyping = activeConversationId ? typingUsers[activeConversationId] : false;
+  const conversationSearchTerm = userSearch.trim().toLowerCase();
+  const displayedConversations = (conversationsQuery.data || []).filter((conversation) => {
+    if (conversationSearchTerm.length <= 1) return true;
+    const partnerName = displayName(conversation.partner).toLowerCase();
+    const username = conversation.partner?.username?.toLowerCase() || '';
+    const preview = conversation.last_message?.content?.toLowerCase() || '';
+    return partnerName.includes(conversationSearchTerm) || username.includes(conversationSearchTerm) || preview.includes(conversationSearchTerm);
+  });
 
   const userSuggestionsQuery = useQuery<Profile[]>({
     queryKey: ['messaging', 'user-search', userSearch],
@@ -244,6 +256,37 @@ function ChatsPageContent() {
       queryClient.invalidateQueries({ queryKey: ['messaging', 'messages', activeConversationId] });
     }
   }, [activeConversationId, queryClient]);
+
+  const refetchMessaging = useCallback((conversationId?: string) => {
+    queryClient.refetchQueries({ queryKey: ['messaging', 'conversations'], type: 'active' });
+    if (conversationId) {
+      queryClient.refetchQueries({ queryKey: ['messaging', 'messages', conversationId], type: 'active' });
+    } else if (activeConversationId) {
+      queryClient.refetchQueries({ queryKey: ['messaging', 'messages', activeConversationId], type: 'active' });
+    }
+  }, [activeConversationId, queryClient]);
+
+  const upsertMessageInCache = useCallback((incoming: Partial<ChatMessage> & { id: string; conversation_id: string }) => {
+    queryClient.setQueriesData<{ messages: ChatMessage[]; nextCursor: string | null }>(
+      { queryKey: ['messaging', 'messages', incoming.conversation_id] },
+      (current) => {
+        if (!current?.messages) return current;
+        const normalized = {
+          ...incoming,
+          attachments: incoming.deleted_at ? [] : incoming.attachments || [],
+          content: incoming.deleted_at ? 'This message was deleted' : incoming.content || '',
+        } as ChatMessage;
+        const withoutDuplicate = current.messages.filter((message) => (
+          message.id !== incoming.id
+          && (!incoming.client_mutation_id || message.client_mutation_id !== incoming.client_mutation_id)
+        ));
+        return {
+          ...current,
+          messages: [...withoutDuplicate, normalized].sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime()),
+        };
+      }
+    );
+  }, [queryClient]);
 
   useEffect(() => {
     if (!session?.access_token) return;
@@ -276,31 +319,63 @@ function ChatsPageContent() {
     const channel = supabase
       .channel(`messaging:${me}`)
       .on('postgres_changes', { event: '*', schema: 'public', table: 'messages' }, (payload) => {
-        const row = (payload.new || payload.old) as any;
+        const row = (payload.new || payload.old) as Partial<ChatMessage> & { id?: string; conversation_id?: string };
         if (!row?.conversation_id) return;
-        queryClient.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
-        queryClient.invalidateQueries({ queryKey: ['messaging', 'messages', row.conversation_id] });
-      })
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reads' }, () => invalidateMessaging())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_participants' }, () => invalidateMessaging())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_presence' }, () => invalidateMessaging())
-      .on('postgres_changes', { event: '*', schema: 'public', table: 'typing_status' }, (payload) => {
-        const row = payload.new as TypingRow;
-        if (!row || row.user_id === me) return;
-        const fresh = Date.now() - new Date(row.updated_at).getTime() < 6_000;
-        setTypingUsers((current) => ({ ...current, [row.conversation_id]: row.is_typing && fresh }));
-        if (row.is_typing) {
-          setTimeout(() => {
-            setTypingUsers((current) => ({ ...current, [row.conversation_id]: false }));
-          }, 4_000);
+        if (row.id && (payload.eventType === 'INSERT' || payload.eventType === 'UPDATE')) {
+          upsertMessageInCache(row as Partial<ChatMessage> & { id: string; conversation_id: string });
         }
+        refetchMessaging(row.conversation_id);
       })
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_deletions' }, () => refetchMessaging())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'message_reads' }, () => refetchMessaging())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'conversation_participants' }, () => refetchMessaging())
+      .on('postgres_changes', { event: '*', schema: 'public', table: 'user_presence' }, () => refetchMessaging())
       .subscribe();
 
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [invalidateMessaging, me, queryClient]);
+  }, [me, queryClient, refetchMessaging, upsertMessageInCache]);
+
+  useEffect(() => {
+    if (!me) return;
+
+    const channel = supabase
+      .channel('messaging-typing', {
+        config: { broadcast: { self: false } },
+      })
+      .on('broadcast', { event: 'typing' }, ({ payload }) => {
+        const conversationId = String(payload?.conversationId || '');
+        const userId = String(payload?.userId || '');
+        const isTyping = Boolean(payload?.isTyping);
+        const sentAt = Number(payload?.sentAt || 0);
+
+        if (!conversationId || userId === me) return;
+        if (sentAt && Date.now() - sentAt > 5_000) return;
+
+        if (typingExpiryRefs.current[conversationId]) {
+          clearTimeout(typingExpiryRefs.current[conversationId]);
+        }
+
+        setTypingUsers((current) => ({ ...current, [conversationId]: isTyping }));
+
+        if (isTyping) {
+          typingExpiryRefs.current[conversationId] = setTimeout(() => {
+            setTypingUsers((current) => ({ ...current, [conversationId]: false }));
+            delete typingExpiryRefs.current[conversationId];
+          }, 3_500);
+        }
+      })
+      .subscribe();
+    typingChannelRef.current = channel;
+
+    return () => {
+      Object.values(typingExpiryRefs.current).forEach(clearTimeout);
+      typingExpiryRefs.current = {};
+      typingChannelRef.current = null;
+      supabase.removeChannel(channel);
+    };
+  }, [me]);
 
   useEffect(() => {
     if (!activeConversationId || !session?.access_token) return;
@@ -380,6 +455,7 @@ function ChatsPageContent() {
           attachments: replyTo.attachments,
         } : null,
         reads: [],
+        client_mutation_id: clientMutationId,
         status: 'sending',
         created_at: new Date().toISOString(),
         edited_at: null,
@@ -388,7 +464,7 @@ function ChatsPageContent() {
       };
 
       if (activeConversationId) {
-        queryClient.setQueryData(['messaging', 'messages', activeConversationId, messageSearch, session?.access_token], (current: any) => ({
+        queryClient.setQueryData<MessagesQueryData>(['messaging', 'messages', activeConversationId, messageSearch, session?.access_token], (current) => ({
           messages: [...(current?.messages || []), optimistic],
           nextCursor: current?.nextCursor || null,
         }));
@@ -434,11 +510,11 @@ function ChatsPageContent() {
     onError: (error: Error) => toast.error(error.message),
   });
 
-  const deleteMessage = async (messageId: string) => {
+  const deleteMessage = async (messageId: string, scope: 'me' | 'everyone' = 'everyone') => {
     const res = await fetch('/api/messages', {
       method: 'DELETE',
       headers: { 'Content-Type': 'application/json', ...(await authHeaders(session)) },
-      body: JSON.stringify({ messageId }),
+      body: JSON.stringify({ messageId, scope }),
     });
     if (!res.ok) throw new Error((await res.json()).error || 'Could not delete message');
     invalidateMessaging();
@@ -454,18 +530,27 @@ function ChatsPageContent() {
     toast.success(action === 'report' ? 'Report submitted' : 'Conversation updated');
     setMenuConversation(null);
     invalidateMessaging();
-    if (action === 'archive' && activeConversationId === conversationId) {
+    if (action === 'archive' && enabled && activeConversationId === conversationId) {
       setActiveConversationId(null);
       router.replace('/chats', { scroll: false });
     }
   };
 
   const broadcastTyping = (isTyping: boolean) => {
-    if (!activeConversationId || !session?.access_token) return;
-    fetch('/api/messaging/typing', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
-      body: JSON.stringify({ conversationId: activeConversationId, isTyping }),
+    if (!activeConversationId || !me) return;
+    // eslint-disable-next-line react-hooks/purity
+    const now = Date.now();
+    if (isTyping && now - typingLastSentRef.current < 450) return;
+    typingLastSentRef.current = now;
+    typingChannelRef.current?.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: {
+        conversationId: activeConversationId,
+        userId: me,
+        isTyping,
+        sentAt: now,
+      },
     }).catch(() => {});
   };
 
@@ -473,7 +558,7 @@ function ChatsPageContent() {
     setDraft(value);
     broadcastTyping(true);
     if (typingTimerRef.current) clearTimeout(typingTimerRef.current);
-    typingTimerRef.current = setTimeout(() => broadcastTyping(false), 1500);
+    typingTimerRef.current = setTimeout(() => broadcastTyping(false), 2200);
   };
 
   const insertEmoji = (emoji: string) => {
@@ -522,10 +607,34 @@ function ChatsPageContent() {
           <div className="chat-sidebar-header">
             <div className="chat-title-row">
               <div>
-                <h1>Messages</h1>
+                <h1>{conversationView === 'archived' ? 'Archived' : 'Messages'}</h1>
                 <span>{conversationsQuery.data?.reduce((sum, item) => sum + item.unread_count, 0) || 0} unread</span>
               </div>
               <MessageCircle size={22} />
+            </div>
+            <div className="chat-view-tabs" role="tablist" aria-label="Conversation view">
+              <button
+                type="button"
+                className={conversationView === 'active' ? 'active' : ''}
+                onClick={() => {
+                  setConversationView('active');
+                  setActiveConversationId(null);
+                  router.replace('/chats', { scroll: false });
+                }}
+              >
+                Active
+              </button>
+              <button
+                type="button"
+                className={conversationView === 'archived' ? 'active' : ''}
+                onClick={() => {
+                  setConversationView('archived');
+                  setActiveConversationId(null);
+                  router.replace('/chats', { scroll: false });
+                }}
+              >
+                Archive
+              </button>
             </div>
             <label className="chat-search">
               <Search size={16} />
@@ -556,13 +665,13 @@ function ChatsPageContent() {
 
           <div className="chat-sidebar-scroll">
             {conversationsQuery.isLoading && Array.from({ length: 7 }).map((_, index) => <div className="chat-skeleton" key={index} />)}
-            {!conversationsQuery.isLoading && !conversationsQuery.data?.length && (
+            {!conversationsQuery.isLoading && !displayedConversations.length && (
               <div className="chat-empty-list">
                 <MessageCircle size={34} />
-                <p>No conversations yet</p>
+                <p>{conversationSearchTerm.length > 1 ? 'No matching conversations' : conversationView === 'archived' ? 'No archived conversations' : 'No conversations yet'}</p>
               </div>
             )}
-            {(conversationsQuery.data || []).map((conversation) => (
+            {displayedConversations.map((conversation) => (
               <button
                 key={conversation.id}
                 className={`conversation-card-item ${conversation.id === activeConversationId ? 'active' : ''}`}
@@ -622,7 +731,7 @@ function ChatsPageContent() {
                   {menuConversation === activeConversation.id && (
                     <div className="chat-floating-menu">
                       <button className="chat-menu-item" onClick={() => conversationAction(activeConversation.id, 'pin', !activeConversation.pinned)}><Pin size={16} />{activeConversation.pinned ? 'Unpin' : 'Pin'}</button>
-                      <button className="chat-menu-item" onClick={() => conversationAction(activeConversation.id, 'archive')}><Archive size={16} />Archive</button>
+                      <button className="chat-menu-item" onClick={() => conversationAction(activeConversation.id, 'archive', !activeConversation.archived)}><Archive size={16} />{activeConversation.archived ? 'Restore' : 'Archive'}</button>
                       <button className="chat-menu-item" onClick={() => conversationAction(activeConversation.id, 'block', !activeConversation.blocked)}><Ban size={16} />{activeConversation.blocked ? 'Unblock' : 'Block'}</button>
                       <button className="chat-menu-item chat-menu-item-danger" onClick={() => conversationAction(activeConversation.id, 'report')}><Flag size={16} />Report</button>
                     </div>
@@ -682,8 +791,11 @@ function ChatsPageContent() {
                           {mine && !message.deleted_at && (
                             <>
                               <button className="chat-icon-btn" onClick={() => { setEditingMessage(message); setDraft(message.content); }} title="Edit"><Edit3 size={15} /></button>
-                              <button className="chat-icon-btn chat-icon-btn-danger" onClick={() => deleteMessage(message.id).catch((err) => toast.error(err.message))} title="Delete"><Trash2 size={15} /></button>
+                              <button className="chat-icon-btn chat-icon-btn-danger" onClick={() => deleteMessage(message.id, 'everyone').catch((err) => toast.error(err.message))} title="Delete for everyone"><Trash2 size={15} /></button>
                             </>
+                          )}
+                          {!message.deleted_at && (
+                            <button className="chat-icon-btn" onClick={() => deleteMessage(message.id, 'me').catch((err) => toast.error(err.message))} title="Delete for me"><X size={15} /></button>
                           )}
                         </div>
                       </div>

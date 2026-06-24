@@ -1,9 +1,6 @@
 'use client';
-// components/Feed.tsx  — updated section: imports PollCard and renders it for poll posts
-// Only the CHANGED / ADDED sections are shown below.
-// Everything else (voting, delete, share, modals, etc.) remains identical to your original.
 
-import React, { useState, useEffect, useRef, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useMemo } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Image as ImageIcon,
@@ -24,7 +21,6 @@ import {
   Copy,
   Flag,
   UserX,
-  BarChart3,
 } from 'lucide-react';
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -39,7 +35,6 @@ import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import CommentsModal from './CommentsModal';
 import Avatar from './Avatar';
-import PollCard from './PollCard';   // ← NEW IMPORT
 
 // ─── helpers (unchanged) ─────────────────────────────────────────────────────
 
@@ -80,7 +75,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   };
 
   const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
-  const getPostPollQuestion = (post: Post) => post.poll_question || post.metadata?.poll_question || null;
   const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
   const getRoleClass = (role?: string | null) => {
     const normalized = (role || '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
@@ -89,11 +83,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     }
     return 'role-badge--default';
   };
-
-  // ── Helper: is this post a poll? ─────────────────────────────────────────
-  // A post is treated as a poll when it has a poll_question OR poll data in metadata.
-  const isPostPoll = (post: Post): boolean =>
-    !!(post.poll_question || post.metadata?.poll_question || post.metadata?.poll_expires_at);
 
   useEffect(() => { setFilterType(activeFilter); }, [activeFilter]);
 
@@ -289,7 +278,26 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   };
 
   const rawPosts = data?.pages.flatMap(page => page.posts) || [];
-  const posts = rawPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
+
+  const [newlyCreatedPosts, setNewlyCreatedPosts] = useState<any[]>([]);
+  useEffect(() => {
+    try {
+      const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+      if (Array.isArray(stored) && stored.length > 0) {
+        setNewlyCreatedPosts(stored);
+      }
+    } catch (e) {
+      console.error(e);
+    }
+  }, []);
+
+  const filteredNewPosts = useMemo(() => {
+    if (filterType === 'all') return newlyCreatedPosts;
+    return newlyCreatedPosts.filter(p => p.type === filterType);
+  }, [newlyCreatedPosts, filterType]);
+
+  const mergedPosts = [...filteredNewPosts, ...rawPosts];
+  const posts = mergedPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
 
   useEffect(() => {
     if (!session && posts.length > 0 && shuffledPosts.length === 0) {
@@ -347,7 +355,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   // ─── Render ──────────────────────────────────────────────────────────────
   return (
     <main className="center-feed">
-      <h1 className="feed-title">Paoblems</h1>
 
       {singlePostId && (
         <button className="btn" onClick={() => router.push('/')}
@@ -373,7 +380,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               <div className="composer-action-btn"><ImageIcon size={16} /><span>Photo</span></div>
               <div className="composer-action-btn"><Link2 size={16} /><span>Link</span></div>
               <div className="composer-action-btn"><Wand2 size={16} /><span>AI Enhance</span></div>
-              <div className="composer-action-btn"><BarChart3 size={16} /><span>Poll</span></div>
             </div>
             <button className="composer-send-btn" type="button"><span>Post</span><Send size={14} /></button>
           </div>
@@ -387,7 +393,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
             { id: 'all', label: 'All Feed' },
             { id: 'problem', label: 'Problems' },
             { id: 'idea', label: 'Ideas' },
-            { id: 'poll', label: '📊 Polls' },   // ← NEW poll filter tab
           ].map(tab => (
             <button key={tab.id} className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
               style={{ background: filterType === tab.id ? undefined : 'var(--bg-card)', color: 'var(--text-main)', border: filterType === tab.id ? 'none' : '1px solid var(--border-color)', flexShrink: 0 }}
@@ -418,7 +423,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           const hasUpvoted = userVotes?.[post.id] === 'up';
           const hasDownvoted = userVotes?.[post.id] === 'down';
           const isOwner = session?.user?.id === post.user_id;
-          const isPoll = isPostPoll(post);    // ← NEW
 
           return (
             <ErrorBoundary key={post.id}>
@@ -445,7 +449,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                           onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}>
                           {post.profiles?.full_name || 'Anonymous'}
                         </span>
-                        <span className={`post-author-role ${getRoleClass(post.profiles?.role)}`}>{post.profiles?.role || 'Innovator'}</span>
+                        <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize' }}>
+                          {post.type}
+                        </span>
                       </h4>
                       {post.profiles?.username && (
                         <p className="post-author-username" onClick={() => router.push(`/user/${post.profiles!.username!}`)}>
@@ -456,24 +462,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                         <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
                           {formatPostTime(post.created_at)}
                         </time>
-                        {/* Poll badge in meta row */}
-                        {isPoll && (
-                          <span className="post-meta-poll-chip" style={{ marginLeft: '0.4rem', fontSize: '0.68rem', fontWeight: 700, padding: '0.08rem 0.42rem' }}>
-                            <BarChart3 size={10} /> Poll
-                          </span>
-                        )}
                       </p>
                     </div>
                   </div>
 
-                  {/* Share / edit / delete menu — unchanged from original */}
                   <div className="post-menu-shell flex items-center gap-1"
                     style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start', zIndex: 10 }}>
-                    <button onClick={() => handleToggleSave(post.id)}
-                      style={{ background: 'transparent', border: 'none', color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                      className="post-header-action-btn" title={savedIds.includes(post.id) ? 'Unsave' : 'Save'}>
-                      <Bookmark size={18} fill={savedIds.includes(post.id) ? 'currentColor' : 'none'} />
-                    </button>
                     <button
                       type="button"
                       aria-haspopup="menu"
@@ -535,23 +529,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                     {decodeHTMLEntities(post.title)}
                   </h3>
 
-                  {/* ── POLL CARD — replaces body for poll posts ── */}
-                  {isPoll ? (
-                    <PollCard
-                      postId={post.id}
-                      pollQuestion={getPostPollQuestion(post) ?? post.title}
-                      session={session}
-                      onAuthRequired={() => setIsAuthOpen(true)}
-                    />
-                  ) : (
-                    <ExpandableBody body={post.body} />
-                  )}
+                  <ExpandableBody body={post.body} />
 
-                  {/* Category + Tags (not poll_question chip — PollCard shows that) */}
-                  {!isPoll && (getPostCategory(post) || getPostTags(post).length > 0) && (
+                  {(getPostCategory(post) || getPostTags(post).length > 0) && (
                     <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>
                       {getPostCategory(post) && (
-                        <span className={`post-taxonomy-chip ${isPoll ? 'poll' : post.type}`}>
+                        <span className={`post-taxonomy-chip ${post.type}`}>
                           {getPostCategory(post)}
                         </span>
                       )}
@@ -589,17 +572,23 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       <span className="post-comment-count">{post.comments_count}</span>
                     </button>
 
-                    {!isPoll && (
-                      <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
-                        {post.type === 'problem' ? 'Problem' : 'Idea'}
-                      </span>
-                    )}
-                    {post.type === 'problem' && !isPoll && (
-                      <button type="button" className="see-solutions-btn"
-                        onClick={() => router.push(`/post/${post.slug || post.id}#solutions`)}>
-                        See solutions
+                    {post.type === 'problem' && (
+                      <button
+                        type="button"
+                        className="solve-it-btn"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.dispatchEvent(new CustomEvent('top-loader:start'));
+                          router.push(`/problems/${post.id}/solutions`);
+                        }}
+                        style={{
+                          marginLeft: '0.4rem',
+                        }}
+                      >
+                        Solve It
                       </button>
                     )}
+
                   </div>
                 </div>
               </div>
@@ -616,7 +605,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
             Want to see more problems & solutions?
           </h3>
           <p style={{ fontSize: '0.88rem', color: 'var(--text-muted)', maxWidth: '400px', lineHeight: '1.5', margin: '0 auto' }}>
-            Join our developer community to view more, vote on problems, vote in polls, or write comments.
+            Join our developer community to view more, vote on problems, or write comments.
           </p>
           <button className="btn btn-primary" onClick={() => setIsAuthOpen(true)}
             style={{ padding: '0.65rem 1.75rem', fontWeight: 600, fontSize: '0.88rem', marginTop: '0.5rem' }}>
@@ -632,15 +621,17 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       )}
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-      <CommentsModal
-        post={commentsModalPost}
-        isOpen={!!commentsModalPost}
-        onClose={() => setCommentsModalPostId(null)}
-        session={session}
-        userVote={commentsModalPost ? userVotes?.[commentsModalPost.id] || null : null}
-        onVote={handleVote}
-        onAuthRequired={() => setIsAuthOpen(true)}
-      />
+      {commentsModalPost && (
+        <CommentsModal
+          post={commentsModalPost}
+          isOpen={true}
+          onClose={() => setCommentsModalPostId(null)}
+          session={session}
+          userVote={userVotes?.[commentsModalPost.id] || null}
+          onVote={handleVote}
+          onAuthRequired={() => setIsAuthOpen(true)}
+        />
+      )}
       {editingPost && (
         <EditPostModal isOpen={!!editingPost} onClose={() => setEditingPost(null)} post={editingPost} session={session} />
       )}

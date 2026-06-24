@@ -13,6 +13,7 @@ import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
 import '../styles/profile-page.css';
+import '../styles/user-profile.css';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 /* ── Constants ────────────────────────────────────────── */
@@ -878,7 +879,7 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
                     <span className="upf-tag upf-tag--solution">Solution</span>
                     <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
                   </div>
-                  <span className="upf-post-title">{sol.title}</span>
+                  <Link href={`/solutions/${sol.id}`} className="upf-post-title">{sol.title}</Link>
                   {sol.problem && (
                     <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
                       <BookOpen size={12} /> Re: {sol.problem.title}

@@ -2,21 +2,21 @@
 
 import React, { useState, useEffect, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
-import { 
-  Home, 
-  NotebookPen, 
-  Bell, 
-  MessageCircle, 
-  User, 
-  Search, 
-  AlignLeft, 
-  X, 
-  TrendingUp, 
-  BarChart2, 
-  Bookmark, 
-  Star, 
-  Settings, 
-  LogOut, 
+import {
+  Home,
+  NotebookPen,
+  Bell,
+  MessageCircle,
+  User,
+  Search,
+  AlignLeft,
+  X,
+  TrendingUp,
+  BarChart2,
+  Bookmark,
+  Star,
+  Settings,
+  LogOut,
   LogIn,
   Lightbulb,
   CheckCircle,
@@ -63,7 +63,7 @@ function writeCachedNavbarData<T>(key: string, data: T) {
   if (typeof window === 'undefined') return;
   try {
     window.localStorage.setItem(key, JSON.stringify({ data, cachedAt: Date.now() }));
-  } catch {}
+  } catch { }
 }
 
 function NavbarInner() {
@@ -247,7 +247,7 @@ function NavbarInner() {
             queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
             return;
           }
-          
+
           // Trigger browser notification if allowed and we are not actively looking at the chat
           if ('Notification' in window && Notification.permission === 'granted') {
             if (document.hidden || !window.location.pathname.startsWith('/chats')) {
@@ -257,9 +257,9 @@ function NavbarInner() {
                 .select('full_name, username, avatar_url')
                 .eq('id', newMsg.sender_id)
                 .single();
-                
+
               const senderName = senderProfile?.full_name || senderProfile?.username || 'Someone';
-              
+
               const notification = new Notification(`New message from ${senderName}`, {
                 body: newMsg.content || 'Sent an attachment',
                 icon: senderProfile?.avatar_url || '/favicon.ico',
@@ -272,7 +272,7 @@ function NavbarInner() {
               };
             }
           }
-          
+
           // Invalidate messages query to update navbar badge
           queryClient.invalidateQueries({ queryKey: ['messages', session.access_token] });
         }
@@ -288,7 +288,7 @@ function NavbarInner() {
     if (session?.user?.id) {
       try {
         await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-      } catch (err) {}
+      } catch (err) { }
     }
     await supabase.auth.signOut();
     setIsOpen(false);
@@ -359,14 +359,14 @@ function NavbarInner() {
               <AlignLeft size={20} strokeWidth={2.5} />
             </button>
             <div className="nav-logo-container" onClick={() => router.push('/')} style={{ display: 'inline-flex', cursor: 'pointer' }}>
-              <img 
-                src="/logo.svg" 
-                alt="Paoblem Logo" 
+              <img
+                src="/logo.svg"
+                alt="Paoblem Logo"
                 className="nav-logo logo-dark"
               />
-              <img 
-                src="/logo-light.svg" 
-                alt="Paoblem Logo" 
+              <img
+                src="/logo-light.svg"
+                alt="Paoblem Logo"
                 className="nav-logo logo-light"
               />
             </div>
@@ -379,7 +379,7 @@ function NavbarInner() {
               </div>
               <span>Home</span>
             </div>
-            
+
             <div className={`nav-item ${isSolutionsActive ? 'active' : ''}`} onClick={() => router.push('/solutions')}>
               <div className="nav-icon-wrap">
                 <NotebookPen size={22} strokeWidth={2} />
@@ -388,8 +388,8 @@ function NavbarInner() {
             </div>
 
             {/* Notifications Link */}
-            <div 
-              className={`nav-item nav-item-notif ${isNotificationsActive ? 'active' : ''}`} 
+            <div
+              className={`nav-item nav-item-notif ${isNotificationsActive ? 'active' : ''}`}
               onClick={() => {
                 if (session) {
                   router.push('/notifications');
@@ -410,8 +410,8 @@ function NavbarInner() {
             </div>
 
             {/* Chats Link */}
-            <div 
-              className={`nav-item nav-item-msg ${isChatsActive ? 'active' : ''}`} 
+            <div
+              className={`nav-item nav-item-msg ${isChatsActive ? 'active' : ''}`}
               onClick={() => {
                 if (session) {
                   router.push('/chats');
@@ -449,15 +449,15 @@ function NavbarInner() {
             )}
           </div>
 
-          <div 
-            className="search-bar desktop-only" 
+          <div
+            className="search-bar desktop-only"
             onClick={() => setIsSearchOpen(true)}
             style={{ cursor: 'pointer' }}
           >
-            <input 
-              type="text" 
-              placeholder="Search anything..." 
-              readOnly 
+            <input
+              type="text"
+              placeholder="Search anything..."
+              readOnly
               style={{ cursor: 'pointer' }}
             />
             <button className="search-btn" aria-label="Submit search" type="button">
@@ -466,8 +466,8 @@ function NavbarInner() {
           </div>
 
           <div className="mobile-only" style={{ alignItems: 'center', gap: '0.5rem' }}>
-            <button 
-              className="search-btn" 
+            <button
+              className="search-btn"
               style={{ background: 'none', border: 'none', color: 'var(--text-main)', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
               aria-label="Open Search"
               onClick={() => setIsSearchOpen(true)}
@@ -477,9 +477,9 @@ function NavbarInner() {
             </button>
 
             {session ? (
-              <button 
-                className="search-btn nav-item-notif" 
-                style={{ position: 'relative' }} 
+              <button
+                className="search-btn nav-item-notif"
+                style={{ position: 'relative' }}
                 aria-label="Notifications"
                 onClick={() => router.push('/notifications')}
               >
@@ -499,7 +499,7 @@ function NavbarInner() {
 
         </div>
       </nav>
- 
+
       {/* Mobile Bottom Navigation */}
       <div className="mobile-bottom-nav">
         <div className={`mobile-nav-item ${isHomeActive ? 'active' : ''}`} onClick={() => router.push('/')}>
@@ -520,8 +520,8 @@ function NavbarInner() {
           </div>
           <span>Post</span>
         </div>
-        <div 
-          className={`mobile-nav-item ${isChatsActive ? 'active' : ''}`} 
+        <div
+          className={`mobile-nav-item ${isChatsActive ? 'active' : ''}`}
           onClick={() => {
             if (session) {
               router.push('/chats');
@@ -551,13 +551,13 @@ function NavbarInner() {
           <span>{session ? 'Profile' : 'Sign In'}</span>
         </div>
       </div>
- 
+
       {/* Drawer Overlay */}
       <div
         className={`drawer-overlay ${isOpen ? 'open' : ''}`}
         onClick={() => setIsOpen(false)}
       />
- 
+
       {/* Side Drawer */}
       <div className={`drawer ${isOpen ? 'open' : ''}`}>
         <div className="drawer-header">
@@ -594,14 +594,14 @@ function NavbarInner() {
               </div>
             </div>
           ) : (
-            <div 
-              className="card" 
+            <div
+              className="card"
               style={{ padding: '1rem', display: 'flex', flexDirection: 'column', gap: '0.75rem', alignItems: 'center', textAlign: 'center' }}
             >
               <p style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>Sign in to create problems, post comments, and view custom analytics.</p>
-              <button 
-                type="button" 
-                className="btn btn-primary" 
+              <button
+                type="button"
+                className="btn btn-primary"
                 style={{ width: '100%' }}
                 onClick={() => { setIsOpen(false); setIsAuthOpen(true); }}
               >
@@ -609,25 +609,25 @@ function NavbarInner() {
               </button>
             </div>
           )}
-   
+
           {/* Navigation Menu */}
           <div className="drawer-menu-section">
-            <div 
-              className={`drawer-menu-item ${isHomeActive && !searchParams.get('filter') ? 'active' : ''}`} 
+            <div
+              className={`drawer-menu-item ${isHomeActive && !searchParams.get('filter') ? 'active' : ''}`}
               onClick={() => { setIsOpen(false); router.push('/'); }}
             >
-              <TrendingUp size={20} />
+              <Home size={20} />
               <span>Home Feed</span>
             </div>
-            
-            <div 
-              className={`drawer-menu-item ${pathname === '/analytics' ? 'active' : ''}`} 
-              onClick={() => { 
-                setIsOpen(false); 
+
+            <div
+              className={`drawer-menu-item ${pathname === '/analytics' ? 'active' : ''}`}
+              onClick={() => {
+                setIsOpen(false);
                 if (!session) {
                   setIsAuthOpen(true);
                 } else {
-                  router.push('/analytics'); 
+                  router.push('/analytics');
                 }
               }}
             >
@@ -635,42 +635,42 @@ function NavbarInner() {
               <span>Analytics</span>
             </div>
 
-            <div 
-              className={`drawer-menu-item ${isSolutionsActive ? 'active' : ''}`} 
+            <div
+              className={`drawer-menu-item ${isSolutionsActive ? 'active' : ''}`}
               onClick={() => { setIsOpen(false); router.push('/solutions'); }}
             >
               <NotebookPen size={20} />
               <span>Solutions Feed</span>
             </div>
 
-            <div 
-              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'saved' ? 'active' : ''}`} 
-              onClick={() => { 
-                setIsOpen(false); 
-                router.push('/?filter=saved'); 
+            <div
+              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'saved' ? 'active' : ''}`}
+              onClick={() => {
+                setIsOpen(false);
+                router.push('/?filter=saved');
               }}
             >
               <Bookmark size={20} />
               <span>Saved Posts</span>
             </div>
 
-            <div 
-              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'mine' ? 'active' : ''}`} 
-              onClick={() => { 
-                setIsOpen(false); 
+            <div
+              className={`drawer-menu-item ${isHomeActive && searchParams.get('filter') === 'mine' ? 'active' : ''}`}
+              onClick={() => {
+                setIsOpen(false);
                 if (!session) {
                   setIsAuthOpen(true);
                 } else {
-                  router.push('/?filter=mine'); 
+                  router.push('/?filter=mine');
                 }
               }}
             >
               <Star size={20} />
               <span>My Posts</span>
             </div>
- 
+
             <div className="drawer-menu-divider" />
- 
+
             <div
               className={`drawer-menu-item ${isProfileActive ? 'active' : ''}`}
               onClick={() => { setIsOpen(false); router.push('/profile'); }}
@@ -678,7 +678,7 @@ function NavbarInner() {
               <User size={20} />
               <span>My Profile</span>
             </div>
- 
+
             {session && (
               <div className="drawer-menu-item" onClick={handleLogout} style={{ color: '#ef4444' }}>
                 <LogOut size={20} />
@@ -686,7 +686,7 @@ function NavbarInner() {
               </div>
             )}
           </div>
- 
+
           <div className="drawer-pulse-card">
             <div className="drawer-pulse-head">
               <span>
@@ -725,7 +725,7 @@ function NavbarInner() {
           </div>
         </div>
       </div>
-  
+
       {/* Modals */}
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       <SettingsModal isOpen={isSettingsOpen} onClose={() => setIsSettingsOpen(false)} />
@@ -734,7 +734,7 @@ function NavbarInner() {
     </>
   );
 }
- 
+
 export default function Navbar() {
   return (
     <Suspense fallback={null}>

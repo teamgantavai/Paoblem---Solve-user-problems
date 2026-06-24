@@ -1,11 +1,19 @@
 :root {
   --bg-dark: #070708;
+  --bg-body: #0b0b0d;
   --bg-card: #121214;
   --bg-hover: #1c1c1f;
+  --bg-elevated: #18181b;
   --text-main: #ffffff;
   --text-body: #c9c9cf;   /* High-contrast body text, WCAG AA on dark bg */
   --text-muted: #7f7f84;
   --border-color: #1e1e21;
+  --border-strong: #2d2d32;
+  --accent-primary: #2563eb;
+  --accent-primary-text: #ffffff;
+  --accent-danger: #ef4444;
+  --accent-success: #10b981;
+  --accent-warning: #f59e0b;
   --accent-blue: #ffffff;
   --accent-yellow: #e2e2e5;
   --nav-bg: #070708;
@@ -23,19 +31,24 @@
   --chip-idea-bg: rgba(99, 102, 241, 0.13);
   --chip-idea-border: rgba(129, 140, 248, 0.42);
   --chip-idea-text: #a5b4fc;
-  --chip-poll-bg: rgba(16, 185, 129, 0.13);
-  --chip-poll-border: rgba(16, 185, 129, 0.38);
-  --chip-poll-text: #34d399;
 }
 
 .light-theme {
   --bg-dark: #f3f4f6;
+  --bg-body: #f8fafc;
   --bg-card: #ffffff;
   --bg-hover: #f9fafb;
+  --bg-elevated: #ffffff;
   --text-main: #111827;
   --text-body: #374151;   /* High-contrast body text for light mode */
   --text-muted: #6b7280;
   --border-color: #e5e7eb;
+  --border-strong: #d1d5db;
+  --accent-primary: #2563eb;
+  --accent-primary-text: #ffffff;
+  --accent-danger: #dc2626;
+  --accent-success: #059669;
+  --accent-warning: #d97706;
   --accent-blue: #111827;
   --accent-yellow: #4b5563;
   --nav-bg: #ffffff;
@@ -53,7 +66,4 @@
   --chip-idea-bg: rgba(99, 102, 241, 0.1);
   --chip-idea-border: rgba(79, 70, 229, 0.26);
   --chip-idea-text: #4f46e5;
-  --chip-poll-bg: rgba(5, 150, 105, 0.1);
-  --chip-poll-border: rgba(5, 150, 105, 0.26);
-  --chip-poll-text: #059669;
 }

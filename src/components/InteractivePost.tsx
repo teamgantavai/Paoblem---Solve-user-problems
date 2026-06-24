@@ -16,7 +16,8 @@ import {
   Copy,
   Loader2,
   BarChart2,
-  Send
+  Send,
+  Rocket
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Post, Comment, Solution } from '@/lib/types';
@@ -701,8 +702,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               onClick={() => router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`)}
             >
               {authorName}
-              <span className="post-author-role">
-                {authorRole}
+              <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize', marginLeft: '6px' }}>
+                {post.type}
               </span>
             </h4>
             <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
@@ -717,24 +718,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           </div>
         </div>
 
-        {/* Options and Share dropdown */}
         <div className="flex items-center gap-1" style={{ color: 'var(--text-muted)', position: 'relative' }}>
-          <button
-            onClick={handleToggleSave}
-            style={{
-              background: 'transparent',
-              border: 'none',
-              color: savedIds.includes(post.id) ? 'var(--accent-blue)' : 'var(--text-muted)',
-              cursor: 'pointer',
-              display: 'flex',
-              padding: '6px',
-              borderRadius: '50%'
-            }}
-            className="post-header-action-btn"
-            title={savedIds.includes(post.id) ? "Unsave Post" : "Save Post"}
-          >
-            <Bookmark size={18} fill={savedIds.includes(post.id) ? "currentColor" : "none"} />
-          </button>
 
           <button
             onClick={(e) => {
@@ -960,10 +944,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             </span>
           </div>
 
-          {/* Post Type Sticker */}
-          <span className={`sticker-tag ${post.type}`} style={{ marginLeft: '1.25rem' }}>
-            {post.type === 'problem' ? 'Problem' : 'Idea'}
-          </span>
+
 
           {isOwner && (
             <button
@@ -997,16 +978,29 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         <section id="solutions" className="solutions-section">
           <div className="solutions-section-header">
             <div>
-              <h2>Solutions</h2>
+              <h2>Solutions <span style={{ color: 'var(--text-muted)', fontWeight: 400, fontSize: '0.85rem' }}>({solutions.length})</span></h2>
             </div>
-            <button
-              type="button"
-              className="solution-secondary-btn"
-              onClick={openCreateSolutionModal}
-            >
-              <Send size={14} />
-              Post solution
-            </button>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+              {/* View All Solutions */}
+              {solutions.length > 0 && (
+                <button
+                  type="button"
+                  className="solution-secondary-btn"
+                  onClick={() => router.push(`/problems/${post.id}/solutions`)}
+                >
+                  View All
+                </button>
+              )}
+              {/* Solve It CTA */}
+              <button
+                type="button"
+                className="solve-it-btn"
+                onClick={() => router.push(`/problems/${post.id}/solutions`)}
+              >
+                <Rocket size={14} />
+                Solve It
+              </button>
+            </div>
           </div>
 
           {isSolutionsLoading && (

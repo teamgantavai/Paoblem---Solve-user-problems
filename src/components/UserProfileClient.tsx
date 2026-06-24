@@ -9,6 +9,8 @@ import {
   ExternalLink, ChevronRight, Calendar, Award, User
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import '../app/styles/user-profile.css';
+import '../app/styles/profile-page.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -458,7 +460,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                     <span className="upf-tag upf-tag--solution">Solution</span>
                     <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
                   </div>
-                  <span className="upf-post-title">{sol.title}</span>
+                  <Link href={`/solutions/${sol.id}`} className="upf-post-title">{sol.title}</Link>
                   {sol.problem && (
                     <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
                       <BookOpen size={12} /> Re: {sol.problem.title}

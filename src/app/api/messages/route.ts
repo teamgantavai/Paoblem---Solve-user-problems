@@ -101,12 +101,12 @@ async function requireParticipant(conversationId: string, userId: string) {
   return !!data;
 }
 
-async function listConversations(userId: string) {
+async function listConversations(userId: string, archived = false) {
   const { data: memberships, error } = await supabaseAdmin
     .from('conversation_participants')
     .select('conversation_id, pinned_at, archived_at, muted_at, blocked_at, last_read_at')
     .eq('user_id', userId)
-    .is('archived_at', null)
+    .filter('archived_at', archived ? 'not.is' : 'is', null)
     .order('pinned_at', { ascending: false, nullsFirst: false });
 
   if (error) throw error;
@@ -182,9 +182,20 @@ async function listConversations(userId: string) {
   if (readError) throw readError;
 
   const readIds = new Set((readRows || []).map((row: any) => row.message_id));
+  const { data: hiddenRows, error: hiddenError } = incomingIds.length
+    ? await supabaseAdmin
+        .from('message_deletions')
+        .select('message_id')
+        .in('message_id', incomingIds)
+        .eq('user_id', userId)
+    : { data: [], error: null };
+
+  if (hiddenError && hiddenError.code !== '42P01') throw hiddenError;
+  const hiddenIds = new Set((hiddenRows || []).map((row: any) => row.message_id));
 
   const unreadByConversation = new Map<string, number>();
   (incomingRows || []).forEach((row: any) => {
+    if (hiddenIds.has(row.id)) return;
     if (readIds.has(row.id)) return;
     unreadByConversation.set(row.conversation_id, (unreadByConversation.get(row.conversation_id) || 0) + 1);
   });
@@ -298,6 +309,14 @@ async function listMessages(conversationId: string, userId: string, cursor?: str
   const allowed = await requireParticipant(conversationId, userId);
   if (!allowed) return null;
 
+  const { data: hiddenRows, error: hiddenError } = await supabaseAdmin
+    .from('message_deletions')
+    .select('message_id')
+    .eq('user_id', userId);
+
+  if (hiddenError && hiddenError.code !== '42P01') throw hiddenError;
+  const hiddenIds = (hiddenRows || []).map((row: any) => row.message_id);
+
   let query = supabaseAdmin
     .from('messages')
     .select('id, conversation_id, sender_id, content, message_type, attachments, reply_to_message_id, edited_at, deleted_at, created_at, client_mutation_id')
@@ -307,6 +326,7 @@ async function listMessages(conversationId: string, userId: string, cursor?: str
 
   if (cursor) query = query.lt('created_at', cursor);
   if (search?.trim()) query = query.ilike('content', `%${search.trim()}%`);
+  if (hiddenIds.length) query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -326,6 +346,7 @@ export async function GET(req: NextRequest) {
 
     const { searchParams } = new URL(req.url);
     const conversationId = searchParams.get('conversationId');
+    const archived = searchParams.get('archived') === 'true';
 
     if (conversationId) {
       const result = await listMessages(
@@ -338,7 +359,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json(result);
     }
 
-    const conversations = await listConversations(user.id);
+    const conversations = await listConversations(user.id, archived);
     return NextResponse.json({ conversations, messages: conversations });
   } catch (err: any) {
     console.error('[GET /api/messages]', err);
@@ -508,7 +529,7 @@ export async function DELETE(req: NextRequest) {
     const user = await authenticate(req);
     if (!user) return jsonError('Unauthorized', 401);
 
-    const { messageId } = await req.json();
+    const { messageId, scope = 'everyone' } = await req.json();
     if (!messageId) return jsonError('messageId is required', 400);
 
     const { data: message, error: findError } = await supabaseAdmin
@@ -522,6 +543,20 @@ export async function DELETE(req: NextRequest) {
 
     const allowed = await requireParticipant(message.conversation_id, user.id);
     if (!allowed) return jsonError('Forbidden', 403);
+
+    if (scope === 'me') {
+      const { error } = await supabaseAdmin
+        .from('message_deletions')
+        .upsert({
+          message_id: messageId,
+          user_id: user.id,
+          deleted_at: new Date().toISOString(),
+        }, { onConflict: 'message_id,user_id' });
+
+      if (error) throw error;
+      return NextResponse.json({ success: true, scope: 'me' });
+    }
+
     if (message.sender_id !== user.id) return jsonError('Only the sender can delete this message', 403);
 
     const { error } = await supabaseAdmin

@@ -64,12 +64,12 @@ export function buildCommentTree(comments: Comment[]): CommentNode[] {
 const TRUNCATE_LEN = 280;
 
 const COLORS = {
-  text: '#e9e9ee',
-  subtext: '#92929c',
-  border: 'rgba(255,255,255,0.09)',
-  accent: 'var(--accent-blue, #2f8fff)',
-  danger: '#ef4444',
-  surface: 'var(--modal-bg, #16161b)',
+  text: 'var(--text-main, #e9e9ee)',
+  subtext: 'var(--text-muted, #92929c)',
+  border: 'var(--border-color, rgba(255,255,255,0.09))',
+  accent: 'var(--accent-primary, #2f8fff)',
+  danger: 'var(--accent-danger, #ef4444)',
+  surface: 'var(--bg-hover, #16161b)',
 };
 
 function timeAgo(dateStr: string): string {

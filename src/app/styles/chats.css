@@ -83,6 +83,35 @@
   font-size: 0.82rem;
 }
 
+.chat-view-tabs {
+  height: 38px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  background: var(--search-bg);
+}
+
+.chat-view-tabs button {
+  min-width: 0;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font: inherit;
+  font-size: 0.84rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.chat-view-tabs button.active {
+  background: var(--bg-card);
+  color: var(--text-main);
+  box-shadow: 0 1px 8px rgba(0, 0, 0, 0.08);
+}
+
 .chat-search,
 .chat-message-search {
   min-height: 38px;
