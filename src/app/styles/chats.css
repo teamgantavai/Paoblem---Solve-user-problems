@@ -577,8 +577,8 @@
 
 .message-actions-overlay {
   position: absolute;
-  top: -2.35rem;
-  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
   display: none;
   gap: 0.2rem;
   padding: 0.2rem;
@@ -586,10 +586,19 @@
   border-radius: 8px;
   background: var(--bg-card);
   box-shadow: 0 12px 30px rgba(0, 0, 0, 0.18);
+  z-index: 10;
+}
+
+.message-row.mine .message-actions-overlay {
+  right: calc(100% + 8px);
+}
+
+.message-row.theirs .message-actions-overlay {
+  left: calc(100% + 8px);
 }
 
 .message-bubble:hover .message-actions-overlay,
-.message-actions-overlay.active:focus-within {
+.message-actions-overlay.active {
   display: flex;
 }
 
@@ -811,4 +820,120 @@
   .chat-composer {
     padding: 0.6rem;
   }
+}
+
+/* Reactions on bubble */
+.message-bubble-reactions {
+  position: absolute;
+  bottom: -0.65rem;
+  right: 0.75rem;
+  display: flex;
+  gap: 0.2rem;
+  z-index: 5;
+}
+
+.message-reaction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.5rem;
+  border-radius: 20px;
+  background: #ffffff;
+  border: 1px solid rgba(0, 0, 0, 0.08);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.08);
+  cursor: pointer;
+  font-size: 0.8rem;
+  color: #1e293b;
+  transition: all 0.2s ease;
+  line-height: 1;
+}
+
+/* Ensure solid theme background in dark mode */
+[data-theme="dark"] .message-reaction-badge,
+.dark .message-reaction-badge,
+body.dark-mode .message-reaction-badge {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.08);
+  color: #f1f5f9;
+}
+
+/* Specific styling for user's own sent messages to pop off the blue bubble */
+.message-row.mine .message-reaction-badge {
+  background: #ffffff;
+  border-color: rgba(255, 255, 255, 0.8);
+  color: #1e293b;
+}
+
+.message-reaction-badge:hover {
+  background: #f8fafc;
+  transform: translateY(-1px);
+  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.14);
+}
+
+[data-theme="dark"] .message-reaction-badge:hover,
+.dark .message-reaction-badge:hover,
+body.dark-mode .message-reaction-badge:hover {
+  background: #334155;
+}
+
+.message-reaction-badge.active {
+  background: #eff6ff;
+  border-color: #3b82f6;
+  color: #1d4ed8;
+}
+
+[data-theme="dark"] .message-reaction-badge.active,
+.dark .message-reaction-badge.active,
+body.dark-mode .message-reaction-badge.active {
+  background: rgba(37, 99, 235, 0.2);
+  border-color: #3b82f6;
+  color: #60a5fa;
+}
+
+.react-count {
+  font-size: 0.72rem;
+  font-weight: 700;
+  color: inherit;
+}
+
+.message-reaction-picker {
+  position: absolute;
+  top: calc(100% + 6px); /* Open below to avoid clipping at the top of the chat area */
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  gap: 0.3rem;
+  padding: 0.35rem;
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  background: var(--bg-card);
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.2);
+}
+
+.message-reaction-picker button {
+  font-size: 1.25rem;
+  background: transparent;
+  border: 0;
+  cursor: pointer;
+  padding: 0.2rem;
+  border-radius: 50%;
+  transition: transform 0.15s ease, background 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  line-height: 1;
+}
+
+.message-reaction-picker button:hover {
+  transform: scale(1.28);
+  background: var(--bg-hover);
+}
+
+.message-reaction-picker button.active {
+  background: rgba(37, 99, 235, 0.15);
+  outline: 2px solid #3b82f6;
+  transform: scale(1.1);
 }

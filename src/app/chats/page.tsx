@@ -178,6 +178,20 @@ function ChatsPageContent() {
   const [startingUserId, setStartingUserId] = useState<string | null>(null);
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [conversationView, setConversationView] = useState<'active' | 'archived'>('active');
+  const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
+  const [messageReactions, setMessageReactions] = useState<Record<string, { emoji: string; users: string[] }[]>>(() => {
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('paoblem_chat_reactions');
+      if (saved) {
+        try { return JSON.parse(saved); } catch (e) {}
+      }
+    }
+    return {};
+  });
+
+  useEffect(() => {
+    localStorage.setItem('paoblem_chat_reactions', JSON.stringify(messageReactions));
+  }, [messageReactions]);
 
   const me = session?.user.id;
 
@@ -367,6 +381,40 @@ function ChatsPageContent() {
           }, 3_500);
         }
       })
+      .on('broadcast', { event: 'reaction' }, ({ payload }) => {
+        const { messageId, emoji, userId, isAdding, prevEmoji } = payload || {};
+        if (!messageId || !emoji || !userId) return;
+        setMessageReactions((prev) => {
+          let currentList = [...(prev[messageId] || [])];
+
+          // Step 1: Remove user from their previous reaction if swapping
+          if (prevEmoji && prevEmoji !== emoji) {
+            currentList = currentList
+              .map((r) => r.emoji === prevEmoji ? { ...r, users: r.users.filter((u) => u !== userId) } : r)
+              .filter((r) => r.users.length > 0);
+          }
+
+          // Step 2: Apply the new reaction
+          const existing = currentList.find((r) => r.emoji === emoji);
+          let newList;
+          if (existing) {
+            const hasUser = existing.users.includes(userId);
+            let nextUsers = existing.users;
+            if (isAdding && !hasUser) nextUsers = [...nextUsers, userId];
+            else if (!isAdding && hasUser) nextUsers = nextUsers.filter((u) => u !== userId);
+            if (nextUsers.length === 0) {
+              newList = currentList.filter((r) => r.emoji !== emoji);
+            } else {
+              newList = currentList.map((r) => r.emoji === emoji ? { ...r, users: nextUsers } : r);
+            }
+          } else if (isAdding) {
+            newList = [...currentList, { emoji, users: [userId] }];
+          } else {
+            newList = currentList;
+          }
+          return { ...prev, [messageId]: newList };
+        });
+      })
       .subscribe();
     typingChannelRef.current = channel;
 
@@ -535,6 +583,55 @@ function ChatsPageContent() {
       setActiveConversationId(null);
       router.replace('/chats', { scroll: false });
     }
+  };
+
+  const toggleReaction = (messageId: string, emoji: string) => {
+    if (!me) return;
+    setMessageReactions((prev) => {
+      let currentList = [...(prev[messageId] || [])];
+
+      // Find if user already has any reaction on this message (WhatsApp: one reaction per user)
+      const prevReaction = currentList.find((r) => r.users.includes(me));
+      const prevEmoji = prevReaction?.emoji;
+
+      // Clicking the same emoji the user already reacted with → remove it
+      const isSameEmoji = prevEmoji === emoji;
+      const isAdding = !isSameEmoji;
+
+      // Step 1: Remove user from their previous reaction
+      if (prevEmoji) {
+        currentList = currentList
+          .map((r) => r.emoji === prevEmoji ? { ...r, users: r.users.filter((u) => u !== me) } : r)
+          .filter((r) => r.users.length > 0);
+      }
+
+      // Step 2: Add user to the new emoji (unless it's the same → toggling off)
+      let newList = currentList;
+      if (isAdding) {
+        const existing = currentList.find((r) => r.emoji === emoji);
+        if (existing) {
+          newList = currentList.map((r) => r.emoji === emoji ? { ...r, users: [...r.users, me] } : r);
+        } else {
+          newList = [...currentList, { emoji, users: [me] }];
+        }
+      }
+
+      // Broadcast swap to other participants
+      typingChannelRef.current?.send({
+        type: 'broadcast',
+        event: 'reaction',
+        payload: {
+          messageId,
+          emoji,
+          userId: me,
+          isAdding,
+          prevEmoji: prevEmoji || null,
+        },
+      }).catch(() => {});
+
+      return { ...prev, [messageId]: newList };
+    });
+    setActiveReactionMenu(null);
   };
 
   const broadcastTyping = (isTyping: boolean) => {
@@ -764,7 +861,12 @@ function ChatsPageContent() {
                 {messages.map((message) => {
                   const mine = message.sender_id === me;
                   return (
-                    <article key={message.id} className={`message-row ${mine ? 'mine' : 'theirs'} ${message.status === 'failed' ? 'failed' : ''}`} data-message-id={message.id}>
+                    <article
+                      key={message.id}
+                      className={`message-row ${mine ? 'mine' : 'theirs'} ${message.status === 'failed' ? 'failed' : ''}`}
+                      data-message-id={message.id}
+                      style={messageReactions[message.id]?.length > 0 ? { paddingBottom: '1.4rem' } : undefined}
+                    >
                       <div className="message-bubble">
                         {message.reply_to && (
                           <button className="message-reply-preview" onClick={() => document.querySelector(`[data-message-id="${message.reply_to?.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
@@ -792,7 +894,28 @@ function ChatsPageContent() {
                           {message.edited_at && <span>Edited</span>}
                           {mine && <span className="receipt">{readReceipt(message, me)} {readReceipt(message, me) === 'Seen' ? <CheckCheck size={13} /> : <Check size={13} />}</span>}
                         </footer>
-                        <div className="message-actions-overlay active">
+                        {messageReactions[message.id]?.length > 0 && (
+                          <div className="message-bubble-reactions">
+                            {messageReactions[message.id].map((r) => {
+                              const active = me && r.users.includes(me);
+                              return (
+                                <button
+                                  key={r.emoji}
+                                  className={`message-reaction-badge ${active ? 'active' : ''}`}
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    toggleReaction(message.id, r.emoji);
+                                  }}
+                                >
+                                  <span>{r.emoji}</span>
+                                  <span className="react-count">{r.users.length}</span>
+                                </button>
+                              );
+                            })}
+                          </div>
+                        )}
+                        <div className={`message-actions-overlay ${activeReactionMenu === message.id ? 'active' : ''}`}>
+                          <button className="chat-icon-btn" onClick={() => setActiveReactionMenu(activeReactionMenu === message.id ? null : message.id)} title="React"><Smile size={15} /></button>
                           <button className="chat-icon-btn" onClick={() => setReplyTo(message)} title="Reply"><Reply size={15} /></button>
                           <button className="chat-icon-btn" onClick={() => navigator.clipboard.writeText(message.content || '')} title="Copy"><Copy size={15} /></button>
                           {mine && !message.deleted_at && (
@@ -803,6 +926,27 @@ function ChatsPageContent() {
                           )}
                           {!message.deleted_at && (
                             <button className="chat-icon-btn" onClick={() => deleteMessage(message.id, 'me').catch((err) => toast.error(err.message))} title="Delete for me"><X size={15} /></button>
+                          )}
+                          {activeReactionMenu === message.id && (
+                            <div className="message-reaction-picker">
+                              {['👍', '❤️', '😂', '😮', '😢', '🙏'].map((emoji) => {
+                                const myReaction = me && messageReactions[message.id]?.find((r) => r.emoji === emoji)?.users.includes(me);
+                                return (
+                                  <button
+                                    key={emoji}
+                                    type="button"
+                                    title={myReaction ? 'Remove reaction' : 'Add reaction'}
+                                    className={myReaction ? 'active' : ''}
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      toggleReaction(message.id, emoji);
+                                    }}
+                                  >
+                                    {emoji}
+                                  </button>
+                                );
+                              })}
+                            </div>
                           )}
                         </div>
                       </div>
