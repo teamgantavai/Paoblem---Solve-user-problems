@@ -148,7 +148,7 @@ export default function CommentsModal({
           <div className="comments-modal-header-left">
             <MessageCircle size={18} />
             <h3 id="comments-modal-title">Comments</h3>
-            <span className="comments-modal-count">{post.comments_count}</span>
+            <span className="comments-modal-count">{comments ? comments.length : post.comments_count}</span>
           </div>
           <button type="button" className="modal-close-btn" onClick={onClose} aria-label="Close">
             <X size={20} />
