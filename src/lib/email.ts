@@ -137,12 +137,12 @@ export async function sendChatNotificationEmail(receiverId: string) {
   }
 
   // 5. Fetch user's email address from auth.users
-  const { data: userData, error: userError } = await supabaseAdmin.auth.admin.getUser(receiverId);
-  if (userError || !userData?.user?.email) {
+  const { data: { user }, error: userError } = await supabaseAdmin.auth.admin.getUserById(receiverId);
+  if (userError || !user?.email) {
     console.error(`[Email Notification] Failed to fetch auth user email for user ${receiverId}:`, userError);
     return;
   }
-  const receiverEmail = userData.user.email;
+  const receiverEmail = user.email;
 
   // 6. Send the email
   const appUrl = getAppUrl();
