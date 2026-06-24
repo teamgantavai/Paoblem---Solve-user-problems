@@ -6,7 +6,7 @@ import { useRouter } from 'next/navigation';
 import {
   UserCheck, UserPlus, MessageCircle, MapPin, Briefcase,
   ArrowUp, MessageSquare, Lightbulb, BookOpen, Users, Heart,
-  ExternalLink, ChevronRight, Calendar, Award, User
+  ExternalLink, ChevronRight, Calendar, Award, User, X
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import '../app/styles/user-profile.css';
@@ -66,7 +66,8 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'problems' | 'ideas' | 'solutions' | 'comments' | 'followers' | 'following';
+type Tab = 'problems' | 'ideas' | 'solutions' | 'comments';
+type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
 
@@ -84,10 +85,6 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-function avatarUrl(profile: { id?: string; avatar_url?: string | null; username?: string | null }) {
-  return profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id || profile.username}`;
-}
-
 const ProfileAvatar = ({
   src,
   name,
@@ -99,22 +96,20 @@ const ProfileAvatar = ({
 }) => {
   const [failed, setFailed] = useState(false);
 
-  // Generate unique background gradient color based on the name/username
   const getAvatarColor = (str: string) => {
     const colors = [
-      'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)', // Indigo to Purple
-      'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)', // Pink to Rose
-      'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)', // Blue to Cyan
-      'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)', // Emerald to Teal
-      'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)', // Amber to Yellow
-      'linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)', // Violet to Fuchsia
+      'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
+      'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
+      'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
+      'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
+      'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)',
+      'linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)',
     ];
     let hash = 0;
     for (let i = 0; i < str.length; i++) {
       hash = str.charCodeAt(i) + ((hash << 5) - hash);
     }
-    const index = Math.abs(hash) % colors.length;
-    return colors[index];
+    return colors[Math.abs(hash) % colors.length];
   };
 
   const showImage = !!src && !failed;
@@ -130,7 +125,6 @@ const ProfileAvatar = ({
     );
   }
 
-  // Draw user initials
   const initials = name
     .split(' ')
     .map((n) => n[0])
@@ -189,6 +183,72 @@ function UserCard({ user }: { user: FollowUser }) {
   );
 }
 
+// ─── Followers/Following Modal ────────────────────────────────────────────────
+
+function FollowModal({
+  view,
+  onClose,
+  onSwitchView,
+  followersList,
+  followingList,
+  followersCount,
+  followingCount,
+  name,
+}: {
+  view: 'followers' | 'following';
+  onClose: () => void;
+  onSwitchView: (v: 'followers' | 'following') => void;
+  followersList: FollowUser[];
+  followingList: FollowUser[];
+  followersCount: number;
+  followingCount: number;
+  name: string;
+}) {
+  // Close on ESC
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
+    document.addEventListener('keydown', handler);
+    return () => document.removeEventListener('keydown', handler);
+  }, [onClose]);
+
+  const list = view === 'followers' ? followersList : followingList;
+  const emptyText = view === 'followers'
+    ? `${name} has no followers yet.`
+    : `${name} isn't following anyone yet.`;
+
+  return (
+    <div className="upf-modal-backdrop" onClick={(e) => e.target === e.currentTarget && onClose()}>
+      <div className="upf-modal" role="dialog" aria-modal="true">
+        <div className="upf-modal-header">
+          <div className="upf-modal-tabs">
+            <button
+              className={`upf-modal-tab ${view === 'followers' ? 'upf-modal-tab--active' : ''}`}
+              onClick={() => onSwitchView('followers')}
+            >
+              Followers <span style={{ opacity: 0.6, marginLeft: 3 }}>{followersCount}</span>
+            </button>
+            <button
+              className={`upf-modal-tab ${view === 'following' ? 'upf-modal-tab--active' : ''}`}
+              onClick={() => onSwitchView('following')}
+            >
+              Following <span style={{ opacity: 0.6, marginLeft: 3 }}>{followingCount}</span>
+            </button>
+          </div>
+          <button className="upf-modal-close" onClick={onClose} aria-label="Close">
+            <X size={15} />
+          </button>
+        </div>
+        <div className="upf-modal-body">
+          {list.length === 0
+            ? <EmptyState icon={<Users size={32} />} text={emptyText} />
+            : list.map((u) => <UserCard key={u.id} user={u} />)
+          }
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ─── Main Component ───────────────────────────────────────────────────────────
 
 export default function UserProfileClient({ profile, posts, solutions, comments, stats }: UserProfileClientProps) {
@@ -203,6 +263,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const [followersList, setFollowersList] = useState<FollowUser[]>([]);
   const [followingList, setFollowingList] = useState<FollowUser[]>([]);
   const [listsLoaded, setListsLoaded] = useState(false);
+  const [modalView, setModalView] = useState<ModalView>(null);
 
   const problems = posts.filter((p) => p.type === 'problem');
   const ideas = posts.filter((p) => p.type === 'idea');
@@ -214,7 +275,6 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   useEffect(() => {
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       if (session?.user) setCurrentUserId(session.user.id);
-      // Fetch follow data
       const res = await fetch(`/api/follows?userId=${profile.id}`, {
         headers: session?.access_token ? { Authorization: `Bearer ${session.access_token}` } : {},
       });
@@ -231,7 +291,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     return () => subscription.unsubscribe();
   }, [profile.id]);
 
-  // Load follow lists when tabs are opened
+  // Load follow lists
   const loadLists = useCallback(async () => {
     if (listsLoaded) return;
     setListsLoaded(true);
@@ -243,9 +303,16 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     if (fingRes.ok) { const d = await fingRes.json(); setFollowingList(d.users || []); }
   }, [listsLoaded, profile.id]);
 
-  const handleTabChange = (tab: Tab) => {
-    setActiveTab(tab);
-    if (tab === 'followers' || tab === 'following') loadLists();
+  const openModal = (view: 'followers' | 'following') => {
+    loadLists();
+    setModalView(view);
+    // Prevent body scroll
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeModal = () => {
+    setModalView(null);
+    document.body.style.overflow = '';
   };
 
   const handleFollow = async () => {
@@ -253,7 +320,6 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) { router.push('/login'); return; }
 
-    // ── Optimistic update: flip UI immediately ──────────────────────
     const wasFollowing = isFollowing;
     setIsFollowing(!wasFollowing);
     setFollowersCount((c) => wasFollowing ? Math.max(0, c - 1) : c + 1);
@@ -266,20 +332,16 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
         body: JSON.stringify({ targetUserId: profile.id }),
       });
       if (!res.ok) {
-        // Roll back on error
         setIsFollowing(wasFollowing);
         setFollowersCount((c) => wasFollowing ? c + 1 : Math.max(0, c - 1));
       }
-      // On success the optimistic state is already correct — no extra update needed
     } catch {
-      // Network error — roll back
       setIsFollowing(wasFollowing);
       setFollowersCount((c) => wasFollowing ? c + 1 : Math.max(0, c - 1));
     } finally {
       setFollowLoading(false);
     }
   };
-
 
   const handleMessage = () => router.push(`/chats?userId=${profile.id}`);
 
@@ -288,13 +350,11 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     { key: 'ideas', label: 'Ideas', count: ideas.length, icon: <Lightbulb size={15} /> },
     { key: 'solutions', label: 'Solutions', count: solutions.length, icon: <Award size={15} /> },
     { key: 'comments', label: 'Comments', count: comments.length, icon: <MessageSquare size={15} /> },
-    { key: 'followers', label: 'Followers', count: followersCount, icon: <Users size={15} /> },
-    { key: 'following', label: 'Following', count: followingCount, icon: <Heart size={15} /> },
   ];
 
   return (
     <div className="upf-root">
-      {/* ── Cover + Avatar + Actions ─────────────────────────────── */}
+      {/* ── Cover + Avatar + Identity ─────────────────────────── */}
       <div className="upf-header-card">
         <div
           className="upf-cover"
@@ -304,46 +364,58 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
         </div>
 
         <div className="upf-identity">
+          {/* Avatar */}
           <div className="upf-avatar-wrap">
             <ProfileAvatar src={profile.avatar_url} name={name} className="upf-avatar" />
             <div className="upf-avatar-ring" />
           </div>
 
+          {/* Info body */}
           <div className="upf-identity-body">
+            {/* Name + Actions row */}
             <div className="upf-name-row">
-              <div>
-                <h1 className="upf-name">{name}</h1>
+              <div className="upf-name-group">
+                <div className="upf-name-line">
+                  <h1 className="upf-name">{name}</h1>
+                  {/* Role badge inline with name */}
+                  {profile.role && (
+                    <span className="upf-role-badge">
+                      <Briefcase size={11} /> {profile.role}
+                    </span>
+                  )}
+                </div>
                 <p className="upf-username">@{profile.username}</p>
               </div>
-            </div>
-            {!isOwnProfile && currentUserId && (
-              <div className="upf-actions">
-                <button
-                  className={`upf-btn-follow ${isFollowing ? 'upf-btn-follow--active' : ''}`}
-                  onClick={handleFollow}
-                  disabled={followLoading}
-                  aria-label={isFollowing ? 'Unfollow' : 'Follow'}
-                >
-                  {isFollowing ? <UserCheck size={15} /> : <UserPlus size={15} />}
-                  {isFollowing ? 'Following' : 'Follow'}
-                </button>
-                <button className="upf-btn-message" onClick={handleMessage} aria-label="Message">
-                  <MessageCircle size={15} />
-                  Message
-                </button>
-              </div>
-            )}
 
-            {profile.role && (
-              <span className="upf-role-badge">
-                <Briefcase size={11} /> {profile.role}
-              </span>
-            )}
+              {/* Action buttons */}
+              {!isOwnProfile && currentUserId && (
+                <div className="upf-actions">
+                  <button
+                    className={`upf-btn-follow ${isFollowing ? 'upf-btn-follow--active' : ''}`}
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    aria-label={isFollowing ? 'Unfollow' : 'Follow'}
+                  >
+                    {isFollowing ? <UserCheck size={15} /> : <UserPlus size={15} />}
+                    {isFollowing ? 'Following' : 'Follow'}
+                  </button>
+                  <button className="upf-btn-message" onClick={handleMessage} aria-label="Message">
+                    <MessageCircle size={15} />
+                    Message
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Location */}
             {profile.location && (
               <p className="upf-location"><MapPin size={12} /> {profile.location}</p>
             )}
+
+            {/* Bio */}
             {profile.bio && <p className="upf-bio">{profile.bio}</p>}
 
+            {/* Website */}
             {profile.website && (
               <a href={profile.website} target="_blank" rel="noopener noreferrer" className="upf-website">
                 <ExternalLink size={12} /> {profile.website.replace(/^https?:\/\//, '')}
@@ -367,15 +439,23 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                 <span className="upf-stat-label">Upvotes</span>
               </div>
               <div className="upf-stat-divider" />
-              <div className="upf-stat">
+              <button
+                className="upf-stat upf-stat--clickable"
+                onClick={() => openModal('followers')}
+                title="View followers"
+              >
                 <span className="upf-stat-num">{followersCount}</span>
                 <span className="upf-stat-label">Followers</span>
-              </div>
+              </button>
               <div className="upf-stat-divider" />
-              <div className="upf-stat">
+              <button
+                className="upf-stat upf-stat--clickable"
+                onClick={() => openModal('following')}
+                title="View following"
+              >
                 <span className="upf-stat-num">{followingCount}</span>
                 <span className="upf-stat-label">Following</span>
-              </div>
+              </button>
             </div>
           </div>
         </div>
@@ -387,7 +467,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           <button
             key={tab.key}
             className={`upf-tab-btn ${activeTab === tab.key ? 'upf-tab-btn--active' : ''}`}
-            onClick={() => handleTabChange(tab.key)}
+            onClick={() => setActiveTab(tab.key)}
           >
             {tab.icon}
             <span className="upf-tab-label">{tab.label}</span>
@@ -506,27 +586,21 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
             }
           </div>
         )}
-
-        {/* Followers Tab */}
-        {activeTab === 'followers' && (
-          <div className="upf-follow-grid">
-            {followersList.length === 0
-              ? <EmptyState icon={<Users size={36} />} text={`${name} has no followers yet.`} />
-              : followersList.map((u) => <UserCard key={u.id} user={u} />)
-            }
-          </div>
-        )}
-
-        {/* Following Tab */}
-        {activeTab === 'following' && (
-          <div className="upf-follow-grid">
-            {followingList.length === 0
-              ? <EmptyState icon={<Heart size={36} />} text={`${name} isn't following anyone yet.`} />
-              : followingList.map((u) => <UserCard key={u.id} user={u} />)
-            }
-          </div>
-        )}
       </div>
+
+      {/* ── Followers / Following Modal ────────────────────────── */}
+      {modalView && (
+        <FollowModal
+          view={modalView}
+          onClose={closeModal}
+          onSwitchView={setModalView}
+          followersList={followersList}
+          followingList={followingList}
+          followersCount={followersCount}
+          followingCount={followingCount}
+          name={name}
+        />
+      )}
     </div>
   );
 }

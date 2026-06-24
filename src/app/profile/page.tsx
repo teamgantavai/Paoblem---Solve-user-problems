@@ -3,10 +3,10 @@
 import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
-  MapPin, Pencil, MoreVertical, ChevronDown, ChevronUp, ChevronRight,
-  Check, Camera, MessageCircle, MessageSquare, Phone, Loader2, ExternalLink,
-  AlertTriangle, Lightbulb, Bookmark, Share2, User, UserPlus, UserMinus, LogOut, Settings,
-  Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar
+  MapPin, Pencil, ChevronRight,
+  Check, Camera, MessageCircle, MessageSquare, Loader2, ExternalLink,
+  AlertTriangle, Lightbulb, User, UserPlus, UserMinus, LogOut, Settings,
+  Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar, X
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -170,7 +170,8 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
   const displayUserId = isOwnProfile ? currentUserId : targetUserId;
 
-  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'followers' | 'following' | 'settings' | 'signout'>('problems');
+  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'settings'>('problems');
+  const [modalView, setModalView] = useState<'followers' | 'following' | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
   const rolePickerRef = useRef<HTMLDivElement>(null);
@@ -189,6 +190,17 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
     ]);
     if (fersRes.ok) { const d = await fersRes.json(); setFollowersList(d.users || []); }
     if (fingRes.ok) { const d = await fingRes.json(); setFollowingList(d.users || []); }
+  };
+
+  const openModal = (view: 'followers' | 'following') => {
+    loadLists();
+    setModalView(view);
+    document.body.style.overflow = 'hidden';
+  };
+
+  const closeModal = () => {
+    setModalView(null);
+    document.body.style.overflow = '';
   };
 
   // Avatar upload states
@@ -619,7 +631,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
             {isOwnProfile && (
               <div className="avatar-edit-overlay" style={{
                 position: 'absolute', inset: -3,
-                borderRadius: '50%',
+                borderRadius: '25px',
                 background: 'rgba(0, 0, 0, 0.4)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center',
                 opacity: 0, transition: 'opacity 0.2s', zIndex: 5
@@ -630,7 +642,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
             {avatarUploading && (
               <div style={{
                 position: 'absolute', inset: -3,
-                borderRadius: '50%',
+                borderRadius: '25px',
                 background: 'rgba(0, 0, 0, 0.5)',
                 display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 6
               }}>
@@ -655,78 +667,86 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
 
           <div className="upf-identity-body">
             <div className="upf-name-row">
-              <div>
-                <h1 className="upf-name">{displayName}</h1>
+              {/* Name + role badge together */}
+              <div className="upf-name-group">
+                <div className="upf-name-line">
+                  <h1 className="upf-name">{displayName}</h1>
+                  {/* Role badge inline with name */}
+                  <div style={{ position: 'relative' }} ref={rolePickerRef}>
+                    <button
+                      className={`upf-role-badge ${roleClass}`}
+                      onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
+                      style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
+                      title={isOwnProfile ? "Change your role tag" : undefined}
+                    >
+                      {isOwnProfile && (
+                        updateRoleMutation.isPending ? (
+                          <Loader2 size={11} className="spin" style={{ marginRight: '4px' }} />
+                        ) : (
+                          <Pencil size={11} style={{ marginRight: '4px' }} />
+                        )
+                      )}
+                      {currentRole}
+                    </button>
+
+                    {isOwnProfile && rolePickerOpen && (
+                      <div className="profile-role-picker" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 100 }}>
+                        {VALID_ROLES.map((r) => (
+                          <button
+                            key={r}
+                            className={`profile-role-option ${r === currentRole ? 'active' : ''}`}
+                            onClick={() => updateRoleMutation.mutate(r)}
+                            disabled={updateRoleMutation.isPending}
+                          >
+                            {r === currentRole && <Check size={12} />}
+                            {r}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
                 <p className="upf-username">@{profile?.username || 'member'}</p>
               </div>
-            </div>
 
-            {isOwnProfile && (
-              <div className="upf-actions">
-                <button onClick={() => setActiveTab('settings')} className="upf-btn-follow">
-                  <Settings size={15} /> Edit Profile
-                </button>
-                <button onClick={() => router.push('/analytics')} className="upf-btn-message">
-                  <BarChart2 size={15} /> Analytics
-                </button>
-              </div>
-            )}
+              {/* Own profile: Edit + Analytics + Logout */}
+              {isOwnProfile && (
+                <div className="upf-actions">
+                  <button onClick={() => setActiveTab('settings')} className="upf-btn-follow">
+                    <Settings size={15} /> Edit Profile
+                  </button>
+                  <button onClick={() => router.push('/analytics')} className="upf-btn-message">
+                    <BarChart2 size={15} /> Analytics
+                  </button>
+                  <button onClick={handleLogout} className="upf-btn-message" title="Sign out" style={{ padding: '0.5rem 0.75rem' }}>
+                    <LogOut size={15} />
+                  </button>
+                </div>
+              )}
 
-            {!isOwnProfile && (
-              <div className="upf-actions">
-                <button
-                  className={`upf-btn-follow ${followData?.isFollowing ? 'upf-btn-follow--active' : ''}`}
-                  onClick={() => toggleFollowMutation.mutate()}
-                  disabled={toggleFollowMutation.isPending}
-                >
-                  {toggleFollowMutation.isPending ? (
-                    <Loader2 size={14} className="spin" />
-                  ) : followData?.isFollowing ? (
-                    <>
-                      <UserMinus size={15} /> Unfollow
-                    </>
-                  ) : (
-                    <>
-                      <UserPlus size={15} /> Follow
-                    </>
-                  )}
-                </button>
-                <button className="upf-btn-message" onClick={handleMessageUser}>
-                  <MessageCircle size={15} /> Message
-                </button>
-              </div>
-            )}
-
-            <div style={{ position: 'relative', width: 'fit-content' }} ref={rolePickerRef}>
-              <button
-                className={`upf-role-badge ${roleClass}`}
-                onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
-                style={{ cursor: isOwnProfile ? 'pointer' : 'default' }}
-                title={isOwnProfile ? "Change your role tag" : undefined}
-              >
-                {isOwnProfile && (
-                  updateRoleMutation.isPending ? (
-                    <Loader2 size={11} className="spin" style={{ marginRight: '4px' }} />
-                  ) : (
-                    <Pencil size={11} style={{ marginRight: '4px' }} />
-                  )
-                )}
-                {currentRole}
-              </button>
-
-              {isOwnProfile && rolePickerOpen && (
-                <div className="profile-role-picker" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 100 }}>
-                  {VALID_ROLES.map((r) => (
-                    <button
-                      key={r}
-                      className={`profile-role-option ${r === currentRole ? 'active' : ''}`}
-                      onClick={() => updateRoleMutation.mutate(r)}
-                      disabled={updateRoleMutation.isPending}
-                    >
-                      {r === currentRole && <Check size={12} />}
-                      {r}
-                    </button>
-                  ))}
+              {/* Other user: Follow + Message */}
+              {!isOwnProfile && (
+                <div className="upf-actions">
+                  <button
+                    className={`upf-btn-follow ${followData?.isFollowing ? 'upf-btn-follow--active' : ''}`}
+                    onClick={() => toggleFollowMutation.mutate()}
+                    disabled={toggleFollowMutation.isPending}
+                  >
+                    {toggleFollowMutation.isPending ? (
+                      <Loader2 size={14} className="spin" />
+                    ) : followData?.isFollowing ? (
+                      <>
+                        <UserMinus size={15} /> Unfollow
+                      </>
+                    ) : (
+                      <>
+                        <UserPlus size={15} /> Follow
+                      </>
+                    )}
+                  </button>
+                  <button className="upf-btn-message" onClick={handleMessageUser}>
+                    <MessageCircle size={15} /> Message
+                  </button>
                 </div>
               )}
             </div>
@@ -778,15 +798,23 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                 <span className="upf-stat-label">Upvotes</span>
               </div>
               <div className="upf-stat-divider" />
-              <div className="upf-stat">
+              <button
+                className="upf-stat upf-stat--clickable"
+                onClick={() => openModal('followers')}
+                title="View followers"
+              >
                 <span className="upf-stat-num">{followData?.followersCount || 0}</span>
                 <span className="upf-stat-label">Followers</span>
-              </div>
+              </button>
               <div className="upf-stat-divider" />
-              <div className="upf-stat">
+              <button
+                className="upf-stat upf-stat--clickable"
+                onClick={() => openModal('following')}
+                title="View following"
+              >
                 <span className="upf-stat-num">{followData?.followingCount || 0}</span>
                 <span className="upf-stat-label">Following</span>
-              </div>
+              </button>
             </div>
 
           </div>
@@ -811,16 +839,8 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
           <MessageSquare size={15} /> <span className="upf-tab-label">Comments</span>
           <span className="upf-tab-count">{userComments.length}</span>
         </button>
-        <button className={`upf-tab-btn ${activeTab === 'followers' ? 'upf-tab-btn--active' : ''}`} onClick={() => { setActiveTab('followers'); loadLists(); }}>
-          <Users size={15} /> <span className="upf-tab-label">Followers</span>
-          <span className="upf-tab-count">{followData?.followersCount || 0}</span>
-        </button>
-        <button className={`upf-tab-btn ${activeTab === 'following' ? 'upf-tab-btn--active' : ''}`} onClick={() => { setActiveTab('following'); loadLists(); }}>
-          <Heart size={15} /> <span className="upf-tab-label">Following</span>
-          <span className="upf-tab-count">{followData?.followingCount || 0}</span>
-        </button>
         {isOwnProfile && (
-          <button className={`upf-tab-btn ${activeTab === 'settings' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('settings')} style={{ marginLeft: 'auto' }}>
+          <button className={`upf-tab-btn ${activeTab === 'settings' ? 'upf-tab-btn--active' : ''} upf-tab-btn--settings`} onClick={() => setActiveTab('settings')}>
             <Settings size={15} /> <span className="upf-tab-label">Settings</span>
           </button>
         )}
@@ -931,30 +951,8 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
           </div>
         )}
 
-        {activeTab === 'followers' && (
-          <div className="upf-follow-grid">
-            {followersList.length === 0
-              ? <EmptyState icon={<Users size={36} />} text={`${displayName} has no followers yet.`} />
-              : followersList.map((u) => <UserCard key={u.id} user={u} />)
-            }
-          </div>
-        )}
-
-        {activeTab === 'following' && (
-          <div className="upf-follow-grid">
-            {followingList.length === 0
-              ? <EmptyState icon={<Heart size={36} />} text={`${displayName} isn't following anyone yet.`} />
-              : followingList.map((u) => <UserCard key={u.id} user={u} />)
-            }
-          </div>
-        )}
-
         {activeTab === 'settings' && isOwnProfile && (
-          <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} />
-        )}
-
-        {activeTab === 'signout' && isOwnProfile && (
-          <SignOutTab onLogout={handleLogout} />
+          <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} onLogout={handleLogout} />
         )}
       </div>
 
@@ -967,6 +965,45 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
         imageUrl={editorImgUrl}
         onSave={handleEditorSave}
       />
+
+      {/* Followers / Following Modal */}
+      {modalView && (
+        <div className="upf-modal-backdrop" onClick={(e) => e.target === e.currentTarget && closeModal()}>
+          <div className="upf-modal" role="dialog" aria-modal="true">
+            <div className="upf-modal-header">
+              <div className="upf-modal-tabs">
+                <button
+                  className={`upf-modal-tab ${modalView === 'followers' ? 'upf-modal-tab--active' : ''}`}
+                  onClick={() => setModalView('followers')}
+                >
+                  Followers <span style={{ opacity: 0.6, marginLeft: 3 }}>{followData?.followersCount || 0}</span>
+                </button>
+                <button
+                  className={`upf-modal-tab ${modalView === 'following' ? 'upf-modal-tab--active' : ''}`}
+                  onClick={() => setModalView('following')}
+                >
+                  Following <span style={{ opacity: 0.6, marginLeft: 3 }}>{followData?.followingCount || 0}</span>
+                </button>
+              </div>
+              <button className="upf-modal-close" onClick={closeModal} aria-label="Close">
+                <X size={15} />
+              </button>
+            </div>
+            <div className="upf-modal-body">
+              {modalView === 'followers' && (
+                followersList.length === 0
+                  ? <EmptyState icon={<Users size={32} />} text={`${displayName} has no followers yet.`} />
+                  : followersList.map((u) => <UserCard key={u.id} user={u} />)
+              )}
+              {modalView === 'following' && (
+                followingList.length === 0
+                  ? <EmptyState icon={<Heart size={32} />} text={`${displayName} isn't following anyone yet.`} />
+                  : followingList.map((u) => <UserCard key={u.id} user={u} />)
+              )}
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -1105,7 +1142,7 @@ function CommentsTab({ comments }: { comments: UserComment[] }) {
 /* ────────────────────────────────────────────────────────
    Settings Tab Component (Dedicated Settings Section)
    ───────────────────────────────────────────────────────── */
-function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Profile & { username?: string | null }; onSaved: () => void }) {
+function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; profile?: Profile & { username?: string | null }; onSaved: () => void; onLogout: () => void }) {
   const [fullName, setFullName] = useState(profile?.full_name || session?.user?.user_metadata?.full_name || '');
   const [location, setLocation] = useState(profile?.location || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -1321,6 +1358,31 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
             {saving ? <Loader2 size={16} className="spin" style={{ margin: '0 auto' }} /> : 'Save Profile Details'}
           </button>
         </form>
+      </div>
+      {/* ── Danger Zone ── */}
+      <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
+        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f87171' }}>
+          Danger Zone
+        </h3>
+        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: '1.5' }}>
+          Sign out of your current session. You will need to sign back in to create posts, write comments, or receive updates.
+        </p>
+        <button
+          type="button"
+          onClick={onLogout}
+          style={{
+            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+            padding: '0.5rem 1.25rem', borderRadius: '50px',
+            fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+            background: 'rgba(239, 68, 68, 0.08)',
+            border: '1.5px solid rgba(239, 68, 68, 0.35)',
+            color: '#f87171', transition: 'all 0.15s',
+          }}
+          onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; }}
+          onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; }}
+        >
+          <LogOut size={15} /> Sign Out
+        </button>
       </div>
     </div>
   );

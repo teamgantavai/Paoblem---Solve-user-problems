@@ -125,9 +125,9 @@ async function listConversations(userId: string, archived = false) {
   const lastMessageIds = (conversations || []).map((row: any) => row.last_message_id).filter(Boolean);
   const { data: lastMessages, error: lastMessageError } = lastMessageIds.length
     ? await supabaseAdmin
-        .from('messages')
-        .select('id, conversation_id, sender_id, content, message_type, created_at, deleted_at, attachments')
-        .in('id', lastMessageIds)
+      .from('messages')
+      .select('id, conversation_id, sender_id, content, message_type, created_at, deleted_at, attachments')
+      .in('id', lastMessageIds)
     : { data: [], error: null };
 
   if (lastMessageError) throw lastMessageError;
@@ -143,9 +143,9 @@ async function listConversations(userId: string, archived = false) {
   const participantUserIds = Array.from(new Set((participants || []).map((row: any) => row.user_id)));
   const { data: profiles, error: profileError } = participantUserIds.length
     ? await supabaseAdmin
-        .from('profiles')
-        .select('id, username, full_name, avatar_url')
-        .in('id', participantUserIds)
+      .from('profiles')
+      .select('id, username, full_name, avatar_url')
+      .in('id', participantUserIds)
     : { data: [], error: null };
 
   if (profileError) throw profileError;
@@ -153,9 +153,9 @@ async function listConversations(userId: string, archived = false) {
 
   const { data: presenceRows, error: presenceError } = participantUserIds.length
     ? await supabaseAdmin
-        .from('user_presence')
-        .select('user_id, is_online, last_seen_at')
-        .in('user_id', participantUserIds)
+      .from('user_presence')
+      .select('user_id, is_online, last_seen_at')
+      .in('user_id', participantUserIds)
     : { data: [], error: null };
 
   if (presenceError) throw presenceError;
@@ -173,10 +173,10 @@ async function listConversations(userId: string, archived = false) {
   const incomingIds = (incomingRows || []).map((row: any) => row.id);
   const { data: readRows, error: readError } = incomingIds.length
     ? await supabaseAdmin
-        .from('message_reads')
-        .select('message_id')
-        .in('message_id', incomingIds)
-        .eq('user_id', userId)
+      .from('message_reads')
+      .select('message_id')
+      .in('message_id', incomingIds)
+      .eq('user_id', userId)
     : { data: [], error: null };
 
   if (readError) throw readError;
@@ -184,10 +184,10 @@ async function listConversations(userId: string, archived = false) {
   const readIds = new Set((readRows || []).map((row: any) => row.message_id));
   const { data: hiddenRows, error: hiddenError } = incomingIds.length
     ? await supabaseAdmin
-        .from('message_deletions')
-        .select('message_id')
-        .in('message_id', incomingIds)
-        .eq('user_id', userId)
+      .from('message_deletions')
+      .select('message_id')
+      .in('message_id', incomingIds)
+      .eq('user_id', userId)
     : { data: [], error: null };
 
   if (hiddenError && hiddenError.code !== '42P01') throw hiddenError;
@@ -227,10 +227,10 @@ async function listConversations(userId: string, archived = false) {
         },
         last_message: lastMessage
           ? {
-              ...lastMessage,
-              content: lastMessage.deleted_at ? 'This message was deleted' : lastMessage.content,
-              attachments: lastMessage.attachments || [],
-            }
+            ...lastMessage,
+            content: lastMessage.deleted_at ? 'This message was deleted' : lastMessage.content,
+            attachments: lastMessage.attachments || [],
+          }
           : null,
         unread_count: unreadByConversation.get(row.conversation_id) || 0,
         pinned: !!row.pinned_at,
@@ -260,9 +260,9 @@ async function hydrateMessages(rawMessages: any[], userId: string) {
       : Promise.resolve({ data: [], error: null }),
     replyIds.length
       ? supabaseAdmin
-          .from('messages')
-          .select('id, sender_id, content, message_type, attachments, deleted_at')
-          .in('id', replyIds)
+        .from('messages')
+        .select('id, sender_id, content, message_type, attachments, deleted_at')
+        .in('id', replyIds)
       : Promise.resolve({ data: [], error: null }),
   ]);
 
@@ -290,10 +290,10 @@ async function hydrateMessages(rawMessages: any[], userId: string) {
       attachments: message.deleted_at ? [] : message.attachments || [],
       reply_to: reply
         ? {
-            ...reply,
-            content: reply.deleted_at ? 'This message was deleted' : reply.content,
-            attachments: reply.deleted_at ? [] : reply.attachments || [],
-          }
+          ...reply,
+          content: reply.deleted_at ? 'This message was deleted' : reply.content,
+          attachments: reply.deleted_at ? [] : reply.attachments || [],
+        }
         : null,
       status:
         message.sender_id !== userId
