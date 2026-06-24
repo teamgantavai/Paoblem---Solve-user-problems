@@ -1,5 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { enqueueChatEmailNotification } from '@/lib/queue';
+import { countUnreadMessages } from '@/lib/email';
 
 /* eslint-disable @typescript-eslint/no-explicit-any */
 
@@ -433,6 +435,43 @@ export async function POST(req: NextRequest) {
     if (error) throw error;
     const [hydratedMessage] = await hydrateMessages([message], user.id);
 
+    // Check receiver presence and enqueue notification email if offline
+    (async () => {
+      try {
+        const { data: participants, error: partError } = await supabaseAdmin
+          .from('conversation_participants')
+          .select('user_id')
+          .eq('conversation_id', conversationId);
+
+        if (!partError && participants) {
+          const receiver = participants.find((p: any) => p.user_id !== user.id);
+          if (receiver) {
+            const receiverId = receiver.user_id;
+
+            // Fetch presence
+            const { data: presence } = await supabaseAdmin
+              .from('user_presence')
+              .select('is_online, last_seen_at')
+              .eq('user_id', receiverId)
+              .maybeSingle();
+
+            // Receiver is online if is_online is true AND last_seen_at is within the last 60 seconds
+            const isOnline = presence?.is_online && 
+                             presence.last_seen_at && 
+                             (Date.now() - new Date(presence.last_seen_at).getTime() < 60 * 1000);
+
+            if (!isOnline) {
+              // 2 minutes aggregation delay
+              const delayMs = 2 * 60 * 1000;
+              await enqueueChatEmailNotification(receiverId, delayMs);
+            }
+          }
+        }
+      } catch (notifErr) {
+        console.error('[POST /api/messages] Failed to trigger offline check/notification:', notifErr);
+      }
+    })();
+
     return NextResponse.json({
       conversationId,
       message: {
@@ -485,6 +524,20 @@ export async function PUT(req: NextRequest) {
           .update({ last_read_at: now })
           .eq('conversation_id', body.conversationId)
           .eq('user_id', user.id);
+      }
+
+      // Check if user has 0 unread messages remaining across all conversations.
+      // If so, reset last_chat_email_sent_at.
+      try {
+        const totalUnread = await countUnreadMessages(user.id);
+        if (totalUnread === 0) {
+          await supabaseAdmin
+            .from('profiles')
+            .update({ last_chat_email_sent_at: null })
+            .eq('id', user.id);
+        }
+      } catch (err) {
+        console.error('[PUT /api/messages] Failed to reset email ratelimit/status:', err);
       }
 
       return NextResponse.json({ success: true });

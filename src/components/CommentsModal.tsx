@@ -7,10 +7,10 @@ import { supabase } from '@/lib/supabase';
 import { Post, Comment } from '@/lib/types';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import CommentThread from './CommentThread';
-
 interface CommentsModalProps {
   post: Post | null;
   session: any;
+  profile?: any;
   isOpen: boolean;
   onClose: () => void;
   userVote?: 'up' | 'down' | null;
@@ -21,6 +21,7 @@ interface CommentsModalProps {
 export default function CommentsModal({
   post,
   session,
+  profile,
   isOpen,
   onClose,
   userVote = null,
@@ -225,6 +226,7 @@ export default function CommentsModal({
             <CommentThread
               comments={comments || []}
               session={session}
+              profile={profile}
               postId={post.id}
               onAuthRequired={onAuthRequired}
               onAddComment={async (body, parentId) => {

@@ -101,12 +101,11 @@ function htmlToPlain(html: string): string {
   return text;
 }
 
-export default function CreatePostPage() {
+function CreatePostForm({ session }: { session: Session }) {
   const router = useRouter();
   const queryClient = useQueryClient();
   const bodyRef = useRef<HTMLDivElement | null>(null);
 
-  const [session, setSession] = useState<Session>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
   const [postType, setPostType] = useState<PostType>(null);
   const [visibility, setVisibility] = useState<Visibility>('public');
@@ -123,6 +122,7 @@ export default function CreatePostPage() {
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
   const [showSavedStatus, setShowSavedStatus] = useState(false);
   const [draftModalOpen, setDraftModalOpen] = useState(false);
+  const [draftLoaded, setDraftLoaded] = useState(false);
 
   // Additional settings panels toggle state
   const [tagsEnabled, setTagsEnabled] = useState(false);
@@ -138,12 +138,6 @@ export default function CreatePostPage() {
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data }) => setSession(data.session));
-    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => setSession(nextSession));
-    return () => data.subscription.unsubscribe();
-  }, []);
-
-  useEffect(() => {
     if (!session?.user?.id) return;
     supabase
       .from('profiles')
@@ -153,11 +147,15 @@ export default function CreatePostPage() {
       .then(({ data }) => setProfile((data as Profile) || null));
   }, [session?.user?.id]);
 
+  // Load user-specific draft once session and user ID are determined
   useEffect(() => {
-    window.setTimeout(() => {
-      try {
-        const raw = localStorage.getItem(DRAFT_KEY);
-        if (!raw) return;
+    if (!session?.user?.id) return;
+    if (draftLoaded) return;
+    
+    try {
+      const key = `paoblem:create-post:draft:${session.user.id}`;
+      const raw = localStorage.getItem(key);
+      if (raw) {
         const draft = JSON.parse(raw);
         setPostType(draft.postType || null);
         setVisibility(draft.visibility || 'public');
@@ -170,18 +168,22 @@ export default function CreatePostPage() {
 
         if (draft.externalLink) setLinkEnabled(true);
         if (Array.isArray(draft.tags) && draft.tags.length > 0) setTagsEnabled(true);
-      } catch {}
-    }, 0);
-  }, []);
+      }
+    } catch {}
+    setDraftLoaded(true);
+  }, [session?.user?.id, draftLoaded]);
 
+  // Auto-save draft specific to the current logged-in user
   useEffect(() => {
+    if (!session?.user?.id) return;
     if (!title && !body && !postType && !selectedCategory) return;
     const id = window.setTimeout(() => {
       const now = new Date();
       const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
       const fullDateStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + timeStr;
 
-      localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      const key = `paoblem:create-post:draft:${session.user.id}`;
+      localStorage.setItem(key, JSON.stringify({
         postType,
         visibility,
         title,
@@ -195,7 +197,7 @@ export default function CreatePostPage() {
       setLastSavedAt(timeStr);
     }, 700);
     return () => window.clearTimeout(id);
-  }, [postType, visibility, title, body, externalLink, linkName, selectedCategory, tags]);
+  }, [postType, visibility, title, body, externalLink, linkName, selectedCategory, tags, session?.user?.id]);
 
   useEffect(() => {
     if (lastSavedAt) {
@@ -344,7 +346,11 @@ export default function CreatePostPage() {
         }
       }
 
-      localStorage.removeItem(DRAFT_KEY);
+      if (session?.user?.id) {
+        localStorage.removeItem(`paoblem:create-post:draft:${session.user.id}`);
+      } else {
+        localStorage.removeItem(DRAFT_KEY);
+      }
       setSuccess(true);
       queryClient.invalidateQueries({ queryKey: ['posts'] });
       setTimeout(() => router.push('/'), 650);
@@ -635,7 +641,8 @@ export default function CreatePostPage() {
             <div className="cp-modal-body">
               {(() => {
                 try {
-                  const raw = localStorage.getItem(DRAFT_KEY);
+                  const key = session?.user?.id ? `paoblem:create-post:draft:${session.user.id}` : DRAFT_KEY;
+                  const raw = localStorage.getItem(key);
                   if (!raw) return <p style={{ color: 'var(--text-muted)' }}>No saved drafts found.</p>;
                   const draft = JSON.parse(raw);
                   return (
@@ -777,4 +784,33 @@ export default function CreatePostPage() {
       )}
     </div>
   );
+}
+
+export default function CreatePostPage() {
+  const [session, setSession] = useState<Session>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    supabase.auth.getSession().then(({ data }) => {
+      setSession(data.session);
+      setLoading(false);
+    });
+    const { data } = supabase.auth.onAuthStateChange((_event, nextSession) => {
+      setSession(nextSession);
+      setLoading(false);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  if (loading) {
+    return (
+      <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
+        <Loader2 size={24} className="spin" style={{ color: 'var(--text-muted)' }} />
+      </div>
+    );
+  }
+
+  const userId = session?.user?.id || 'anonymous';
+
+  return <CreatePostForm key={userId} session={session} />;
 }

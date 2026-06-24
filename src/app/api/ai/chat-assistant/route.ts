@@ -79,7 +79,7 @@ export async function POST(req: NextRequest) {
     const looksLikeUuid = typeof conversationId === 'string' && /^[0-9a-f-]{36}$/i.test(conversationId);
     if (looksLikeUuid) {
       const { data: membership } = await supabaseAdmin
-        .from('conversation_members')
+        .from('conversation_participants')
         .select('conversation_id')
         .eq('conversation_id', conversationId)
         .eq('user_id', user.id)

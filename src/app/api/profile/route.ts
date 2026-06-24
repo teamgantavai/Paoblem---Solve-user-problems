@@ -26,7 +26,34 @@ export async function GET(req: NextRequest) {
       query = query.eq('username', username);
     }
 
-    const { data: profile, error: profileError } = await query.single();
+    let { data: profile, error: profileError } = await query.single();
+
+    if ((profileError || !profile) && userId) {
+      console.warn(`[GET /api/profile] Profile missing for user ${userId}, checking auth.users...`);
+      const { data: { user }, error: authUserError } = await supabaseAdmin.auth.admin.getUserById(userId);
+      if (user && !authUserError) {
+        console.log(`[GET /api/profile] User exists in auth.users, creating fallback profile...`);
+        const fallbackUsername = user.user_metadata?.username || user.email?.split('@')[0] || `user_${userId.slice(0, 8)}`;
+        const { data: newProfile, error: profileCreateError } = await supabaseAdmin
+          .from('profiles')
+          .insert({
+            id: userId,
+            full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Member',
+            avatar_url: user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
+            role: user.user_metadata?.role || 'Innovator',
+            username: fallbackUsername
+          })
+          .select()
+          .single();
+
+        if (!profileCreateError && newProfile) {
+          profile = newProfile;
+          profileError = null;
+        } else {
+          console.error('[GET /api/profile] Failed to create fallback profile:', profileCreateError);
+        }
+      }
+    }
 
     if (profileError || !profile) {
       console.error('[GET /api/profile] profileError:', profileError, 'profile:', profile);

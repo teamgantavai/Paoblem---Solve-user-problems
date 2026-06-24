@@ -92,7 +92,7 @@
   text-overflow: ellipsis;
   max-width: 140px;
   display: inline-block;
-  vertical-align: bottom;
+  vertical-align: middle;
 }
 
 .post-author-name:hover {
@@ -137,32 +137,35 @@
 .post-type-badge {
   display: inline-flex;
   align-items: center;
+  justify-content: center;
   font-size: 10px;
   font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.05em;
   padding: 2px 8px;
   border-radius: 999px;
-  line-height: 1;
+  line-height: 1.2;
   border: 1px solid transparent;
+  align-self: center;
+  vertical-align: middle;
 }
 
 .post-type-badge.problem {
-  background: rgba(239, 68, 68, 0.08);
-  color: #ef4444;
-  border-color: rgba(239, 68, 68, 0.15);
+  background: var(--chip-problem-bg);
+  color: var(--chip-problem-text);
+  border-color: var(--chip-problem-border);
 }
 
 .post-type-badge.idea {
-  background: rgba(99, 102, 241, 0.08);
-  color: #6366f1;
-  border-color: rgba(99, 102, 241, 0.15);
+  background: var(--chip-idea-bg);
+  color: var(--chip-idea-text);
+  border-color: var(--chip-idea-border);
 }
 
 .post-type-badge.solution {
-  background: rgba(34, 197, 94, 0.08);
-  color: #22c55e;
-  border-color: rgba(34, 197, 94, 0.15);
+  background: var(--chip-solution-bg);
+  color: var(--chip-solution-text);
+  border-color: var(--chip-solution-border);
 }
 
 .post-author-dot {

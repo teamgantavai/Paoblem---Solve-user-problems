@@ -370,9 +370,65 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       });
       if (!res.ok) throw new Error('Failed to delete post');
     },
+    onMutate: async (postId: string) => {
+      // Cancel outgoing queries to 'posts' to avoid overwriting our optimistic update
+      await queryClient.cancelQueries({ queryKey: ['posts'] });
+
+      // Snapshot the previous query states
+      const previousPostsQueries = queryClient.getQueriesData({ queryKey: ['posts'] });
+
+      // Optimistically update the cache for all queries starting with ['posts']
+      queryClient.setQueriesData({ queryKey: ['posts'] }, (old: any) => {
+        if (!old?.pages) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            posts: page.posts.filter((post: any) => post.id !== postId),
+          })),
+        };
+      });
+
+      // Optimistically update newlyCreatedPosts state
+      setNewlyCreatedPosts((prev) => prev.filter((post) => post.id !== postId));
+
+      // Optimistically update sessionStorage
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) {
+          const updated = stored.filter((post: any) => post.id !== postId);
+          sessionStorage.setItem('paoblem_newly_created_posts', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.error(e);
+      }
+
+      // Return context for rollback
+      return { previousPostsQueries };
+    },
+    onError: (err, postId, context) => {
+      // Rollback to the previous state on error
+      if (context?.previousPostsQueries) {
+        context.previousPostsQueries.forEach(([queryKey, value]) => {
+          queryClient.setQueryData(queryKey, value);
+        });
+      }
+      // Restore newlyCreatedPosts state from sessionStorage
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+        if (Array.isArray(stored)) {
+          setNewlyCreatedPosts(stored);
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['posts', filterType] });
       showToast('Post deleted successfully');
+    },
+    onSettled: () => {
+      // Always refetch to ensure sync with server
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
     },
   });
 
@@ -612,9 +668,15 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           const hasUpvoted = userVotes?.[post.id] === 'up';
           const hasDownvoted = userVotes?.[post.id] === 'down';
           const isOwner = session?.user?.id === post.user_id;
-          const authorName = post.profiles?.full_name || (post.profiles?.username ? `@${post.profiles.username}` : (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.full_name || session.user.user_metadata?.username || session.user.email?.split('@')[0]) : 'Anonymous'));
-          const authorAvatar = post.profiles?.avatar_url || (session?.user && post.user_id === session.user.id ? session.user.user_metadata?.avatar_url : undefined);
-          const authorUsername = post.profiles?.username || (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.username || session.user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || session.user.email?.split('@')[0]) : undefined);
+          const authorName = isOwner
+            ? (profile?.full_name || session?.user?.user_metadata?.full_name || post.profiles?.full_name || 'You')
+            : (post.profiles?.full_name || (post.profiles?.username ? `@${post.profiles.username}` : 'Anonymous'));
+          const authorAvatar = isOwner
+            ? (profile?.avatar_url || session?.user?.user_metadata?.avatar_url || post.profiles?.avatar_url)
+            : (post.profiles?.avatar_url);
+          const authorUsername = isOwner
+            ? (profile?.username || session?.user?.user_metadata?.username || post.profiles?.username)
+            : (post.profiles?.username);
 
           return (
             <ErrorBoundary key={post.id}>
@@ -850,6 +912,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           isOpen={true}
           onClose={() => setCommentsModalPostId(null)}
           session={session}
+          profile={profile}
           userVote={userVotes?.[commentsModalPost.id] || null}
           onVote={handleVote}
           onAuthRequired={() => setIsAuthOpen(true)}

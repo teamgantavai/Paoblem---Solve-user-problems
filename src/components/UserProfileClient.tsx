@@ -9,8 +9,6 @@ import {
   ExternalLink, ChevronRight, Calendar, Award, User, X
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
-import '../app/styles/user-profile.css';
-import '../app/styles/profile-page.css';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 

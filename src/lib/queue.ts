@@ -1,6 +1,7 @@
 import { Queue } from 'bullmq';
 import IORedis from 'ioredis';
 import { createClient } from '@supabase/supabase-js';
+import { sendChatNotificationEmail } from './email';
 
 const isVercel = !!(process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL_ENV);
 
@@ -81,3 +82,38 @@ export async function enqueueNotification(jobName: string, data: NotificationJob
     }
   }
 }
+
+export async function enqueueChatEmailNotification(receiverId: string, delayMs: number) {
+  if (isVercel || !notificationQueue) {
+    console.log('[Queue] Enqueuing chat email notification (fallback setTimeout)...');
+    setTimeout(async () => {
+      try {
+        await sendChatNotificationEmail(receiverId);
+      } catch (err) {
+        console.error('Failed to send fallback chat email:', err);
+      }
+    }, delayMs);
+  } else {
+    try {
+      await notificationQueue.add(
+        'chat-email-notification',
+        { receiverId },
+        {
+          delay: delayMs,
+          jobId: `chat-email-notification:${receiverId}`, // Deduplicate using jobId!
+        }
+      );
+      console.log(`[Queue] Enqueued chat email notification for user ${receiverId} with delay ${delayMs}ms`);
+    } catch (err) {
+      console.warn('Redis queue is unavailable for chat email, falling back to setTimeout:', err);
+      setTimeout(async () => {
+        try {
+          await sendChatNotificationEmail(receiverId);
+        } catch (err) {
+          console.error('Failed to send fallback chat email:', err);
+        }
+      }, delayMs);
+    }
+  }
+}
+

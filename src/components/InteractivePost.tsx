@@ -1528,7 +1528,7 @@ function SolutionCard({
                   name="You"
                   size={28}
                 />
-                <div style={{ flex: 1, display: 'flex', gap: '0.35rem' }}>
+                <div style={{ flex: 1, display: 'flex', gap: '0.35rem', alignItems: 'center' }}>
                   <input
                     type="text"
                     value={commentText}

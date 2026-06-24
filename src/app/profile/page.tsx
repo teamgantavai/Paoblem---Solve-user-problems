@@ -12,8 +12,6 @@ import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
-import '../styles/profile-page.css';
-import '../styles/user-profile.css';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 
 /* ── Constants ────────────────────────────────────────── */

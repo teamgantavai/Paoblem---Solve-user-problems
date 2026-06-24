@@ -114,6 +114,36 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Ensure profile exists for the user to prevent foreign key constraint violations
+    const { data: profileExists, error: profileCheckError } = await supabaseAdmin
+      .from('profiles')
+      .select('id')
+      .eq('id', user.id)
+      .maybeSingle();
+
+    if (profileCheckError) {
+      console.error('[posts/create] Profile check error:', profileCheckError);
+    }
+
+    if (!profileExists) {
+      console.warn(`[posts/create] Profile missing for user ${user.id}, creating fallback profile...`);
+      const fallbackUsername = user.user_metadata?.username || user.email?.split('@')[0] || `user_${user.id.slice(0, 8)}`;
+      const { error: profileCreateError } = await supabaseAdmin
+        .from('profiles')
+        .insert({
+          id: user.id,
+          full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Member',
+          avatar_url: user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`,
+          role: user.user_metadata?.role || 'Innovator',
+          username: fallbackUsername
+        });
+      if (profileCreateError) {
+        console.error('[posts/create] Failed to create fallback profile:', profileCreateError);
+      } else {
+        console.log(`[posts/create] Fallback profile created successfully for user ${user.id}`);
+      }
+    }
+
     if (!checkRateLimit(user.id)) {
       return NextResponse.json({ error: 'Too many requests. Try again later.' }, { status: 429 });
     }

@@ -31,6 +31,9 @@
   --chip-idea-bg: rgba(245, 158, 11, 0.12);
   --chip-idea-border: rgba(245, 158, 11, 0.38);
   --chip-idea-text: #fbbf24;
+  --chip-solution-bg: rgba(34, 197, 94, 0.12);
+  --chip-solution-border: rgba(34, 197, 94, 0.38);
+  --chip-solution-text: #4ade80;
 }
 
 .light-theme {
@@ -66,4 +69,7 @@
   --chip-idea-bg: rgba(217, 119, 6, 0.1);
   --chip-idea-border: rgba(217, 119, 6, 0.28);
   --chip-idea-text: #d97706;
+  --chip-solution-bg: rgba(34, 197, 94, 0.1);
+  --chip-solution-border: rgba(34, 197, 94, 0.28);
+  --chip-solution-text: #16a34a;
 }

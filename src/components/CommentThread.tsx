@@ -226,6 +226,7 @@ const showMoreStyle: React.CSSProperties = {
 interface CommentThreadProps {
   comments: Comment[];
   session: any;
+  profile?: any;
   postId: string;
   onAddComment: (body: string, parentId?: string | null) => Promise<void>;
   onEditComment?: (commentId: string, body: string) => Promise<void>;
@@ -239,6 +240,7 @@ interface CommentThreadProps {
 export default function CommentThread({
   comments,
   session,
+  profile,
   postId,
   onAddComment,
   onEditComment,
@@ -426,7 +428,7 @@ export default function CommentThread({
   const renderReplyForm = (parentId: string) => (
     <form className="comment-tree-reply-form" onSubmit={(e) => handleReply(parentId, e)} style={{ marginTop: 8 }}>
       <Avatar
-        src={session?.user?.user_metadata?.avatar_url}
+        src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url}
         name="You"
         className="comment-tree-avatar comment-tree-avatar--sm"
         size={24}
@@ -452,7 +454,7 @@ export default function CommentThread({
     const { isReply = false, rootId } = opts;
     const isOwner = session?.user?.id === node.user_id;
     const authorName = node.profiles?.full_name || (node.profiles?.username ? `@${node.profiles.username}` : (session?.user && node.user_id === session.user.id ? (session.user.user_metadata?.full_name || session.user.user_metadata?.username || session.user.email?.split('@')[0]) : 'Anonymous'));
-    const authorAvatar = node.profiles?.avatar_url || (session?.user && node.user_id === session.user.id ? session.user.user_metadata?.avatar_url : undefined) || `https://api.dicebear.com/7.x/bottts/svg?seed=${node.user_id}`;
+    const authorAvatar = (isOwner ? (profile?.avatar_url || session?.user?.user_metadata?.avatar_url) : null) || node.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${node.user_id}`;
     const authorUsername = node.profiles?.username;
     const isHighlighted = highlightCommentId === node.id;
     const isEdited = (node as any).updated_at && (node as any).updated_at !== node.created_at;
@@ -477,7 +479,7 @@ export default function CommentThread({
       >
         <div className="comment-tree-row">
           <Avatar
-            src={node.profiles?.avatar_url}
+            src={authorAvatar}
             name={authorName}
             className={`comment-tree-avatar ${compact || isReply ? 'comment-tree-avatar--sm' : ''}`}
             size={compact || isReply ? 28 : 36}
@@ -649,7 +651,7 @@ export default function CommentThread({
 
         <form onSubmit={handleTopComment} style={{ display: 'flex', gap: 10, marginBottom: 20 }}>
           <Avatar
-            src={session?.user?.user_metadata?.avatar_url}
+            src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url}
             name="You"
             className="comment-tree-avatar"
             size={36}

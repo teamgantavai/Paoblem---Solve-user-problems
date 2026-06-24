@@ -2,6 +2,7 @@ import { Worker } from 'bullmq';
 import IORedis from 'ioredis';
 import { createClient } from '@supabase/supabase-js';
 import { NotificationJobData } from './lib/queue';
+import { sendChatNotificationEmail } from './lib/email';
 
 // Environment variables
 const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
@@ -24,6 +25,18 @@ console.log('Worker started. Waiting for jobs...');
 const worker = new Worker(
   'notifications',
   async (job) => {
+    if (job.name === 'chat-email-notification') {
+      const { receiverId } = job.data;
+      console.log(`[Worker] Processing chat email notification job ${job.id} for user ${receiverId}`);
+      try {
+        await sendChatNotificationEmail(receiverId);
+      } catch (err: any) {
+        console.error(`[Worker] Error sending chat notification email for user ${receiverId}:`, err.message);
+        throw err;
+      }
+      return;
+    }
+
     const data: NotificationJobData = job.data;
     console.log(`Processing notification job ${job.id} for user ${data.user_id}`);
 

@@ -179,6 +179,7 @@ function ChatsPageContent() {
   const [emojiOpen, setEmojiOpen] = useState(false);
   const [conversationView, setConversationView] = useState<'active' | 'archived'>('active');
   const [activeReactionMenu, setActiveReactionMenu] = useState<string | null>(null);
+  const [activeMessageMenu, setActiveMessageMenu] = useState<string | null>(null);
   const [messageReactions, setMessageReactions] = useState<Record<string, { emoji: string; users: string[] }[]>>(() => {
     if (typeof window !== 'undefined') {
       const saved = localStorage.getItem('paoblem_chat_reactions');
@@ -542,31 +543,87 @@ function ChatsPageContent() {
   });
 
   const editMutation = useMutation({
-    mutationFn: async () => {
-      if (!editingMessage) return;
+    onMutate: async ({ messageId, body }: { messageId: string; body: string }) => {
+      const queryKey = ['messaging', 'messages', activeConversationId, messageSearch, session?.access_token];
+      await queryClient.cancelQueries({ queryKey });
+
+      const previousData = queryClient.getQueryData<MessagesQueryData>(queryKey);
+
+      if (previousData) {
+        queryClient.setQueryData<MessagesQueryData>(queryKey, {
+          ...previousData,
+          messages: previousData.messages.map((msg) =>
+            msg.id === messageId
+              ? { ...msg, content: body, edited_at: new Date().toISOString() }
+              : msg
+          ),
+        });
+      }
+
+      setDraft('');
+      setEditingMessage(null);
+
+      return { previousData };
+    },
+    mutationFn: async ({ messageId, body }: { messageId: string; body: string }) => {
       const res = await fetch('/api/messages', {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', ...(await authHeaders(session)) },
-        body: JSON.stringify({ messageId: editingMessage.id, body: draft }),
+        body: JSON.stringify({ messageId, body }),
       });
       if (!res.ok) throw new Error((await res.json()).error || 'Could not edit message');
     },
     onSuccess: () => {
-      setDraft('');
-      setEditingMessage(null);
       invalidateMessaging();
     },
-    onError: (error: Error) => toast.error(error.message),
+    onError: (error: Error, variables, context) => {
+      toast.error(error.message);
+      if (context?.previousData) {
+        const queryKey = ['messaging', 'messages', activeConversationId, messageSearch, session?.access_token];
+        queryClient.setQueryData(queryKey, context.previousData);
+      }
+    },
   });
 
   const deleteMessage = async (messageId: string, scope: 'me' | 'everyone' = 'everyone') => {
-    const res = await fetch('/api/messages', {
-      method: 'DELETE',
-      headers: { 'Content-Type': 'application/json', ...(await authHeaders(session)) },
-      body: JSON.stringify({ messageId, scope }),
-    });
-    if (!res.ok) throw new Error((await res.json()).error || 'Could not delete message');
-    invalidateMessaging();
+    const queryKey = ['messaging', 'messages', activeConversationId, messageSearch, session?.access_token];
+    const previousData = queryClient.getQueryData<MessagesQueryData>(queryKey);
+
+    if (previousData) {
+      queryClient.setQueryData<MessagesQueryData>(queryKey, {
+        ...previousData,
+        messages: previousData.messages
+          .map((msg) => {
+            if (msg.id === messageId) {
+              if (scope === 'everyone') {
+                return {
+                  ...msg,
+                  content: 'This message was deleted',
+                  deleted_at: new Date().toISOString(),
+                  attachments: [],
+                };
+              }
+            }
+            return msg;
+          })
+          .filter((msg) => !(msg.id === messageId && scope === 'me')),
+      });
+    }
+
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json', ...(await authHeaders(session)) },
+        body: JSON.stringify({ messageId, scope }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error || 'Could not delete message');
+      invalidateMessaging();
+    } catch (err: any) {
+      toast.error(err.message);
+      if (previousData) {
+        queryClient.setQueryData(queryKey, previousData);
+      }
+    }
   };
 
   const conversationAction = async (conversationId: string, action: 'pin' | 'archive' | 'block' | 'report', enabled = true) => {
@@ -850,7 +907,16 @@ function ChatsPageContent() {
                 </div>
               )}
 
-              <div className="chat-messages" ref={messageListRef}>
+              <div 
+                className="chat-messages" 
+                ref={messageListRef}
+                onClick={(e) => {
+                  if (!(e.target as HTMLElement).closest('.message-bubble')) {
+                    setActiveMessageMenu(null);
+                    setActiveReactionMenu(null);
+                  }
+                }}
+              >
                 {messagesQuery.isLoading && Array.from({ length: 8 }).map((_, index) => <div className="message-skeleton" key={index} />)}
                 {!messagesQuery.isLoading && messages.length === 0 && (
                   <div className="chat-thread-empty">
@@ -867,7 +933,14 @@ function ChatsPageContent() {
                       data-message-id={message.id}
                       style={messageReactions[message.id]?.length > 0 ? { paddingBottom: '1.4rem' } : undefined}
                     >
-                      <div className="message-bubble">
+                      <div 
+                        className="message-bubble"
+                        onClick={(e) => {
+                          if ((e.target as HTMLElement).closest('button, a, img')) return;
+                          setActiveMessageMenu(activeMessageMenu === message.id ? null : message.id);
+                        }}
+                        style={{ cursor: 'pointer' }}
+                      >
                         {message.reply_to && (
                           <button className="message-reply-preview" onClick={() => document.querySelector(`[data-message-id="${message.reply_to?.id}"]`)?.scrollIntoView({ behavior: 'smooth', block: 'center' })}>
                             <Reply size={13} />
@@ -914,18 +987,18 @@ function ChatsPageContent() {
                             })}
                           </div>
                         )}
-                        <div className={`message-actions-overlay ${activeReactionMenu === message.id ? 'active' : ''}`}>
+                        <div className={`message-actions-overlay ${(activeReactionMenu === message.id || activeMessageMenu === message.id) ? 'active' : ''}`}>
                           <button className="chat-icon-btn" onClick={() => setActiveReactionMenu(activeReactionMenu === message.id ? null : message.id)} title="React"><Smile size={15} /></button>
-                          <button className="chat-icon-btn" onClick={() => setReplyTo(message)} title="Reply"><Reply size={15} /></button>
-                          <button className="chat-icon-btn" onClick={() => navigator.clipboard.writeText(message.content || '')} title="Copy"><Copy size={15} /></button>
+                          <button className="chat-icon-btn" onClick={() => { setReplyTo(message); setActiveMessageMenu(null); }} title="Reply"><Reply size={15} /></button>
+                          <button className="chat-icon-btn" onClick={() => { navigator.clipboard.writeText(message.content || ''); setActiveMessageMenu(null); toast.success('Copied to clipboard'); }} title="Copy"><Copy size={15} /></button>
                           {mine && !message.deleted_at && (
                             <>
-                              <button className="chat-icon-btn" onClick={() => { setEditingMessage(message); setDraft(message.content); }} title="Edit"><Edit3 size={15} /></button>
-                              <button className="chat-icon-btn chat-icon-btn-danger" onClick={() => deleteMessage(message.id, 'everyone').catch((err) => toast.error(err.message))} title="Delete for everyone"><Trash2 size={15} /></button>
+                              <button className="chat-icon-btn" onClick={() => { setEditingMessage(message); setDraft(message.content); setActiveMessageMenu(null); }} title="Edit"><Edit3 size={15} /></button>
+                              <button className="chat-icon-btn chat-icon-btn-danger" onClick={() => { deleteMessage(message.id, 'everyone').catch((err) => toast.error(err.message)); setActiveMessageMenu(null); }} title="Delete for everyone"><Trash2 size={15} /></button>
                             </>
                           )}
                           {!message.deleted_at && (
-                            <button className="chat-icon-btn" onClick={() => deleteMessage(message.id, 'me').catch((err) => toast.error(err.message))} title="Delete for me"><X size={15} /></button>
+                            <button className="chat-icon-btn" onClick={() => { deleteMessage(message.id, 'me').catch((err) => toast.error(err.message)); setActiveMessageMenu(null); }} title="Delete for me"><X size={15} /></button>
                           )}
                           {activeReactionMenu === message.id && (
                             <div className="message-reaction-picker">
@@ -988,7 +1061,7 @@ function ChatsPageContent() {
                     if (event.key === 'Enter' && !event.shiftKey) {
                       event.preventDefault();
                       if (editingMessage) {
-                        editMutation.mutate();
+                        editMutation.mutate({ messageId: editingMessage.id, body: draft });
                       } else {
                         sendMutation.mutate();
                       }
@@ -996,7 +1069,7 @@ function ChatsPageContent() {
                   }} placeholder="Message" rows={1} />
                   <button className="chat-send-btn" disabled={sendMutation.isPending || editMutation.isPending || (!draft.trim() && !attachments.length)} onClick={() => {
                     if (editingMessage) {
-                      editMutation.mutate();
+                      editMutation.mutate({ messageId: editingMessage.id, body: draft });
                     } else {
                       sendMutation.mutate();
                     }

@@ -7,7 +7,6 @@ import { Search, AlertTriangle, Lightbulb, User, NotebookPen, Clock, ArrowRight,
 import Navbar from '@/components/Navbar';
 import { SearchResponse, SearchResult, SearchResultSolution, SearchResultUser } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import '@/app/styles/search.css';
 
 function SearchResultsContent() {
   const searchParams = useSearchParams();
@@ -163,7 +162,7 @@ function SearchResultsContent() {
                   style={{
                     background: activeTab === tab ? 'var(--accent-blue)' : 'var(--bg-card)',
                     border: '1px solid var(--border-color)',
-                    color: activeTab === tab ? 'white' : 'var(--text-body)',
+                    color: activeTab === tab ? 'var(--bg-body)' : 'var(--text-body)',
                     padding: '6px 16px',
                     borderRadius: '20px',
                     fontSize: '0.85rem',

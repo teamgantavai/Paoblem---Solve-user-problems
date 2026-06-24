@@ -588,7 +588,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer p-1"
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, margin: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 'auto', lineHeight: 1 }}
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -668,7 +668,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer p-1"
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, margin: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 'auto', lineHeight: 1 }}
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>
@@ -1052,7 +1052,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
                   type="button"
                   onClick={() => setShowPassword(!showPassword)}
                   className="absolute right-3 top-1/2 -translate-y-1/2 text-neutral-400 hover:text-neutral-600 transition-colors cursor-pointer p-1"
-                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer' }}
+                  style={{ position: 'absolute', right: '0.75rem', top: '50%', transform: 'translateY(-50%)', background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', padding: 0, margin: 0, display: 'inline-flex', alignItems: 'center', justifyContent: 'center', height: 'auto', lineHeight: 1 }}
                 >
                   {showPassword ? 'Hide' : 'Show'}
                 </button>

@@ -4,7 +4,6 @@ import { Search, X, ChevronLeft, AlertTriangle, Lightbulb, User, Clock, Trash2, 
 import { useSearch } from '@/hooks/useSearch';
 import { SearchResult, SearchResultSolution, SearchResultUser } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
-import '@/app/styles/search.css';
 
 interface SearchOverlayProps {
   isOpen: boolean;
