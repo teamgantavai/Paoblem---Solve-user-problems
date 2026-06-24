@@ -56,8 +56,6 @@ async function insertWithFallback(
   supabase: any,
   payload: Record<string, unknown>,
 ): Promise<{ data: Record<string, unknown> | null; error: { message: string; code?: string } | null }> {
-  const optionalColumns = ['metadata', 'category', 'tags', 'link_name', 'video_url'];
-
   let { data, error } = await (supabase as any)
     .from('posts')
     .insert(payload)
@@ -65,15 +63,32 @@ async function insertWithFallback(
     .single() as { data: Record<string, unknown> | null; error: { message: string; code?: string } | null };
 
   if (error && (error.code === 'PGRST204' || /column|schema cache/i.test(error.message || ''))) {
+    console.warn('[posts/create] Primary insert failed, trying fallback keeping metadata:', error.message);
     const fallback = { ...payload };
-    for (const col of optionalColumns) {
-      delete fallback[col];
-    }
-    ({ data, error } = await (supabase as any)
+    delete fallback['category'];
+    delete fallback['tags'];
+    delete fallback['link_name'];
+    delete fallback['video_url'];
+    
+    const res = await (supabase as any)
       .from('posts')
       .insert(fallback)
       .select()
-      .single());
+      .single();
+      
+    if (res.error && (res.error.code === 'PGRST204' || /column|schema cache/i.test(res.error.message || ''))) {
+      console.warn('[posts/create] Fallback keeping metadata failed, trying absolute minimal fallback:', res.error.message);
+      const minimalFallback = { ...fallback };
+      delete minimalFallback['metadata'];
+      ({ data, error } = await (supabase as any)
+        .from('posts')
+        .insert(minimalFallback)
+        .select()
+        .single());
+    } else {
+      data = res.data;
+      error = res.error;
+    }
   }
 
   return { data, error };
@@ -129,6 +144,7 @@ export async function POST(req: NextRequest) {
       ...(typeof metadata === 'object' && metadata !== null ? metadata : {}),
       ...(category ? { category } : {}),
       ...(tags && tags.length > 0 ? { tags } : {}),
+      ...(link_name ? { link_name } : {}),
     };
 
     const insertPayload: Record<string, unknown> = {

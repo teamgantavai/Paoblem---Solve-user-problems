@@ -451,8 +451,8 @@ export default function CommentThread({
   const renderCommentCard = (node: CommentNode, opts: { isReply?: boolean; rootId: string }) => {
     const { isReply = false, rootId } = opts;
     const isOwner = session?.user?.id === node.user_id;
-    const authorName = node.profiles?.full_name || 'Anonymous';
-    const authorAvatar = node.profiles?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${node.user_id}`;
+    const authorName = node.profiles?.full_name || (node.profiles?.username ? `@${node.profiles.username}` : (session?.user && node.user_id === session.user.id ? (session.user.user_metadata?.full_name || session.user.user_metadata?.username || session.user.email?.split('@')[0]) : 'Anonymous'));
+    const authorAvatar = node.profiles?.avatar_url || (session?.user && node.user_id === session.user.id ? session.user.user_metadata?.avatar_url : undefined) || `https://api.dicebear.com/7.x/bottts/svg?seed=${node.user_id}`;
     const authorUsername = node.profiles?.username;
     const isHighlighted = highlightCommentId === node.id;
     const isEdited = (node as any).updated_at && (node as any).updated_at !== node.created_at;

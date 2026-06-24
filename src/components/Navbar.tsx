@@ -127,21 +127,24 @@ function NavbarInner() {
   }, []);
 
   const fetchNavProfile = () => {
-    if (!session?.user?.id) {
-      setProfile(null);
-      return;
-    }
-    supabase
-      .from('profiles')
-      .select('full_name, avatar_url, role, username')
-      .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setProfile(data);
-          setAvatarFailed(false); // Reset failed flag on fresh fetch
-        }
-      });
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (currentSession) {
+        setSession(currentSession);
+        supabase
+          .from('profiles')
+          .select('full_name, avatar_url, role, username')
+          .eq('id', currentSession.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setProfile(data);
+              setAvatarFailed(false); // Reset failed flag on fresh fetch
+            }
+          });
+      } else {
+        setProfile(null);
+      }
+    });
   };
 
   useEffect(() => {
@@ -154,6 +157,10 @@ function NavbarInner() {
       window.removeEventListener('profile-updated', fetchNavProfile);
     };
   }, [session?.user?.id]);
+
+  useEffect(() => {
+    setAvatarFailed(false);
+  }, [profile?.avatar_url, session?.user?.user_metadata?.avatar_url]);
 
   // Fetch notifications counts
   const { data: notifications = [] } = useQuery<AppNotification[]>({

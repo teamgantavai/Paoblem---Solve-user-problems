@@ -31,7 +31,26 @@ import ImageUploader from './ImageUploader';
 import CommentThread from './CommentThread';
 import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
-import { useQueryClient } from '@tanstack/react-query';
+import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
+
+function renderFormattedText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={idx}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={idx}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('<u>') && part.endsWith('</u>')) {
+      return <u key={idx}>{part.slice(3, -4)}</u>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
+}
 
 interface InteractivePostProps {
   initialPost: Post;
@@ -45,9 +64,55 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const highlightComment = searchParams ? searchParams.get('highlightComment') : null;
   const queryClient = useQueryClient();
 
+  const [session, setSession] = useState<any>(null);
+
+  const { data: followings = [] } = useQuery<string[]>({
+    queryKey: ['my-followings', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return [];
+      const { data } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', session.user.id);
+      return data?.map(f => f.following_id) || [];
+    },
+    enabled: !!session?.user?.id,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async (targetUserId: string) => {
+      if (!session) throw new Error('Must be logged in');
+      const res = await fetch('/api/follows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ targetUserId }),
+      });
+      if (!res.ok) throw new Error('Failed to follow');
+      return res.json();
+    },
+    onMutate: async (targetUserId) => {
+      await queryClient.cancelQueries({ queryKey: ['my-followings', session?.user?.id] });
+      const previousFollowings = queryClient.getQueryData<string[]>(['my-followings', session?.user?.id]) || [];
+      const isFollowing = previousFollowings.includes(targetUserId);
+      const nextFollowings = isFollowing
+        ? previousFollowings.filter(id => id !== targetUserId)
+        : [...previousFollowings, targetUserId];
+
+      queryClient.setQueryData(['my-followings', session?.user?.id], nextFollowings);
+      return { previousFollowings };
+    },
+    onError: (err, targetUserId, context) => {
+      if (context) {
+        queryClient.setQueryData(['my-followings', session?.user?.id], context.previousFollowings);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-followings', session?.user?.id] });
+    },
+  });
+
   const [post, setPost] = useState<Post>(initialPost);
   const [comments, setComments] = useState<Comment[]>(initialComments);
-  const [session, setSession] = useState<any>(null);
   const [userVote, setUserVote] = useState<'up' | 'down' | null>(null);
   const [isVoting, setIsVoting] = useState(false);
   const [userSolutionVotes, setUserSolutionVotes] = useState<Record<string, 'up' | 'down'>>({});
@@ -621,14 +686,20 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
 
   const handleEditComment = async (commentId: string, body: string) => {
     if (!body.trim()) return;
+    if (!session) throw new Error('Must be logged in');
 
-    const { error } = await supabase
-      .from('comments')
-      .update({ body: body.trim(), updated_at: new Date().toISOString() })
-      .eq('id', commentId)
-      .eq('user_id', session.user.id);
-
-    if (error) throw error;
+    const res = await fetch('/api/posts/comment', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ id: commentId, body: body.trim() }),
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update comment');
+    }
 
     setComments((prev) =>
       prev.map((c) =>
@@ -639,13 +710,17 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
 
   const handleDeleteComment = async (commentId: string) => {
     try {
-      const { error } = await supabase
-        .from('comments')
-        .delete()
-        .eq('id', commentId)
-        .eq('user_id', session.user.id);
-
-      if (error) throw error;
+      if (!session) throw new Error('Must be logged in');
+      const res = await fetch(`/api/posts/comment?id=${commentId}`, {
+        method: 'DELETE',
+        headers: {
+          Authorization: `Bearer ${session.access_token}`,
+        },
+      });
+      if (!res.ok) {
+        const errData = await res.json();
+        throw new Error(errData.error || 'Failed to delete comment');
+      }
 
       setComments(prev => prev.filter(c => c.id !== commentId));
       setPost(prev => ({ ...prev, comments_count: Math.max(0, prev.comments_count - 1) }));
@@ -666,6 +741,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         }
       });
       if (!res.ok) throw new Error('Delete failed');
+      sessionStorage.setItem('paoblem_toast', 'Post deleted successfully');
       router.push('/');
     } catch (err: any) {
       alert(err.message || 'Failed to delete post');
@@ -677,10 +753,10 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
 
   const isOwner = session?.user?.id === post.user_id;
   const authorProfile = post.profiles;
-  const authorName = authorProfile?.full_name || 'Anonymous';
-  const authorAvatar = authorProfile?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`;
+  const authorName = authorProfile?.full_name || (authorProfile?.username ? `@${authorProfile.username}` : (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.full_name || session.user.user_metadata?.username || session.user.email?.split('@')[0]) : 'Anonymous'));
+  const authorAvatar = authorProfile?.avatar_url || (session?.user && post.user_id === session.user.id ? session.user.user_metadata?.avatar_url : undefined) || `https://api.dicebear.com/7.x/bottts/svg?seed=${post.user_id}`;
   const authorRole = authorProfile?.role || 'Innovator';
-  const authorUsername = authorProfile?.username;
+  const authorUsername = authorProfile?.username || (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.username || session.user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || session.user.email?.split('@')[0]) : undefined);
 
   return (
     <article ref={postRef} className="card" style={{ padding: '1.5rem', marginBottom: '1.5rem' }}>
@@ -706,14 +782,45 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                 {post.type}
               </span>
             </h4>
-            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px' }}>
-              {new Date(post.created_at).toLocaleDateString(undefined, {
-                month: 'short',
-                day: 'numeric',
-                year: 'numeric',
-                hour: '2-digit',
-                minute: '2-digit'
-              })}
+            {authorUsername && (
+              <p className="post-author-username" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }} onClick={() => router.push(`/user/${authorUsername}`)}>
+                @{authorUsername}
+              </p>
+            )}
+            <p style={{ fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: '2px', display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <span>
+                {new Date(post.created_at).toLocaleDateString(undefined, {
+                  month: 'short',
+                  day: 'numeric',
+                  year: 'numeric',
+                  hour: '2-digit',
+                  minute: '2-digit'
+                })}
+              </span>
+              {session?.user?.id && session.user.id !== post.user_id && (
+                <>
+                  <span style={{ color: 'var(--text-muted)' }}>·</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      followMutation.mutate(post.user_id);
+                    }}
+                    disabled={followMutation.isPending}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: followings.includes(post.user_id) ? 'var(--text-muted)' : '#2563eb',
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {followings.includes(post.user_id) ? 'Following' : 'Follow'}
+                  </button>
+                </>
+              )}
             </p>
           </div>
         </div>
@@ -864,7 +971,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             }}
           >
             <ExternalLink size={12} />
-            <span>{post.link_name || post.external_link}</span>
+            <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
           </a>
         )}
         <h1 style={{
@@ -888,8 +995,36 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           marginBottom: '1.25rem',
           wordBreak: 'break-word'
         }}>
-          {post.body}
+          {renderFormattedText(decodeHTMLEntities(post.body))}
         </p>
+
+        {/* Category and Tags */}
+        {(() => {
+          const category = post.category || post.metadata?.category;
+          const tags = post.tags || post.metadata?.tags || [];
+          if (!category && tags.length === 0) return null;
+          return (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem', marginBottom: '1.25rem' }}>
+              {category && (
+                <span 
+                  className="post-taxonomy-tag category-hashtag"
+                  style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    router.push(`/?category=${encodeURIComponent(category)}`);
+                  }}
+                >
+                  #{category.toLowerCase().replace(/\s+/g, '')}
+                </span>
+              )}
+              {tags.map((tag: string) => (
+                <span key={tag} className="post-taxonomy-tag hashtag" style={{ color: 'var(--text-muted)', fontSize: '0.82rem' }}>
+                  #{tag}
+                </span>
+              ))}
+            </div>
+          );
+        })()}
       </div>
 
       {/* Attachments */}

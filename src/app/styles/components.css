@@ -812,7 +812,7 @@ body {
   font-size: 0.75rem;
   padding: 0.15rem 0.5rem;
   border-radius: 10px;
-  background-color: var(--accent-blue);
+  background-color: var(--accent-primary);
   color: white;
   font-weight: 700;
   white-space: nowrap;

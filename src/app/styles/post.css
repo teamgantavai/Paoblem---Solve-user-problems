@@ -461,15 +461,15 @@
 
 .composer-action-btn:hover {
   background: var(--bg-hover);
-  color: white;
+  color: var(--text-main);
 }
 
 .composer-send-btn {
   display: flex;
   align-items: center;
   gap: 0.4rem;
-  background: var(--accent-blue);
-  color: white;
+  background: var(--accent-primary);
+  color: var(--accent-primary-text, white);
   border: none;
   border-radius: 20px;
   padding: 0.42rem 1.1rem;
@@ -947,7 +947,7 @@
   width: fit-content;
   border: none;
   border-radius: 999px;
-  background: var(--accent-blue);
+  background: var(--accent-primary);
   color: white;
   font-size: 0.82rem;
   font-weight: 700;
@@ -1779,7 +1779,7 @@
 }
 
 .comment-tree-edit-save {
-  background: var(--accent-blue);
+  background: var(--accent-primary);
   color: white;
 }
 

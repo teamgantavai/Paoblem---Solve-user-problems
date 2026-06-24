@@ -609,7 +609,7 @@ export default function PhotoEditorModal({ isOpen, onClose, imageUrl, onSave }: 
                     style={{
                       fontSize: '0.72rem',
                       padding: '0.25rem 0.65rem',
-                      background: aspectRatio === ratio ? 'var(--accent-blue)' : 'var(--bg-hover)',
+                      background: aspectRatio === ratio ? 'var(--accent-primary)' : 'var(--bg-hover)',
                       color: aspectRatio === ratio ? 'white' : 'var(--text-muted)',
                       border: '1px solid var(--border-color)',
                       textTransform: 'capitalize',
@@ -635,7 +635,7 @@ export default function PhotoEditorModal({ isOpen, onClose, imageUrl, onSave }: 
                   style={{
                     fontSize: '0.75rem',
                     padding: '0.35rem 0.75rem',
-                    background: filter === f.value ? 'var(--accent-blue)' : 'var(--bg-hover)',
+                    background: filter === f.value ? 'var(--accent-primary)' : 'var(--bg-hover)',
                     color: filter === f.value ? 'white' : 'var(--text-muted)',
                     border: '1px solid var(--border-color)',
                   }}

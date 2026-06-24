@@ -137,13 +137,13 @@ async function fileToAttachment(file: File): Promise<Attachment> {
   };
 }
 
-function Avatar({ profile, size = 42 }: { profile?: Partial<Profile> | null; size?: number }) {
+function Avatar({ profile, size = 42, onClick }: { profile?: Partial<Profile> | null; size?: number; onClick?: () => void }) {
   const [failed, setFailed] = useState(false);
   if (profile?.avatar_url && !failed) {
-    return <img className="chat-avatar" src={profile.avatar_url} alt={displayName(profile)} style={{ width: size, height: size }} onError={() => setFailed(true)} />;
+    return <img className="chat-avatar" src={profile.avatar_url} alt={displayName(profile)} style={{ width: size, height: size, cursor: onClick ? 'pointer' : 'default' }} onError={() => setFailed(true)} onClick={onClick} />;
   }
   return (
-    <span className="chat-avatar chat-avatar-fallback" style={{ width: size, height: size }}>
+    <span className="chat-avatar chat-avatar-fallback" style={{ width: size, height: size, cursor: onClick ? 'pointer' : 'default' }} onClick={onClick}>
       <User size={Math.max(16, Math.floor(size * 0.48))} />
     </span>
   );
@@ -164,6 +164,7 @@ function ChatsPageContent() {
 
   const [session, setSession] = useState<Session>(null);
   const [sessionLoading, setSessionLoading] = useState(true);
+  const [enlargedAvatarUrl, setEnlargedAvatarUrl] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(searchParams.get('conversationId'));
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
@@ -712,10 +713,16 @@ function ChatsPageContent() {
                     <ArrowLeft size={20} />
                   </button>
                   <span className="chat-avatar-wrap">
-                    <Avatar profile={activeConversation.partner} />
+                    <Avatar 
+                      profile={activeConversation.partner} 
+                      onClick={() => setEnlargedAvatarUrl(activeConversation.partner.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${activeConversation.partner.id}`)} 
+                    />
                     <i className={activeConversation.partner?.is_online ? 'online' : ''} />
                   </span>
-                  <div>
+                  <div 
+                    onClick={() => router.push(activeConversation.partner.username ? `/user/${activeConversation.partner.username}` : `/profile?userId=${activeConversation.partner.id}`)}
+                    style={{ cursor: 'pointer' }}
+                  >
                     <h2>{displayName(activeConversation.partner)}</h2>
                     <p>{activeTyping ? `${displayName(activeConversation.partner)} is typing...` : statusText(activeConversation.partner)}</p>
                   </div>
@@ -858,6 +865,36 @@ function ChatsPageContent() {
           )}
         </section>
       </main>
+
+      {enlargedAvatarUrl && (
+        <div 
+          onClick={() => setEnlargedAvatarUrl(null)}
+          style={{
+            position: 'fixed',
+            inset: 0,
+            backgroundColor: 'rgba(0, 0, 0, 0.85)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 9999,
+            cursor: 'zoom-out',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <img 
+            src={enlargedAvatarUrl} 
+            alt="Enlarged Avatar" 
+            style={{
+              maxWidth: '90%',
+              maxHeight: '90%',
+              borderRadius: '12px',
+              boxShadow: '0 8px 32px rgba(0, 0, 0, 0.5)',
+              transform: 'scale(1)',
+              transition: 'transform 0.2s ease',
+            }}
+          />
+        </div>
+      )}
     </div>
   );
 }

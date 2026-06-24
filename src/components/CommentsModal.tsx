@@ -99,14 +99,34 @@ export default function CommentsModal({
   };
 
   const handleEditComment = async (commentId: string, body: string) => {
-    const { error } = await supabase.from('comments').update({ body }).eq('id', commentId);
-    if (error) throw new Error(error.message);
+    if (!session) throw new Error('Must be logged in');
+    const res = await fetch('/api/posts/comment', {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+        Authorization: `Bearer ${session.access_token}`,
+      },
+      body: JSON.stringify({ id: commentId, body }),
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to update comment');
+    }
     queryClient.invalidateQueries({ queryKey: ['comments', post.id] });
   };
 
   const handleDeleteComment = async (commentId: string) => {
-    const { error } = await supabase.from('comments').delete().eq('id', commentId);
-    if (error) throw new Error(error.message);
+    if (!session) throw new Error('Must be logged in');
+    const res = await fetch(`/api/posts/comment?id=${commentId}`, {
+      method: 'DELETE',
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    });
+    if (!res.ok) {
+      const errData = await res.json();
+      throw new Error(errData.error || 'Failed to delete comment');
+    }
     queryClient.invalidateQueries({ queryKey: ['comments', post.id] });
     queryClient.invalidateQueries({ queryKey: ['posts'] });
   };

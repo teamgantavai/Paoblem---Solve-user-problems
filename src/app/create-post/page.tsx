@@ -18,6 +18,12 @@ import {
   Users,
   X,
   Sparkles,
+  Bold,
+  Italic,
+  Underline,
+  Code,
+  List,
+  ListOrdered,
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Navbar from '@/components/Navbar';
@@ -38,14 +44,67 @@ function normalizeTag(value: string) {
   return value.trim().replace(/^#/, '').toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '');
 }
 
-function displayName(profile: Profile | null, fallback?: string | null) {
-  return profile?.full_name || profile?.username || fallback || 'Member';
+function displayName(profile: Profile | null, sessionUser: any) {
+  if (profile?.full_name) return profile.full_name;
+  if (profile?.username) return `@${profile.username}`;
+  const metaName = sessionUser?.user_metadata?.full_name || sessionUser?.user_metadata?.username || sessionUser?.user_metadata?.name;
+  if (metaName) return metaName;
+  if (sessionUser?.email) return sessionUser.email.split('@')[0];
+  return 'Member';
+}
+
+function plainToHtml(text: string): string {
+  if (!text) return '';
+  let html = text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/&lt;u&gt;/gi, '<u>')
+    .replace(/&lt;\/u&gt;/gi, '</u>');
+
+  html = html.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+  html = html.replace(/\*([^*]+)\*/g, '<em>$1</em>');
+  html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+  html = html.replace(/\n/g, '<br>');
+  return html;
+}
+
+function htmlToPlain(html: string): string {
+  if (!html) return '';
+  let text = html;
+  
+  // Replace non-breaking spaces with standard spaces
+  text = text.replace(/&nbsp;/gi, ' ').replace(/\u00a0/g, ' ');
+
+  text = text.replace(/<br\s*\/?>/gi, '\n');
+  text = text.replace(/<\/div><div>/gi, '\n');
+  text = text.replace(/<div>/gi, '');
+  text = text.replace(/<\/div>/gi, '');
+  text = text.replace(/<p>/gi, '');
+  text = text.replace(/<\/p>/gi, '\n');
+  text = text.replace(/<strong>(.*?)<\/strong>/gi, '**$1**');
+  text = text.replace(/<b>(.*?)<\/b>/gi, '**$1**');
+  text = text.replace(/<em>(.*?)<\/em>/gi, '*$1*');
+  text = text.replace(/<i>(.*?)<\/i>/gi, '*$1*');
+  text = text.replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>');
+  text = text.replace(/<code>(.*?)<\/code>/gi, '`$1`');
+  text = text.replace(/<li>(.*?)<\/li>/gi, '- $1\n');
+  text = text.replace(/<ul>/gi, '');
+  text = text.replace(/<\/ul>/gi, '\n');
+  text = text.replace(/<ol>/gi, '');
+  text = text.replace(/<\/ol>/gi, '\n');
+  
+  // Strip all other unsupported HTML tags (like <font>, <span>, style attrs, etc.)
+  text = text.replace(/<\/?(?!strong\b|b\b|em\b|i\b|u\b|code\b|li\b|ul\b|ol\b)\w+[^>]*>/gi, '');
+  
+  text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
+  return text;
 }
 
 export default function CreatePostPage() {
   const router = useRouter();
   const queryClient = useQueryClient();
-  const bodyRef = useRef<HTMLTextAreaElement | null>(null);
+  const bodyRef = useRef<HTMLDivElement | null>(null);
 
   const [session, setSession] = useState<Session>(null);
   const [profile, setProfile] = useState<Profile | null>(null);
@@ -56,23 +115,27 @@ export default function CreatePostPage() {
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [externalLink, setExternalLink] = useState('');
   const [linkName, setLinkName] = useState('');
-  const [categorySearch, setCategorySearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
   const [tagInput, setTagInput] = useState('');
   const [tags, setTags] = useState<string[]>([]);
-  const [pollEnabled, setPollEnabled] = useState(false);
-  const [pollQuestion, setPollQuestion] = useState('');
-  const [pollOptions, setPollOptions] = useState(['', '']);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [lastSavedAt, setLastSavedAt] = useState<string | null>(null);
+  const [showSavedStatus, setShowSavedStatus] = useState(false);
+  const [draftModalOpen, setDraftModalOpen] = useState(false);
+
+  // Additional settings panels toggle state
+  const [tagsEnabled, setTagsEnabled] = useState(false);
+  const [linkEnabled, setLinkEnabled] = useState(false);
 
   // AI Enhancer state
   const [aiEnhancing, setAiEnhancing] = useState(false);
   const [aiPreviewOpen, setAiPreviewOpen] = useState(false);
   const [originalBody, setOriginalBody] = useState<string | null>(null);
   const [enhancedBody, setEnhancedBody] = useState<string | null>(null);
+  const [aiEnhancedUsed, setAiEnhancedUsed] = useState(false);
+
+  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => setSession(data.session));
@@ -92,33 +155,32 @@ export default function CreatePostPage() {
 
   useEffect(() => {
     window.setTimeout(() => {
-    try {
-      const raw = localStorage.getItem(DRAFT_KEY);
-      if (!raw) return;
-      const draft = JSON.parse(raw);
-      setPostType(draft.postType || null);
-      setVisibility(draft.visibility || 'public');
-      setTitle(draft.title || '');
-      setBody(draft.body || '');
-      setExternalLink(draft.externalLink || '');
-      setLinkName(draft.linkName || '');
-      setSelectedCategory(draft.selectedCategory || null);
-      setTags(Array.isArray(draft.tags) ? draft.tags : []);
-      setPollEnabled(Boolean(draft.pollEnabled));
-      setPollQuestion(draft.pollQuestion || '');
-      setPollOptions(Array.isArray(draft.pollOptions) && draft.pollOptions.length >= 2 ? draft.pollOptions : ['', '']);
-    } catch {}
+      try {
+        const raw = localStorage.getItem(DRAFT_KEY);
+        if (!raw) return;
+        const draft = JSON.parse(raw);
+        setPostType(draft.postType || null);
+        setVisibility(draft.visibility || 'public');
+        setTitle(draft.title || '');
+        setBody(draft.body || '');
+        setExternalLink(draft.externalLink || '');
+        setLinkName(draft.linkName || '');
+        setSelectedCategory(draft.selectedCategory || null);
+        setTags(Array.isArray(draft.tags) ? draft.tags : []);
+
+        if (draft.externalLink) setLinkEnabled(true);
+        if (Array.isArray(draft.tags) && draft.tags.length > 0) setTagsEnabled(true);
+      } catch {}
     }, 0);
   }, []);
 
   useEffect(() => {
-    if (!bodyRef.current) return;
-    bodyRef.current.style.height = 'auto';
-    bodyRef.current.style.height = `${Math.min(bodyRef.current.scrollHeight, 560)}px`;
-  }, [body]);
-
-  useEffect(() => {
+    if (!title && !body && !postType && !selectedCategory) return;
     const id = window.setTimeout(() => {
+      const now = new Date();
+      const timeStr = now.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      const fullDateStr = now.toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' }) + ' ' + timeStr;
+
       localStorage.setItem(DRAFT_KEY, JSON.stringify({
         postType,
         visibility,
@@ -128,24 +190,40 @@ export default function CreatePostPage() {
         linkName,
         selectedCategory,
         tags,
-        pollEnabled,
-        pollQuestion,
-        pollOptions,
+        savedAt: fullDateStr
       }));
-      setLastSavedAt(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+      setLastSavedAt(timeStr);
     }, 700);
     return () => window.clearTimeout(id);
-  }, [postType, visibility, title, body, externalLink, linkName, selectedCategory, tags, pollEnabled, pollQuestion, pollOptions]);
+  }, [postType, visibility, title, body, externalLink, linkName, selectedCategory, tags]);
 
-  const filteredCategories = useMemo(() => {
-    const term = categorySearch.trim().toLowerCase();
-    if (!term) return CATEGORY_CHIPS;
-    return CATEGORY_CHIPS.filter((category) => category.toLowerCase().includes(term));
-  }, [categorySearch]);
+  useEffect(() => {
+    if (lastSavedAt) {
+      setShowSavedStatus(true);
+      const timer = setTimeout(() => {
+        setShowSavedStatus(false);
+      }, 3000);
+      return () => clearTimeout(timer);
+    }
+  }, [lastSavedAt]);
 
-  const bodyCount = body.length;
-  const pollIsValid = !pollEnabled || (pollQuestion.trim().length >= 3 && pollOptions.filter((option) => option.trim().length >= 1).length >= 2);
-  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY && pollIsValid);
+  // Synchronize body state to editor innerHTML
+  useEffect(() => {
+    if (bodyRef.current) {
+      const currentHtml = bodyRef.current.innerHTML;
+      const currentPlain = htmlToPlain(currentHtml);
+      
+      const normCurrent = currentPlain.replace(/\r?\n/g, '').trim();
+      const normBody = body.replace(/\r?\n/g, '').trim();
+      
+      if (normCurrent !== normBody) {
+        bodyRef.current.innerHTML = plainToHtml(body);
+      }
+    }
+  }, [body]);
+
+  const bodyCount = body.trim().length;
+  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY);
 
   const addTag = () => {
     const next = normalizeTag(tagInput);
@@ -154,8 +232,41 @@ export default function CreatePostPage() {
     setTagInput('');
   };
 
+  const insertFormat = (command: string, value: string = '') => {
+    document.execCommand(command, false, value);
+    if (bodyRef.current) {
+      setBody(htmlToPlain(bodyRef.current.innerHTML));
+    }
+  };
+
+  const insertCode = () => {
+    const selection = window.getSelection();
+    if (selection && selection.toString()) {
+      document.execCommand('insertHTML', false, `<code>${selection.toString()}</code>`);
+    } else {
+      document.execCommand('insertHTML', false, '<code>code</code>');
+    }
+    if (bodyRef.current) {
+      setBody(htmlToPlain(bodyRef.current.innerHTML));
+    }
+  };
+
+  const insertLink = () => {
+    const url = prompt('Enter URL:');
+    if (url) {
+      document.execCommand('createLink', false, url);
+      if (bodyRef.current) {
+        setBody(htmlToPlain(bodyRef.current.innerHTML));
+      }
+    }
+  };
+
   const handleAIEnhance = async () => {
-    if (body.trim().length < 15) return;
+    if (aiEnhancedUsed) return;
+    if (body.trim().length < 15) {
+      setError('Description must be at least 15 characters to use AI Enhance.');
+      return;
+    }
     setAiEnhancing(true);
     setError(null);
     try {
@@ -169,6 +280,7 @@ export default function CreatePostPage() {
       setOriginalBody(body);
       setEnhancedBody(data.enhanced);
       setAiPreviewOpen(true);
+      setAiEnhancedUsed(true);
     } catch (err: any) {
       setError(err.message || 'AI Enhancer failed.');
     } finally {
@@ -179,7 +291,8 @@ export default function CreatePostPage() {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!session) return setError('Please sign in to publish.');
-    if (!isValid || !postType) return setError('Choose Problem or Idea and add enough detail to publish.');
+    if (!postType) return setError('Please select a Post Type (Problem or Idea).');
+    if (!isValid) return setError('Please make sure your title has at least 3 characters and description has at least 10.');
 
     setSubmitting(true);
     setError(null);
@@ -188,10 +301,6 @@ export default function CreatePostPage() {
     try {
       const link = externalLink.trim();
       const formattedLink = link ? (/^https?:\/\//i.test(link) ? link : `https://${link}`) : null;
-      const poll = pollEnabled ? {
-        question: pollQuestion.trim(),
-        options: pollOptions.map((option) => option.trim()).filter(Boolean).slice(0, 4),
-      } : null;
 
       const res = await fetch('/api/posts/create', {
         method: 'POST',
@@ -205,7 +314,7 @@ export default function CreatePostPage() {
           link_name: linkName.trim() || null,
           category: selectedCategory,
           tags,
-          metadata: { visibility, category: selectedCategory, tags, poll },
+          metadata: { visibility, category: selectedCategory, tags },
         }),
       });
       const data = await res.json();
@@ -215,12 +324,15 @@ export default function CreatePostPage() {
         try {
           const postWithProfile = {
             ...data.post,
-            profiles: profile ? {
-              full_name: profile.full_name,
-              avatar_url: profile.avatar_url,
-              username: profile.username,
+            category: data.post.category || selectedCategory,
+            link_name: data.post.link_name || linkName.trim() || null,
+            external_link: data.post.external_link || formattedLink,
+            profiles: {
+              full_name: displayName(profile, session?.user),
+              avatar_url: profile?.avatar_url || session?.user?.user_metadata?.avatar_url || null,
+              username: profile?.username || session?.user?.user_metadata?.username || null,
               role: null
-            } : null,
+            },
             comments_count: 0,
             upvotes: 0,
             downvotes: 0
@@ -243,178 +355,426 @@ export default function CreatePostPage() {
     }
   };
 
+  const userAvatarUrl = profile?.avatar_url || session?.user?.user_metadata?.avatar_url || undefined;
+  const userFullName = displayName(profile, session?.user);
+
   return (
     <div className="app-container">
       <Navbar />
       <main className="create-post-shell">
-        <form className="create-post-panel cp-modern-panel" onSubmit={submit}>
+        <form className="create-post-panel" onSubmit={submit}>
+          {/* HEADER SECTION */}
           <header className="cp-modern-header">
             <button className="cp-clean-icon-btn" type="button" onClick={() => router.back()} aria-label="Go back">
               <ArrowLeft size={19} />
             </button>
             <div className="cp-author-block">
-              <Avatar src={profile?.avatar_url || undefined} name={displayName(profile, session?.user?.email)} size={48} />
+              <Avatar src={userAvatarUrl} name={userFullName} size={42} />
               <div>
-                <h1>{displayName(profile, session?.user?.email)}</h1>
-                <p>{profile?.reputation ? `${profile.reputation} reputation` : 'Community member'}</p>
+                <h1>{userFullName}</h1>
               </div>
             </div>
-            <label className="cp-visibility">
-              {visibility === 'public' ? <Globe2 size={15} /> : visibility === 'community' ? <Users size={15} /> : <Lock size={15} />}
-              <select value={visibility} onChange={(event) => setVisibility(event.target.value as Visibility)} aria-label="Post visibility">
-                <option value="public">Public</option>
-                <option value="community">Community</option>
-                <option value="private">Private draft</option>
-              </select>
-            </label>
+            {showSavedStatus && lastSavedAt ? (
+              <div className="cp-draft-meta-top">
+                <span>Saved {lastSavedAt}</span>
+              </div>
+            ) : lastSavedAt ? (
+              <button
+                type="button"
+                className="cp-saved-drafts-btn"
+                onClick={() => setDraftModalOpen(true)}
+              >
+                Saved drafts
+              </button>
+            ) : null}
           </header>
 
-          <section className="cp-composer">
-            <input
-              className="cp-title-input"
-              value={title}
-              onChange={(event) => setTitle(event.target.value)}
-              maxLength={300}
-              placeholder="Give it a clear title"
-            />
-            <textarea
-              ref={bodyRef}
-              value={body}
-              onChange={(event) => setBody(event.target.value)}
-              maxLength={MAX_BODY}
-              placeholder="Share a problem, idea, insight, or challenge..."
-              rows={7}
-            />
-            {aiPreviewOpen && (
-              <div className="cp-ai-split" style={{ margin: '1rem 0 0' }}>
-                <div className="cp-ai-split-header">
-                  <span className="cp-ai-split-label">AI Enhancement</span>
-                  <div className="cp-ai-split-actions">
-                    <button type="button" className="cp-ai-btn cp-ai-btn--decline" onClick={() => setAiPreviewOpen(false)}>Decline</button>
-                    <button type="button" className="cp-ai-btn cp-ai-btn--accept" onClick={() => { setBody(enhancedBody || ''); setAiPreviewOpen(false); }}>Accept</button>
+          {/* MAIN FORM BODY */}
+          <div className="cp-form-body">
+            {/* POST TITLE */}
+            <div className="cp-field-group">
+              <label className="cp-input-label">Post Title</label>
+              <input
+                className="cp-text-input"
+                value={title}
+                onChange={(event) => setTitle(event.target.value)}
+                maxLength={300}
+                placeholder="Give your post a clear title..."
+              />
+            </div>
+
+            {/* SIDE-BY-SIDE DROPDOWNS */}
+            <div className="cp-dropdowns-row">
+              {/* POST TYPE DROPDOWN */}
+              <div className="cp-field-group">
+                <label className="cp-input-label">Post Type</label>
+                <select
+                  value={postType || ''}
+                  onChange={(event) => setPostType((event.target.value as PostType) || null)}
+                  className="cp-select-dropdown"
+                >
+                  <option value="" disabled>Select post type...</option>
+                  <option value="problem">Problem</option>
+                  <option value="idea">Idea</option>
+                </select>
+              </div>
+
+              {/* CATEGORY DROPDOWN */}
+              <div className="cp-field-group">
+                <label className="cp-input-label">Category</label>
+                <select
+                  value={selectedCategory || ''}
+                  onChange={(event) => setSelectedCategory(event.target.value || null)}
+                  className="cp-select-dropdown"
+                >
+                  <option value="" disabled>Select category...</option>
+                  {CATEGORY_CHIPS.map((cat) => (
+                    <option key={cat} value={cat}>
+                      {cat}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            </div>
+
+            {/* DESCRIPTION WYSIWYG EDITOR */}
+            <div className="cp-field-group">
+              <label className="cp-input-label">Description</label>
+              <div className="cp-editor-container">
+                {/* TOOLBAR */}
+                <div className="cp-editor-toolbar">
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('bold')} title="Bold" className="cp-toolbar-btn">
+                    <Bold size={15} />
+                  </button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('italic')} title="Italic" className="cp-toolbar-btn">
+                    <Italic size={15} />
+                  </button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('underline')} title="Underline" className="cp-toolbar-btn">
+                    <Underline size={15} />
+                  </button>
+                  
+                  <span className="cp-toolbar-divider" />
+                  
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertCode} title="Code" className="cp-toolbar-btn">
+                    <Code size={15} />
+                  </button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('insertUnorderedList')} title="Bullet List" className="cp-toolbar-btn">
+                    <List size={15} />
+                  </button>
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('insertOrderedList')} title="Numbered List" className="cp-toolbar-btn">
+                    <ListOrdered size={15} />
+                  </button>
+                  
+                  <span className="cp-toolbar-divider" />
+                  
+                  <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertLink} title="Link" className="cp-toolbar-btn">
+                    <Link2 size={15} />
+                  </button>
+
+                  {aiEnhancing ? (
+                    <div 
+                      style={{ 
+                        marginLeft: 'auto', 
+                        display: 'flex', 
+                        flexDirection: 'column',
+                        alignItems: 'flex-end',
+                        gap: '4px', 
+                        width: '100px',
+                        paddingRight: '8px'
+                      }}
+                    >
+                      <span style={{ fontSize: '0.65rem', color: 'var(--accent-primary)', fontWeight: 600 }}>Enhancing...</span>
+                      <div style={{ width: '100%', height: '4px', background: 'var(--border-color)', borderRadius: '2px', overflow: 'hidden', position: 'relative' }}>
+                        <div className="cp-progress-bar-fill" />
+                      </div>
+                    </div>
+                  ) : (
+                    <button
+                      type="button"
+                      className="cp-toolbar-btn"
+                      style={{ 
+                        marginLeft: 'auto', 
+                        display: 'flex', 
+                        alignItems: 'center', 
+                        gap: '4px', 
+                        width: 'auto', 
+                        padding: '0 8px', 
+                        fontSize: '0.75rem', 
+                        fontWeight: 600, 
+                        color: (body.trim().length < 15 || aiEnhancedUsed) ? 'var(--text-muted)' : 'var(--accent-primary)',
+                        cursor: (body.trim().length < 15 || aiEnhancedUsed) ? 'not-allowed' : 'pointer'
+                      }}
+                      onClick={handleAIEnhance}
+                      disabled={body.trim().length < 15 || aiEnhancedUsed}
+                    >
+                      <Sparkles size={13} />
+                      AI Enhance
+                    </button>
+                  )}
+                </div>
+
+                {/* TEXTAREA */}
+                <div
+                  ref={bodyRef}
+                  contentEditable
+                  onInput={(e) => setBody(htmlToPlain(e.currentTarget.innerHTML))}
+                  data-placeholder="Write something..."
+                  className="cp-editor-textarea cp-editor-contenteditable"
+                  style={{
+                    minHeight: '180px',
+                    outline: 'none',
+                    overflowY: 'auto'
+                  }}
+                />
+              </div>
+
+              {/* DESCRIPTION CHARACTER COUNT (Directly below description) */}
+              <div style={{ display: 'flex', justifyContent: 'flex-end', marginTop: '6px', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                <span className={bodyCount > MAX_BODY * 0.9 ? 'warn' : ''}>
+                  {bodyCount.toLocaleString()} / {MAX_BODY.toLocaleString()} characters
+                </span>
+              </div>
+            </div>
+
+
+
+            {/* DRAG AND DROP MEDIA UPLOADER */}
+            <div className="cp-field-group cp-media-section">
+              <label className="cp-input-label">Add Media</label>
+              <ImageUploader imageUrls={imageUrls} onChange={setImageUrls} maxFiles={10} />
+            </div>
+
+            {/* OPTIONAL EXPANDABLE SETTINGS (Tags & Link only - Poll option removed) */}
+            <div style={{ display: 'flex', gap: '16px', borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+              <button
+                type="button"
+                className="cp-section-toggle"
+                onClick={() => setTagsEnabled(!tagsEnabled)}
+              >
+                <Plus size={14} /> {tagsEnabled ? 'Hide Tags' : 'Add Tags'}
+              </button>
+              <button
+                type="button"
+                className="cp-section-toggle"
+                onClick={() => setLinkEnabled(!linkEnabled)}
+              >
+                <Plus size={14} /> {linkEnabled ? 'Hide Link' : 'Add Link'}
+              </button>
+            </div>
+
+            {/* LINK ACCORDION PANEL */}
+            {linkEnabled && (
+              <div className="cp-collapsible-block">
+                <div className="cp-input-label">Attach External Link</div>
+                <div className="cp-clean-grid">
+                  <label className="cp-clean-field">
+                    <span>URL</span>
+                    <input value={externalLink} onChange={(event) => setExternalLink(event.target.value)} placeholder="https://example.com" />
+                  </label>
+                  <label className="cp-clean-field">
+                    <span>Display Label</span>
+                    <input value={linkName} onChange={(event) => setLinkName(event.target.value)} maxLength={60} placeholder="e.g. Website URL" />
+                  </label>
+                </div>
+              </div>
+            )}
+
+            {/* TAGS ACCORDION PANEL */}
+            {tagsEnabled && (
+              <div className="cp-collapsible-block">
+                <div className="cp-input-label">Post Tags</div>
+                <div className="cp-clean-tag-input">
+                  <input value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => {
+                    if (event.key === 'Enter') {
+                      event.preventDefault();
+                      addTag();
+                    }
+                  }} placeholder="Add tags (e.g. startup) and press Enter" />
+                  <button type="button" onClick={addTag} disabled={!tagInput.trim() || tags.length >= 5}>Add</button>
+                </div>
+                {tags.length > 0 && (
+                  <div className="cp-clean-tag-list">
+                    {tags.map((tag) => (
+                      <span key={tag}>
+                        #{tag}
+                        <button type="button" onClick={() => setTags((current) => current.filter((item) => item !== tag))} aria-label={`Remove ${tag}`}><X size={12} /></button>
+                      </span>
+                    ))}
                   </div>
-                </div>
-                <div className="split-view">
-                  <div className="split-pane" style={{ padding: '0.75rem', fontSize: '0.8rem' }}>{originalBody}</div>
-                  <div className="split-pane" style={{ padding: '0.75rem', fontSize: '0.8rem', color: '#a5b4fc' }}>{enhancedBody}</div>
-                </div>
+                )}
               </div>
             )}
-          </section>
-
-          <section className="cp-badge-grid" aria-label="Choose post type">
-            <button type="button" className={`cp-type-card problem ${postType === 'problem' ? 'active' : ''}`} onClick={() => setPostType('problem')}>
-              <span className="cp-type-icon"><AlertTriangle size={19} /></span>
-              <strong>PROBLEM</strong>
-              <small>Share a problem you are facing</small>
-              {postType === 'problem' && <Check className="cp-type-check" size={17} />}
-            </button>
-            <button type="button" className={`cp-type-card idea ${postType === 'idea' ? 'active' : ''}`} onClick={() => setPostType('idea')}>
-              <span className="cp-type-icon"><Lightbulb size={19} /></span>
-              <strong>IDEA</strong>
-              <small>Share an idea or opportunity</small>
-              {postType === 'idea' && <Check className="cp-type-check" size={17} />}
-            </button>
-          </section>
-
-          <section className="cp-section">
-            <div className="cp-clean-section-title">Category</div>
-            <input className="cp-search-input" value={categorySearch} onChange={(event) => setCategorySearch(event.target.value)} placeholder="Search categories" />
-            <div className="cp-clean-chip-row">
-              {filteredCategories.map((category) => (
-                <button key={category} type="button" className={selectedCategory === category ? 'active' : ''} onClick={() => setSelectedCategory(selectedCategory === category ? null : category)}>
-                  {category}
-                </button>
-              ))}
-            </div>
-          </section>
-
-          <section className="cp-section cp-media-section">
-            <div className="cp-clean-section-title"><ImageIcon size={16} /> Media</div>
-            <ImageUploader imageUrls={imageUrls} onChange={setImageUrls} maxFiles={10} />
-          </section>
-
-          <section className="cp-actions-row" aria-label="Post actions">
-            <button type="button" onClick={() => document.querySelector<HTMLElement>('.uploader-box')?.click()}><ImageIcon size={16} /> Add Media</button>
-            <button type="button" className={pollEnabled ? 'active' : ''} onClick={() => setPollEnabled((value) => !value)}><Plus size={16} /> Add Poll</button>
-            <button type="button" onClick={() => document.getElementById('cp-tags-input')?.focus()}><Hash size={16} /> Add Tags</button>
-            <button type="button" onClick={() => document.getElementById('cp-link-input')?.focus()}><Link2 size={16} /> Add Link</button>
-            <button
-              type="button"
-              className={body.trim().length >= 15 ? 'active' : ''}
-              onClick={handleAIEnhance}
-              disabled={body.trim().length < 15 || aiEnhancing}
-              style={{
-                display: 'inline-flex',
-                alignItems: 'center',
-                gap: '0.35rem',
-                opacity: body.trim().length >= 15 ? 1 : 0.5,
-              }}
-            >
-              {aiEnhancing ? <Loader2 size={16} className="spin" /> : <Sparkles size={16} />}
-              AI Enhance
-            </button>
-          </section>
-
-          {pollEnabled && (
-            <section className="cp-section cp-poll-box">
-              <div className="cp-clean-section-title">Poll</div>
-              <input value={pollQuestion} onChange={(event) => setPollQuestion(event.target.value)} placeholder="Ask a concise poll question" />
-              {pollOptions.map((option, index) => (
-                <div className="cp-poll-option" key={index}>
-                  <input value={option} onChange={(event) => setPollOptions((current) => current.map((item, itemIndex) => itemIndex === index ? event.target.value : item))} placeholder={`Option ${index + 1}`} />
-                  {pollOptions.length > 2 && <button type="button" onClick={() => setPollOptions((current) => current.filter((_, itemIndex) => itemIndex !== index))} aria-label="Remove option"><X size={15} /></button>}
-                </div>
-              ))}
-              {pollOptions.length < 4 && <button className="cp-add-option" type="button" onClick={() => setPollOptions((current) => [...current, ''])}>Add option</button>}
-            </section>
-          )}
-
-          <section className="cp-clean-grid">
-            <label className="cp-clean-field">
-              <span><Link2 size={14} /> Link</span>
-              <input id="cp-link-input" value={externalLink} onChange={(event) => setExternalLink(event.target.value)} placeholder="https://example.com" />
-            </label>
-            <label className="cp-clean-field">
-              <span>Link label</span>
-              <input value={linkName} onChange={(event) => setLinkName(event.target.value)} maxLength={60} placeholder="Optional label" />
-            </label>
-          </section>
-
-          <section className="cp-section">
-            <div className="cp-clean-section-title">Tags</div>
-            <div className="cp-clean-tag-input">
-              <input id="cp-tags-input" value={tagInput} onChange={(event) => setTagInput(event.target.value)} onKeyDown={(event) => {
-                if (event.key === 'Enter') {
-                  event.preventDefault();
-                  addTag();
-                }
-              }} placeholder="Add up to 5 tags" />
-              <button type="button" onClick={addTag} disabled={!tagInput.trim() || tags.length >= 5}>Add</button>
-            </div>
-            {tags.length > 0 && (
-              <div className="cp-clean-tag-list">
-                {tags.map((tag) => (
-                  <span key={tag}>#{tag}<button type="button" onClick={() => setTags((current) => current.filter((item) => item !== tag))} aria-label={`Remove ${tag}`}><X size={12} /></button></span>
-                ))}
-              </div>
-            )}
-          </section>
+          </div>
 
           {error && <div className="cp-clean-error">{error}</div>}
-          {success && <div className="cp-clean-success">Published. Redirecting...</div>}
+          {success && <div className="cp-clean-success">Published successfully. Redirecting...</div>}
 
-          <footer className="cp-clean-footer cp-modern-footer">
-            <div className="cp-draft-meta">
-              <span className={bodyCount > MAX_BODY * 0.9 ? 'warn' : ''}>{bodyCount.toLocaleString()} / {MAX_BODY.toLocaleString()}</span>
-              <span>{lastSavedAt ? `Draft saved ${lastSavedAt}` : 'Draft autosaves'}</span>
+          {/* FOOTER SECTION */}
+          <footer className="cp-modern-footer">
+            <div className="cp-clean-actions-right">
+              <button className="cp-clean-cancel" type="button" onClick={() => router.back()}>
+                Cancel
+              </button>
+              <button type="submit" className="cp-clean-submit" disabled={!isValid || submitting}>
+                {submitting ? <><Loader2 size={16} className="spin" /> Publishing...</> : <><Send size={16} /> Publish</>}
+              </button>
             </div>
-            <button type="submit" className="cp-clean-submit" disabled={!isValid || submitting}>
-              {submitting ? <><Loader2 size={16} className="spin" /> Publishing...</> : <><Send size={16} /> Post</>}
-            </button>
           </footer>
         </form>
       </main>
+
+      {draftModalOpen && (
+        <div className="cp-modal-overlay" onClick={() => setDraftModalOpen(false)}>
+          <div className="cp-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="cp-modal-header">
+              <h2>Saved Draft</h2>
+              <button className="cp-modal-close" type="button" onClick={() => setDraftModalOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="cp-modal-body">
+              {(() => {
+                try {
+                  const raw = localStorage.getItem(DRAFT_KEY);
+                  if (!raw) return <p style={{ color: 'var(--text-muted)' }}>No saved drafts found.</p>;
+                  const draft = JSON.parse(raw);
+                  return (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
+                      <div style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                        <strong>Saved on:</strong> {draft.savedAt || lastSavedAt || 'Unknown time'}
+                      </div>
+                      {draft.title && (
+                        <div>
+                          <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Title:</strong>
+                          <div style={{ fontSize: '0.95rem', fontWeight: 600, marginTop: '2px', color: 'var(--text-main)' }}>{draft.title}</div>
+                        </div>
+                      )}
+                      {(draft.postType || draft.selectedCategory) && (
+                        <div style={{ display: 'flex', gap: '24px' }}>
+                          {draft.postType && (
+                            <div>
+                              <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Type:</strong>
+                              <div style={{ fontSize: '0.9rem', marginTop: '2px', textTransform: 'capitalize', color: 'var(--text-main)' }}>{draft.postType}</div>
+                            </div>
+                          )}
+                          {draft.selectedCategory && (
+                            <div>
+                              <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Category:</strong>
+                              <div style={{ fontSize: '0.9rem', marginTop: '2px', color: 'var(--text-main)' }}>{draft.selectedCategory}</div>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                      <div>
+                        <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Description / Text:</strong>
+                        <div 
+                          style={{ 
+                            fontSize: '0.9rem', 
+                            marginTop: '4px', 
+                            background: 'var(--bg-hover)', 
+                            padding: '12px', 
+                            borderRadius: '8px', 
+                            maxHeight: '200px', 
+                            overflowY: 'auto',
+                            whiteSpace: 'pre-wrap',
+                            border: '1px solid var(--border-color)',
+                            color: 'var(--text-main)'
+                          }}
+                        >
+                          {draft.body ? htmlToPlain(plainToHtml(draft.body)) : <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Empty description</span>}
+                        </div>
+                      </div>
+                    </div>
+                  );
+                } catch {
+                  return <p style={{ color: 'var(--text-muted)' }}>Failed to parse saved draft.</p>;
+                }
+              })()}
+            </div>
+            <div className="cp-modal-footer" style={{ borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
+              <button 
+                type="button" 
+                className="cp-clean-cancel" 
+                onClick={() => setDraftModalOpen(false)}
+                style={{ minHeight: '34px', padding: '0 16px' }}
+              >
+                Close
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {aiPreviewOpen && (
+        <div className="cp-modal-overlay" onClick={() => setAiPreviewOpen(false)}>
+          <div className="cp-modal-content" onClick={(e) => e.stopPropagation()}>
+            <div className="cp-modal-header">
+              <h2>
+                <Sparkles size={18} style={{ display: 'inline', marginRight: '6px', color: '#c084fc', verticalAlign: 'middle' }} />
+                AI Enhance Preview
+              </h2>
+              <button className="cp-modal-close" type="button" onClick={() => setAiPreviewOpen(false)}>
+                <X size={18} />
+              </button>
+            </div>
+            <div className="cp-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+              <div>
+                <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Original Text:</strong>
+                <div 
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    marginTop: '4px', 
+                    background: 'var(--bg-hover)', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    maxHeight: '120px', 
+                    overflowY: 'auto',
+                    border: '1px solid var(--border-color)',
+                    color: 'var(--text-muted)'
+                  }}
+                >
+                  {originalBody}
+                </div>
+              </div>
+              <div>
+                <strong style={{ fontSize: '0.85rem', color: '#c084fc' }}>AI Enhanced Text:</strong>
+                <div 
+                  style={{ 
+                    fontSize: '0.9rem', 
+                    marginTop: '4px', 
+                    background: 'rgba(168, 85, 247, 0.05)', 
+                    padding: '12px', 
+                    borderRadius: '8px', 
+                    maxHeight: '180px', 
+                    overflowY: 'auto',
+                    border: '1px solid rgba(168, 85, 247, 0.25)',
+                    color: 'var(--text-main)'
+                  }}
+                >
+                  {enhancedBody}
+                </div>
+              </div>
+            </div>
+            <div className="cp-modal-footer" style={{ borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
+              <button 
+                type="button" 
+                className="cp-clean-cancel" 
+                onClick={() => setAiPreviewOpen(false)}
+                style={{ minHeight: '34px', padding: '0 16px' }}
+              >
+                Reject
+              </button>
+              <button 
+                type="button" 
+                className="cp-clean-submit" 
+                onClick={() => { setBody(enhancedBody || ''); setAiPreviewOpen(false); }}
+                style={{ minHeight: '34px', padding: '0 16px' }}
+              >
+                Accept
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

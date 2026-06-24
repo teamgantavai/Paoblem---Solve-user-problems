@@ -14,6 +14,11 @@ interface AvatarProps {
 
 export default function Avatar({ src, name = 'User', size = 42, className, onClick, style }: AvatarProps) {
   const [failed, setFailed] = useState(false);
+
+  React.useEffect(() => {
+    setFailed(false);
+  }, [src]);
+
   const showImage = !!src && !failed;
 
   if (showImage) {

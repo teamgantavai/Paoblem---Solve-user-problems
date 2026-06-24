@@ -125,25 +125,24 @@ function SidebarLeftInner() {
   }, []);
 
   const fetchLeftProfile = () => {
-    if (!session?.user?.id) {
-      setProfile(null);
-      return;
-    }
-    const cachedProfile = readCachedProfile();
-    if (cachedProfile) {
-      setProfile(cachedProfile as any);
-    }
-    supabase
-      .from('profiles')
-      .select('full_name, avatar_url, role, username, cover_url')
-      .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) {
-          setProfile(data as any);
-          writeCachedProfile(data as any);
-        }
-      });
+    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
+      if (currentSession) {
+        setSession(currentSession);
+        supabase
+          .from('profiles')
+          .select('full_name, avatar_url, role, username, cover_url')
+          .eq('id', currentSession.user.id)
+          .single()
+          .then(({ data }) => {
+            if (data) {
+              setProfile(data as any);
+              writeCachedProfile(data as any);
+            }
+          });
+      } else {
+        setProfile(null);
+      }
+    });
   };
 
   useEffect(() => {

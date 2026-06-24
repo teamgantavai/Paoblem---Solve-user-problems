@@ -140,7 +140,7 @@
   right: 2px;
   width: 26px;
   height: 26px;
-  background: var(--accent-blue);
+  background: var(--accent-primary);
   border: 2px solid var(--bg-card);
   border-radius: 50%;
   display: flex;

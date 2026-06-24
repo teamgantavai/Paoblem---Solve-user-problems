@@ -27,17 +27,31 @@ Output only the enhanced text itself, with no quotation marks or introductory ph
         'Authorization': `Bearer ${groqKey}`
       },
       body: JSON.stringify({
-        model: 'mixtral-8x7b-32768',
-        messages: [{ role: 'user', content: prompt }],
+        model: 'llama-3.1-8b-instant',
+        messages: [
+          {
+            role: 'system',
+            content: 'You are an AI description enhancer and grammar fixer. Your goal is to improve the readability, grammar, spelling, and professionalism of the user\'s input description while preserving its original meaning and core message. Output ONLY the enhanced description text itself, with no quotation marks, introductory phrases, or explanations.'
+          },
+          {
+            role: 'user',
+            content: text
+          }
+        ],
         temperature: 0.7,
-        max_tokens: 250
+        max_tokens: 400
       })
     });
 
     if (!res.ok) {
       const errText = await res.text();
       console.error('Groq API error:', errText);
-      return NextResponse.json({ original: text, enhanced: text });
+      try {
+        const parsed = JSON.parse(errText);
+        return NextResponse.json({ error: parsed.error?.message || 'Groq API request failed' }, { status: res.status });
+      } catch {
+        return NextResponse.json({ error: `Groq API returned status ${res.status}` }, { status: res.status });
+      }
     }
 
     const data = await res.json();

@@ -28,9 +28,9 @@
   --chip-problem-bg: rgba(239, 68, 68, 0.12);
   --chip-problem-border: rgba(239, 68, 68, 0.38);
   --chip-problem-text: #f87171;
-  --chip-idea-bg: rgba(99, 102, 241, 0.13);
-  --chip-idea-border: rgba(129, 140, 248, 0.42);
-  --chip-idea-text: #a5b4fc;
+  --chip-idea-bg: rgba(245, 158, 11, 0.12);
+  --chip-idea-border: rgba(245, 158, 11, 0.38);
+  --chip-idea-text: #fbbf24;
 }
 
 .light-theme {
@@ -63,7 +63,7 @@
   --chip-problem-bg: rgba(239, 68, 68, 0.1);
   --chip-problem-border: rgba(239, 68, 68, 0.28);
   --chip-problem-text: #dc2626;
-  --chip-idea-bg: rgba(99, 102, 241, 0.1);
-  --chip-idea-border: rgba(79, 70, 229, 0.26);
-  --chip-idea-text: #4f46e5;
+  --chip-idea-bg: rgba(217, 119, 6, 0.1);
+  --chip-idea-border: rgba(217, 119, 6, 0.28);
+  --chip-idea-text: #d97706;
 }

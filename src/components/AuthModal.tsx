@@ -452,7 +452,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
         {step === 'email' && (
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="text-center pt-2 pb-1" style={{ textAlign: 'center' }}>
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.5rem', fontWeight: 900 }}>Log in or sign up</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.5rem', fontWeight: 900, color: 'var(--text-main)' }}>Log in or sign up</h3>
               <p className="text-neutral-500 text-sm mt-2 leading-relaxed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)', marginTop: '0.5rem' }}>
                 Join the community of founders validating startup ideas.
               </p>
@@ -557,7 +557,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
         <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
           <BackButton to="email" />
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Enter your password</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Enter your password</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.88rem', color: 'var(--text-muted)' }}>
                 <span className="font-medium text-neutral-700" style={{ color: 'var(--text-main)', fontWeight: 500 }}>{email}</span>
               </p>
@@ -637,7 +637,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <BackButton to="email" />
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Create a password</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Create a password</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Setting up your account for <span className="font-medium text-neutral-700" style={{ color: 'var(--text-main)', fontWeight: 500 }}>{email}</span>
               </p>
@@ -712,7 +712,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <BackButton to="password_signup" />
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>What's your name?</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>What's your name?</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 This helps us personalize your experience.
               </p>
@@ -782,7 +782,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
             </div>
 
             <div className="space-y-2">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Verify your email</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Verify your email</h3>
               <p className="text-neutral-500 text-sm leading-relaxed px-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 We sent a verification code and secure link to <span className="font-semibold text-neutral-800" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{email}</span>.
               </p>
@@ -878,7 +878,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <BackButton to="password_login" />
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Reset your password</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Reset your password</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 We'll send a password reset link to your email.
               </p>
@@ -940,7 +940,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
               </svg>
             </div>
             <div>
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Check your email</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Check your email</h3>
               <p className="text-neutral-500 text-sm mt-2 max-w-xs mx-auto leading-relaxed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 We've sent a password reset link to <span className="font-medium text-neutral-700" style={{ color: 'var(--text-main)' }}>{email}</span>. Please check your inbox.
               </p>
@@ -972,7 +972,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <BackButton to="forgot_password" />
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Enter recovery code</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Enter recovery code</h3>
               <p className="text-neutral-500 text-sm mt-2 leading-relaxed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 We sent a 6-digit recovery code to <span className="font-semibold text-neutral-800" style={{ color: 'var(--text-main)', fontWeight: 600 }}>{email}</span>.
               </p>
@@ -1021,7 +1021,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
         {step === 'forgot_reset_password' && (
           <div className="space-y-5" style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
             <div className="pt-1">
-              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Reset password</h3>
+              <h3 className="text-2xl font-black text-neutral-900" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Reset password</h3>
               <p className="text-neutral-500 text-sm mt-2" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Enter your new password below (minimum 6 characters).
               </p>
@@ -1082,7 +1082,7 @@ export default function AuthModal({ isOpen, onClose, onAuthenticated, initialSte
               <CheckIcon />
             </div>
             <div>
-              <h3 className="text-2xl font-black text-neutral-900 animate-slide-up" style={{ fontSize: '1.35rem', fontWeight: 900 }}>Welcome aboard!</h3>
+              <h3 className="text-2xl font-black text-neutral-900 animate-slide-up" style={{ fontSize: '1.35rem', fontWeight: 900, color: 'var(--text-main)' }}>Welcome aboard!</h3>
               <p className="text-neutral-500 text-sm mt-2 max-w-xs mx-auto leading-relaxed" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>
                 Your account is set up and your intent has been verified. Welcome to Paoblem!
               </p>

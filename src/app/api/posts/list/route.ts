@@ -23,6 +23,7 @@ export async function GET(req: NextRequest) {
     const type = searchParams.get('type');
     const savedIds = searchParams.get('savedIds');
     const postId = searchParams.get('postId');
+    const category = searchParams.get('category');
 
     const supabase = createClient(supabaseUrl, supabaseKey);
 
@@ -40,7 +41,7 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
     }
 
-    const isDirectFilter = !!postId || type === 'mine' || type === 'saved';
+    const isDirectFilter = !!postId || type === 'mine' || type === 'saved' || !!category;
 
     let query = supabase
       .from('posts')
@@ -109,7 +110,11 @@ export async function GET(req: NextRequest) {
 
       if (type === 'problem' || type === 'idea') {
         query = query.eq('type', type);
-      } else if (type === 'mine') {
+      }
+      if (category) {
+        query = query.or(`category.eq.${category},metadata->>category.eq.${category}`);
+      }
+      if (type === 'mine') {
         if (!userId) {
           return NextResponse.json({ posts: [], nextCursor: null, hasMore: false });
         }
@@ -179,7 +184,7 @@ export async function GET(req: NextRequest) {
       console.warn('[posts/list] Fallback: optional profile, slug, or solutions relation missing. Retrying basic query.');
       let fallbackQuery = supabase
         .from('posts')
-        .select('*, profiles:user_id(full_name, avatar_url, role)');
+        .select('*, profiles:user_id(full_name, avatar_url, role, username)');
 
       if (postId) {
         fallbackQuery = fallbackQuery.eq('id', postId);
@@ -191,7 +196,11 @@ export async function GET(req: NextRequest) {
 
         if (type === 'problem' || type === 'idea') {
           fallbackQuery = fallbackQuery.eq('type', type);
-        } else if (type === 'mine') {
+        }
+        if (category) {
+          fallbackQuery = fallbackQuery.or(`category.eq.${category},metadata->>category.eq.${category}`);
+        }
+        if (type === 'mine') {
           if (userId) {
             fallbackQuery = fallbackQuery.eq('user_id', userId);
           }

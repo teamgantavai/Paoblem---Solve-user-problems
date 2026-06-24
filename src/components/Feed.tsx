@@ -49,6 +49,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const activeFilter = searchParams.get('filter') || defaultFilter || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
+  const [profile, setProfile] = useState<any>(null);
   const [commentsModalPostId, setCommentsModalPostId] = useState<string | null>(null);
   const [shuffledPosts, setShuffledPosts] = useState<Post[]>([]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
@@ -90,6 +91,14 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     const saved = localStorage.getItem('paoblem_saved_posts');
     if (saved) {
       try { setSavedIds(JSON.parse(saved)); } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    const pendingToast = sessionStorage.getItem('paoblem_toast');
+    if (pendingToast) {
+      showToast(pendingToast);
+      sessionStorage.removeItem('paoblem_toast');
     }
   }, []);
 
@@ -136,13 +145,43 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  const fetchUserProfile = () => {
+    if (!session?.user?.id) {
+      setProfile(null);
+      return;
+    }
+    supabase
+      .from('profiles')
+      .select('full_name, avatar_url, role, username')
+      .eq('id', session.user.id)
+      .single()
+      .then(({ data }) => {
+        if (data) setProfile(data);
+      });
+  };
+
+  useEffect(() => {
+    fetchUserProfile();
+  }, [session?.user?.id]);
+
+  useEffect(() => {
+    window.addEventListener('profile-updated', fetchUserProfile);
+    return () => {
+      window.removeEventListener('profile-updated', fetchUserProfile);
+    };
+  }, [session?.user?.id]);
+
   const singlePostId = searchParams.get('post');
+  const categoryParam = searchParams.get('category');
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
     useInfiniteQuery({
-      queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : '', singlePostId || ''],
+      queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : '', singlePostId || '', categoryParam || ''],
       queryFn: async ({ pageParam = null }) => {
         let url = `/api/posts/list?type=${filterType}`;
+        if (categoryParam) {
+          url += `&category=${encodeURIComponent(categoryParam)}`;
+        }
         if (singlePostId) {
           url = `/api/posts/list?postId=${encodeURIComponent(singlePostId)}`;
         } else {
@@ -169,6 +208,51 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       return map;
     },
     enabled: !!session?.user?.id,
+  });
+
+  const { data: followings = [] } = useQuery<string[]>( {
+    queryKey: ['my-followings', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return [];
+      const { data } = await supabase
+        .from('follows')
+        .select('following_id')
+        .eq('follower_id', session.user.id);
+      return data?.map(f => f.following_id) || [];
+    },
+    enabled: !!session?.user?.id,
+  });
+
+  const followMutation = useMutation({
+    mutationFn: async (targetUserId: string) => {
+      if (!session) throw new Error('Must be logged in');
+      const res = await fetch('/api/follows', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${session.access_token}` },
+        body: JSON.stringify({ targetUserId }),
+      });
+      if (!res.ok) throw new Error('Failed to follow');
+      return res.json();
+    },
+    onMutate: async (targetUserId) => {
+      await queryClient.cancelQueries({ queryKey: ['my-followings', session?.user?.id] });
+      const previousFollowings = queryClient.getQueryData<string[]>(['my-followings', session?.user?.id]) || [];
+      const isFollowing = previousFollowings.includes(targetUserId);
+      const nextFollowings = isFollowing
+        ? previousFollowings.filter(id => id !== targetUserId)
+        : [...previousFollowings, targetUserId];
+
+      queryClient.setQueryData(['my-followings', session?.user?.id], nextFollowings);
+      return { previousFollowings };
+    },
+    onError: (err, targetUserId, context) => {
+      if (context) {
+        queryClient.setQueryData(['my-followings', session?.user?.id], context.previousFollowings);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['my-followings', session?.user?.id] });
+    },
   });
 
   const observerRef = useRef<HTMLDivElement>(null);
@@ -205,6 +289,43 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         else newMap[postId] = voteType;
         return newMap;
       });
+
+      // Update newlyCreatedPosts state and sessionStorage optimistically
+      setNewlyCreatedPosts((prev) =>
+        prev.map((post) => {
+          if (post.id !== postId) return post;
+          let upDelta = 0, downDelta = 0;
+          if (currentVote === voteType) {
+            voteType === 'up' ? (upDelta = -1) : (downDelta = -1);
+          } else if (currentVote) {
+            voteType === 'up' ? ((upDelta = 1), (downDelta = -1)) : ((upDelta = -1), (downDelta = 1));
+          } else {
+            voteType === 'up' ? (upDelta = 1) : (downDelta = 1);
+          }
+          return { ...post, upvotes: Math.max(0, post.upvotes + upDelta), downvotes: Math.max(0, post.downvotes + downDelta) };
+        })
+      );
+
+      try {
+        const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+        if (Array.isArray(stored) && stored.length > 0) {
+          const updated = stored.map((post: any) => {
+            if (post.id !== postId) return post;
+            let upDelta = 0, downDelta = 0;
+            if (currentVote === voteType) {
+              voteType === 'up' ? (upDelta = -1) : (downDelta = -1);
+            } else if (currentVote) {
+              voteType === 'up' ? ((upDelta = 1), (downDelta = -1)) : ((upDelta = -1), (downDelta = 1));
+            } else {
+              voteType === 'up' ? (upDelta = 1) : (downDelta = 1);
+            }
+            return { ...post, upvotes: Math.max(0, post.upvotes + upDelta), downvotes: Math.max(0, post.downvotes + downDelta) };
+          });
+          sessionStorage.setItem('paoblem_newly_created_posts', JSON.stringify(updated));
+        }
+      } catch (e) {
+        console.error(e);
+      }
 
       queryClient.setQueriesData({ queryKey: ['posts'] }, (old: any) => {
         if (!old?.pages) return old;
@@ -249,7 +370,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       });
       if (!res.ok) throw new Error('Failed to delete post');
     },
-    onSuccess: () => { queryClient.invalidateQueries({ queryKey: ['posts', filterType] }); },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['posts', filterType] });
+      showToast('Post deleted successfully');
+    },
   });
 
   const handleVote = (postId: string, voteType: 'up' | 'down') => {
@@ -292,9 +416,18 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   }, []);
 
   const filteredNewPosts = useMemo(() => {
-    if (filterType === 'all') return newlyCreatedPosts;
-    return newlyCreatedPosts.filter(p => p.type === filterType);
-  }, [newlyCreatedPosts, filterType]);
+    let posts = newlyCreatedPosts;
+    if (filterType !== 'all') {
+      posts = posts.filter(p => p.type === filterType);
+    }
+    if (categoryParam) {
+      posts = posts.filter(p => {
+        const cat = p.category || p.metadata?.category;
+        return cat === categoryParam;
+      });
+    }
+    return posts;
+  }, [newlyCreatedPosts, filterType, categoryParam]);
 
   const mergedPosts = [...filteredNewPosts, ...rawPosts];
   const posts = mergedPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
@@ -367,7 +500,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       {!singlePostId && (
         <div className="card composer-card" onClick={() => router.push('/create-post')} style={{ cursor: 'pointer' }}>
           <div className="composer-top">
-            <Avatar src={session?.user?.user_metadata?.avatar_url} name="You" className="composer-avatar" size={36} />
+            <Avatar src={profile?.avatar_url || session?.user?.user_metadata?.avatar_url} name="You" className="composer-avatar" size={36} />
             <div className="composer-input-wrap">
               <div className="composer-input" style={{ color: 'var(--text-muted)', fontSize: '0.88rem' }}>
                 What's your Problem or Idea?
@@ -396,10 +529,66 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           ].map(tab => (
             <button key={tab.id} className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
               style={{ background: filterType === tab.id ? undefined : 'var(--bg-card)', color: 'var(--text-main)', border: filterType === tab.id ? 'none' : '1px solid var(--border-color)', flexShrink: 0 }}
-              onClick={() => router.push(tab.id === 'all' ? '/' : `/?filter=${tab.id}`)}>
+              onClick={() => {
+                const params = new URLSearchParams(searchParams.toString());
+                if (tab.id === 'all') params.delete('filter');
+                else params.set('filter', tab.id);
+                router.push(`/?${params.toString()}`);
+              }}>
               {tab.label}
             </button>
           ))}
+        </div>
+      )}
+
+      {/* Category Filter Chips */}
+      {!singlePostId && (
+        <div className="flex gap-2" style={{ margin: '0.25rem 0 0.75rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none', gap: '0.35rem' }}>
+          <button 
+            className={`btn btn-xs ${!categoryParam ? 'btn-primary' : ''}`}
+            style={{ 
+              background: !categoryParam ? undefined : 'var(--bg-card)', 
+              color: 'var(--text-main)', 
+              border: !categoryParam ? 'none' : '1px solid var(--border-color)', 
+              flexShrink: 0,
+              fontSize: '0.75rem',
+              padding: '0.25rem 0.6rem',
+              borderRadius: '20px'
+            }}
+            onClick={() => {
+              const params = new URLSearchParams(searchParams.toString());
+              params.delete('category');
+              const qs = params.toString();
+              router.push(qs ? `/?${qs}` : '/');
+            }}
+          >
+            All Categories
+          </button>
+          {['AI', 'SaaS', 'Education', 'Healthcare', 'Fintech', 'Developer Tools', 'Design', 'Marketing', 'Product', 'Sales', 'Operations', 'Funding'].map(cat => {
+            const isActive = categoryParam === cat;
+            return (
+              <button 
+                key={cat} 
+                className={`btn btn-xs ${isActive ? 'btn-primary' : ''}`}
+                style={{ 
+                  background: isActive ? undefined : 'var(--bg-card)', 
+                  color: 'var(--text-main)', 
+                  border: isActive ? 'none' : '1px solid var(--border-color)', 
+                  flexShrink: 0,
+                  fontSize: '0.75rem',
+                  padding: '0.25rem 0.6rem',
+                  borderRadius: '20px'
+                }}
+                onClick={() => {
+                  const params = new URLSearchParams(searchParams.toString());
+                  params.set('category', cat);
+                  router.push(`/?${params.toString()}`);
+                }}
+              >
+                {cat}
+              </button>
+            );
+          })}
         </div>
       )}
 
@@ -423,6 +612,9 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           const hasUpvoted = userVotes?.[post.id] === 'up';
           const hasDownvoted = userVotes?.[post.id] === 'down';
           const isOwner = session?.user?.id === post.user_id;
+          const authorName = post.profiles?.full_name || (post.profiles?.username ? `@${post.profiles.username}` : (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.full_name || session.user.user_metadata?.username || session.user.email?.split('@')[0]) : 'Anonymous'));
+          const authorAvatar = post.profiles?.avatar_url || (session?.user && post.user_id === session.user.id ? session.user.user_metadata?.avatar_url : undefined);
+          const authorUsername = post.profiles?.username || (session?.user && post.user_id === session.user.id ? (session.user.user_metadata?.username || session.user.user_metadata?.full_name?.toLowerCase().replace(/\s+/g, '_') || session.user.email?.split('@')[0]) : undefined);
 
           return (
             <ErrorBoundary key={post.id}>
@@ -437,8 +629,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                 <div className="post-header">
                   <div className="post-user">
                     <Avatar
-                      src={post.profiles?.avatar_url}
-                      name={post.profiles?.full_name || 'Anonymous'}
+                      src={authorAvatar}
+                      name={authorName}
                       className="avatar" size={42}
                       onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
                       style={{ cursor: 'pointer', flexShrink: 0 }}
@@ -447,21 +639,45 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                       <h4 className="post-author-name-container" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
                         <span className="post-author-name"
                           onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}>
-                          {post.profiles?.full_name || 'Anonymous'}
+                          {authorName}
                         </span>
                         <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize' }}>
                           {post.type}
                         </span>
                       </h4>
-                      {post.profiles?.username && (
-                        <p className="post-author-username" onClick={() => router.push(`/user/${post.profiles!.username!}`)}>
-                          @{post.profiles.username}
+                      {authorUsername && (
+                        <p className="post-author-username" onClick={() => router.push(`/user/${authorUsername}`)}>
+                          @{authorUsername}
                         </p>
                       )}
-                      <p className="post-author-meta">
+                      <p className="post-author-meta" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
                         <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
                           {formatPostTime(post.created_at)}
                         </time>
+                        {session?.user?.id && session.user.id !== post.user_id && (
+                          <>
+                            <span style={{ color: 'var(--text-muted)' }}>·</span>
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                followMutation.mutate(post.user_id);
+                              }}
+                              disabled={followMutation.isPending}
+                              style={{
+                                background: 'transparent',
+                                border: 'none',
+                                color: followings.includes(post.user_id) ? 'var(--text-muted)' : 'var(--accent-primary, #2563eb)',
+                                fontWeight: 700,
+                                fontSize: '0.72rem',
+                                cursor: 'pointer',
+                                padding: 0,
+                              }}
+                            >
+                              {followings.includes(post.user_id) ? 'Following' : 'Follow'}
+                            </button>
+                          </>
+                        )}
                       </p>
                     </div>
                   </div>
@@ -518,10 +734,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                 <div className="post-content">
                   {post.external_link && (
                     <a href={post.external_link} target="_blank" rel="noopener noreferrer"
-                      className="flex items-center gap-1"
-                      style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
+                       className="flex items-center gap-1"
+                       style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
                       <ExternalLink size={12} />
-                      <span>{post.link_name || post.external_link}</span>
+                      <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
                     </a>
                   )}
 
@@ -532,14 +748,21 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   <ExpandableBody body={post.body} />
 
                   {(getPostCategory(post) || getPostTags(post).length > 0) && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem', marginTop: '0.65rem' }}>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem' }}>
                       {getPostCategory(post) && (
-                        <span className={`post-taxonomy-chip ${post.type}`}>
-                          {getPostCategory(post)}
+                        <span 
+                          className="post-taxonomy-tag category-hashtag"
+                          style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            router.push(`/?category=${encodeURIComponent(getPostCategory(post)!)}`);
+                          }}
+                        >
+                          #{getPostCategory(post).toLowerCase().replace(/\s+/g, '')}
                         </span>
                       )}
                       {getPostTags(post).map((tag: string) => (
-                        <span key={tag} className="post-taxonomy-tag">
+                        <span key={tag} className="post-taxonomy-tag" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
                           #{tag}
                         </span>
                       ))}
@@ -672,6 +895,25 @@ function PostSkeleton() {
 }
 
 // ── Link-aware body renderer (unchanged) ──────────────────────────────────────
+function renderFormattedText(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/g);
+  return parts.map((part, idx) => {
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={idx}>{part.slice(2, -2)}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={idx}>{part.slice(1, -1)}</em>;
+    }
+    if (part.startsWith('<u>') && part.endsWith('</u>')) {
+      return <u key={idx}>{part.slice(3, -4)}</u>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{part.slice(1, -1)}</code>;
+    }
+    return part;
+  });
+}
+
 function RenderSegments({ segments }: { segments: Segment[] }) {
   return (
     <>
@@ -687,7 +929,7 @@ function RenderSegments({ segments }: { segments: Segment[] }) {
             </a>
           );
         }
-        return <React.Fragment key={i}>{seg.content}</React.Fragment>;
+        return <React.Fragment key={i}>{renderFormattedText(seg.content)}</React.Fragment>;
       })}
     </>
   );

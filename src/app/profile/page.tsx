@@ -158,13 +158,13 @@ function ProfilePageContent() {
     );
   }
 
-  return <ProfileView session={session} targetUserId={targetUserId} queryClient={queryClient} />;
+  return <ProfileView session={session} setSession={setSession} targetUserId={targetUserId} queryClient={queryClient} />;
 }
 
 /* ────────────────────────────────────────────────────────
    ProfileView
    ───────────────────────────────────────────────────────── */
-function ProfileView({ session, targetUserId, queryClient }: { session: any; targetUserId: string | null; queryClient: any }) {
+function ProfileView({ session, setSession, targetUserId, queryClient }: { session: any; setSession: any; targetUserId: string | null; queryClient: any }) {
   const router = useRouter();
   const currentUserId = session?.user?.id;
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
@@ -295,9 +295,15 @@ function ProfileView({ session, targetUserId, queryClient }: { session: any; tar
       await queryClient.invalidateQueries({ queryKey: ['posts'] });
 
       // Update session metadata explicitly on auth client
-      await supabase.auth.updateUser({
+      const { data: { user }, error: authErr } = await supabase.auth.updateUser({
         data: updatePayload
       });
+      if (!authErr && user) {
+        try {
+          const { data: { session: updatedSession } } = await supabase.auth.getSession();
+          setSession(updatedSession);
+        } catch (e) {}
+      }
       // Fire event to notify SidebarLeft and Navbar
       window.dispatchEvent(new Event('profile-updated'));
 
@@ -1141,6 +1147,10 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
         const data = await res.json();
         throw new Error(data.error || 'Failed to save settings');
       }
+      try {
+        await supabase.auth.refreshSession();
+      } catch (err) {}
+      window.dispatchEvent(new Event('profile-updated'));
       onSaved();
     } catch (err: any) {
       setError(err.message);
@@ -1163,6 +1173,7 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
         <div style={{ display: 'flex', gap: '0.75rem' }}>
           {/* Dark Mode */}
           <button
+            type="button"
             onClick={() => applyTheme('dark')}
             style={{
               flex: 1,
@@ -1207,6 +1218,7 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
 
           {/* Light Mode */}
           <button
+            type="button"
             onClick={() => applyTheme('light')}
             style={{
               flex: 1,
@@ -1313,7 +1325,6 @@ function SettingsTab({ session, profile, onSaved }: { session: any; profile?: Pr
     </div>
   );
 }
-
 
 /* ────────────────────────────────────────────────────────
    Sign Out Tab Component (Dedicated Sign Out Section)
