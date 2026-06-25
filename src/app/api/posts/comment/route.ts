@@ -89,7 +89,7 @@ export async function POST(req: NextRequest) {
     await updateUserInterestsForContent(supabaseAdmin, user.id, interestPost, 'POST_COMMENT');
 
     // Recalculate quality score after new comment (fire-and-forget, non-blocking)
-    Promise.resolve(supabaseAdmin.rpc('recalculate_quality_score', { p_post_id: post_id })).catch(() => {});
+    Promise.resolve((supabaseAdmin as any).rpc('recalculate_quality_score', { p_post_id: post_id })).catch(() => {});
 
     return NextResponse.json({ comment: data }, { status: 201 });
   } catch {
@@ -197,7 +197,7 @@ export async function DELETE(req: NextRequest) {
     // (comment already deleted, so we need post_id from the URL or body)
     const post_id_param = searchParams.get('post_id');
     if (post_id_param) {
-      Promise.resolve(supabaseAdmin.rpc('recalculate_quality_score', { p_post_id: post_id_param })).catch(() => {});
+      Promise.resolve((supabaseAdmin as any).rpc('recalculate_quality_score', { p_post_id: post_id_param })).catch(() => {});
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

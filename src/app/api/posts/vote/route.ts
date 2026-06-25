@@ -13,7 +13,7 @@ const voteSchema = z.object({
 });
 
 async function recalculateQualityScore(
-  admin: ReturnType<typeof createClient>,
+  admin: any,
   post_id: string
 ): Promise<{ quality_score: number | null; unique_viewers: number }> {
   try {

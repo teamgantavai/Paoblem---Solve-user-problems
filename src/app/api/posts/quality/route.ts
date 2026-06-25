@@ -54,7 +54,7 @@ export async function POST(req: NextRequest) {
     // If a counter was specified (and not recalculate_only), increment it first
     if (counter && !recalculate_only && delta !== 0) {
       // Use the DB helper function which also guards against invalid column names
-      const { error: incrError } = await admin.rpc('increment_quality_counter', {
+      const { error: incrError } = await (admin as any).rpc('increment_quality_counter', {
         p_post_id: post_id,
         p_column: counter,
         p_delta: delta,
@@ -66,7 +66,7 @@ export async function POST(req: NextRequest) {
       }
     } else {
       // Just recalculate without incrementing
-      const { error: calcError } = await admin.rpc('recalculate_quality_score', {
+      const { error: calcError } = await (admin as any).rpc('recalculate_quality_score', {
         p_post_id: post_id,
       });
 
