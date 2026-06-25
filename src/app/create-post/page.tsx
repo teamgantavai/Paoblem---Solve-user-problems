@@ -444,6 +444,7 @@ function CreatePostForm({ session }: { session: Session }) {
               </div>
             </div>
 
+
             {/* DESCRIPTION WYSIWYG EDITOR */}
             <div className="cp-field-group">
               <label className="cp-input-label">Description</label>
@@ -673,6 +674,7 @@ function CreatePostForm({ session }: { session: Session }) {
                           )}
                         </div>
                       )}
+
                       <div>
                         <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Description / Text:</strong>
                         <div 

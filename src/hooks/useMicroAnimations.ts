@@ -48,20 +48,29 @@ export function useMicroAnimations() {
   const animateListEntrance = contextSafe((containerRef: React.RefObject<HTMLElement | null>, itemSelector: string) => {
     if (!containerRef.current) return;
     
+    // Select items that have not been animated yet
+    const unanimatedItems = gsap.utils.toArray(containerRef.current.querySelectorAll(`${itemSelector}:not([data-animated="true"])`));
+    if (unanimatedItems.length === 0) return;
+
     // Set initial state
-    gsap.set(gsap.utils.toArray(containerRef.current.querySelectorAll(itemSelector)), { 
+    gsap.set(unanimatedItems, { 
       opacity: 0, 
       y: 20 
     });
 
     // Animate
-    gsap.to(gsap.utils.toArray(containerRef.current.querySelectorAll(itemSelector)), {
+    gsap.to(unanimatedItems, {
       opacity: 1,
       y: 0,
       duration: 0.5,
       stagger: 0.05,
       ease: 'power3.out',
-      clearProps: 'opacity,transform' // Only clean up animated properties to preserve inline styles
+      clearProps: 'opacity,transform', // Only clean up animated properties to preserve inline styles
+      onComplete: () => {
+        unanimatedItems.forEach((el: any) => {
+          el.setAttribute('data-animated', 'true');
+        });
+      }
     });
   });
 

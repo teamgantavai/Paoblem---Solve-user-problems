@@ -88,6 +88,9 @@ export async function POST(req: NextRequest) {
     const { data: interestPost } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
     await updateUserInterestsForContent(supabaseAdmin, user.id, interestPost, 'POST_COMMENT');
 
+    // Recalculate quality score after new comment (fire-and-forget, non-blocking)
+    supabaseAdmin.rpc('recalculate_quality_score', { p_post_id: post_id }).catch(() => {});
+
     return NextResponse.json({ comment: data }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -188,6 +191,13 @@ export async function DELETE(req: NextRequest) {
 
     if (error) {
       return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+
+    // Fetch the post_id for this comment so we can recalculate quality
+    // (comment already deleted, so we need post_id from the URL or body)
+    const post_id_param = searchParams.get('post_id');
+    if (post_id_param) {
+      supabaseAdmin.rpc('recalculate_quality_score', { p_post_id: post_id_param }).catch(() => {});
     }
 
     return NextResponse.json({ success: true }, { status: 200 });

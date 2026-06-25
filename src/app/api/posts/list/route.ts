@@ -48,59 +48,6 @@ export async function GET(req: NextRequest) {
       .select('*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)');
 
     if (postId) {
-      if (postId === 'dylan-post' || postId === 'ryan-post') {
-        const mockPost = postId === 'dylan-post' ? {
-          id: 'dylan-post',
-          user_id: 'user-figma',
-          title: 'Why designing Sucks!!!',
-          body: 'Design handoff is broken. Redlines are tedious. Prototyping shouldn\'t require rebuilding everything from scratch. We need closer collaboration between design and code, where design files directly map to component trees.',
-          type: 'problem',
-          image_url: JSON.stringify(['https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80']),
-          external_link: 'https://figma.com',
-          link_name: 'Figma Design',
-          upvotes: 142,
-          downvotes: 3,
-          comments_count: 2,
-          views_count: 420,
-          solutions_count: 2,
-          solved: true,
-          created_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-          updated_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-          profiles: {
-            full_name: 'Dylan Field',
-            avatar_url: 'https://i.pravatar.cc/150?u=dylan2',
-            role: 'CEO of Figma'
-          }
-        } : {
-          id: 'ryan-post',
-          user_id: 'user-linkedin',
-          title: 'Recruiting in 2026 is totally broken',
-          body: 'LinkedIn is full of spam and automated outreach. Founders can\'t find genuine early-stage talent who want to build, and builders are drowned in AI-generated recruiter messages. We need a peer-reviewed network of problem solvers.',
-          type: 'problem',
-          image_url: JSON.stringify(['https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=800&auto=format&fit=crop&q=80']),
-          external_link: 'https://linkedin.com',
-          link_name: 'LinkedIn Recruiting',
-          upvotes: 95,
-          downvotes: 1,
-          comments_count: 1,
-          views_count: 310,
-          solutions_count: 0,
-          solved: false,
-          created_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
-          updated_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
-          profiles: {
-            full_name: 'Ryan Roslansky',
-            avatar_url: 'https://i.pravatar.cc/150?u=ryan2',
-            role: 'CEO of LinkedIn'
-          }
-        };
-
-        return NextResponse.json({
-          posts: [mockPost],
-          nextCursor: null,
-          hasMore: false,
-        });
-      }
       query = query.eq('id', postId);
     } else if (isDirectFilter) {
       query = query.order('created_at', { ascending: false }).limit(PAGE_SIZE + 1);
@@ -131,7 +78,7 @@ export async function GET(req: NextRequest) {
       }
     } else {
       const admin = createClient(supabaseUrl, supabaseServiceKey);
-      const { offset } = parseRecommendationCursor(cursor);
+      const { offset, excludeIds } = parseRecommendationCursor(cursor);
 
       const baseSelect = '*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)';
       const [recentRes, engagedRes] = await Promise.all([
@@ -156,11 +103,16 @@ export async function GET(req: NextRequest) {
 
       const byId = new Map<string, any>();
       [...(recentRes.data || []), ...(engagedRes.data || [])].forEach((post: any) => byId.set(post.id, post));
-      const candidates = normalizePostRows(Array.from(byId.values()));
+      
+      const excludeSet = new Set(excludeIds);
+      const candidates = normalizePostRows(
+        Array.from(byId.values()).filter((post: any) => !excludeSet.has(post.id))
+      );
+
       const interests = await getUserInterests(admin, userId);
-      const seenIds = await getSeenPostIds(admin, userId);
+      const seenIds = await getSeenPostIds(admin, userId, cursor ? 10 * 60 * 1000 : 0);
       const ranked = rankPosts(candidates, interests, {
-        offset,
+        offset: 0, // Since seen ids are filtered out of candidates pool, offset is always 0
         pageSize: PAGE_SIZE,
         newUser: !hasEnoughInterest(interests),
         seenIds,
@@ -171,9 +123,11 @@ export async function GET(req: NextRequest) {
       const posts = hasMore ? ranked.slice(0, PAGE_SIZE) : ranked;
       await recordPostImpressions(admin, userId, posts);
 
+      const nextCursorSeenIds = [...excludeIds, ...posts.map(p => p.id)].join(',');
+
       return NextResponse.json({
         posts,
-        nextCursor: hasMore ? `rec:${offset + PAGE_SIZE}` : null,
+        nextCursor: hasMore ? `rec:${offset + PAGE_SIZE}:${nextCursorSeenIds}` : null,
         hasMore,
       });
     }

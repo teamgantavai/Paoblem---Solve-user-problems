@@ -22,6 +22,21 @@ export interface Post {
   slug: string | null;
   created_at: string;
   updated_at: string;
+  // AI Quality Score fields
+  quality_score?: number | null;
+  engagement_score?: number | null;
+  confidence_score?: number | null;
+  freshness_score?: number | null;
+  unique_viewers?: number | null;
+  long_reads?: number | null;
+  see_more_clicks?: number | null;
+  saves?: number | null;
+  shares?: number | null;
+  profile_clicks?: number | null;
+  link_clicks?: number | null;
+  reports?: number | null;
+  hidden_count?: number | null;
+  last_quality_update?: string | null;
   profiles?: {
     full_name: string | null;
     avatar_url: string | null;
@@ -162,7 +177,14 @@ export type PostEventType =
   | 'DWELL'
   | 'SOLUTION_VIEW'
   | 'SOLUTION_UPVOTE'
-  | 'SOLUTION_SAVE';
+  | 'SOLUTION_SAVE'
+  // Quality score behavioral signals
+  | 'LONG_READ'
+  | 'SEE_MORE'
+  | 'PROFILE_CLICK'
+  | 'LINK_CLICK'
+  | 'HIDE_POST'
+  | 'REPORT_SPAM';
 
 export interface PostEvent {
   id: string;

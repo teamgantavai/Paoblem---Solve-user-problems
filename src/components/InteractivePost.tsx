@@ -32,6 +32,7 @@ import CommentThread from './CommentThread';
 import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
+import QualityScoreBadge from './QualityScoreBadge';
 
 function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
   if (!text) return [];
@@ -203,6 +204,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const postRef = useRef<HTMLElement>(null);
   const viewTrackedRef = useRef(false);
+  const hasTrackedLongRead = useRef(false);
   const viewedSolutionIdsRef = useRef<Set<string>>(new Set());
 
   // Edit Comment State - handled by CommentThread
@@ -264,6 +266,22 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     observer.observe(postRef.current);
     return () => observer.disconnect();
   }, [post.id, session?.access_token]);
+
+  // LONG_READ event tracking after 20 seconds
+  useEffect(() => {
+    if (!post?.id || hasTrackedLongRead.current) return;
+    const timer = setTimeout(() => {
+      hasTrackedLongRead.current = true;
+      trackEvent(post.id, 'LONG_READ', session?.access_token).catch(() => {});
+      fetch('/api/posts/quality', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ post_id: post.id, counter: 'long_reads', delta: 1 }),
+      }).catch(() => {});
+    }, 20000); // 20s
+
+    return () => clearTimeout(timer);
+  }, [post?.id, session?.access_token]);
 
   // Highlight and scroll to comment
   useEffect(() => {
@@ -336,34 +354,6 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   }, [post.id, post.type]);
 
   async function fetchSolutions(): Promise<Solution[]> {
-    if (post.id === 'dylan-post') {
-      const mockSolutions: Solution[] = [
-        {
-          id: 'mock-solution-1',
-          problem_id: post.id,
-          user_id: 'user-ryan',
-          title: 'Create a shared design-to-code handoff workspace',
-          body: 'A practical fix is a collaborative workspace where components, tokens, redlines, and implementation notes live together instead of being passed across tools.',
-          image_url: null,
-          external_link: 'https://figma.com',
-          link_name: 'Reference workflow',
-          upvotes: 28,
-          downvotes: 1,
-          comments_count: 4,
-          created_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString(),
-          updated_at: new Date(Date.now() - 1000 * 3600 * 12).toISOString(),
-          profiles: {
-            full_name: 'Ryan Roslansky',
-            avatar_url: 'https://i.pravatar.cc/150?u=ryan2',
-            role: 'Developer',
-            username: 'ryan_roslansky',
-          },
-        },
-      ];
-      setSolutions(mockSolutions);
-      return mockSolutions;
-    }
-
     setIsSolutionsLoading(true);
     try {
       const res = await fetch(`/api/solutions?problemId=${encodeURIComponent(post.id)}`);
@@ -658,6 +648,28 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         body: JSON.stringify({ post_id: post.id, vote_type: voteType }),
       });
       if (!res.ok) throw new Error('Vote failed');
+      const data = await res.json();
+      if (data.quality_score !== undefined) {
+        setPost(prev => ({
+          ...prev,
+          quality_score: data.quality_score,
+          unique_viewers: data.unique_viewers,
+        }));
+        queryClient.setQueriesData({ queryKey: ['posts'] }, (oldData: any) => {
+          if (!oldData?.pages) return oldData;
+          return {
+            ...oldData,
+            pages: oldData.pages.map((page: any) => ({
+              ...page,
+              posts: page.posts.map((p: any) =>
+                p.id === post.id
+                  ? { ...p, quality_score: data.quality_score, unique_viewers: data.unique_viewers }
+                  : p
+              )
+            }))
+          };
+        });
+      }
       trackEvent(post.id, voteType === 'up' ? 'POST_UPVOTE' : 'POST_DOWNVOTE', session.access_token);
     } catch (err) {
       console.error(err);
@@ -691,27 +703,6 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const handleAddComment = async (body: string, parentId?: string | null) => {
     if (!session) {
       setIsAuthOpen(true);
-      return;
-    }
-
-    if (post.id === 'dylan-post' || post.id === 'ryan-post') {
-      const mockComment: Comment = {
-        id: `mock-comment-${Date.now()}`,
-        post_id: post.id,
-        parent_id: parentId || null,
-        user_id: session.user.id,
-        body,
-        created_at: new Date().toISOString(),
-        updated_at: new Date().toISOString(),
-        profiles: {
-          full_name: session.user.user_metadata?.full_name || 'Member',
-          avatar_url: session.user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${session.user.id}`,
-          role: session.user.user_metadata?.role || 'Innovator',
-          username: session.user.user_metadata?.username || null,
-        } as any,
-      };
-      setComments((prev) => [...prev, mockComment]);
-      setPost((prev) => ({ ...prev, comments_count: prev.comments_count + 1 }));
       return;
     }
 
@@ -833,19 +824,36 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             name={authorName}
             className="avatar"
             size={42}
-            onClick={() => router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`)}
+            onClick={() => {
+              router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`);
+              trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => {});
+              fetch('/api/posts/quality', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
+              }).catch(() => {});
+            }}
             style={{ cursor: 'pointer', flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%' }}
           />
           <div className="post-user-info">
             <h4
               className="flex items-center gap-2"
               style={{ fontWeight: 600, cursor: 'pointer', fontSize: '0.92rem' }}
-              onClick={() => router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`)}
+              onClick={() => {
+                router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`);
+                trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => {});
+                fetch('/api/posts/quality', {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
+                }).catch(() => {});
+              }}
             >
               {authorName}
               <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize', marginLeft: '6px' }}>
                 {post.type}
               </span>
+              <QualityScoreBadge qualityScore={post.quality_score} uniqueViewers={post.unique_viewers} animate />
             </h4>
             {authorUsername && (
               <p className="post-author-username" style={{ fontSize: '0.78rem', color: 'var(--text-muted)', cursor: 'pointer', margin: 0 }} onClick={() => router.push(`/user/${authorUsername}`)}>
@@ -1025,6 +1033,14 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             href={post.external_link}
             target="_blank"
             rel="noopener noreferrer"
+            onClick={() => {
+              trackEvent(post.id, 'LINK_CLICK', session?.access_token).catch(() => {});
+              fetch('/api/posts/quality', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
+              }).catch(() => {});
+            }}
             className="flex items-center gap-1"
             style={{
               color: 'var(--accent-blue)',

@@ -18,59 +18,6 @@ interface PageProps {
 
 // Helper to get mock post details
 function getMockPost(slug: string): Post | null {
-  if (slug === 'why-designing-sucks') {
-    return {
-      id: 'dylan-post',
-      user_id: 'user-figma',
-      title: 'Why designing Sucks!!!',
-      body: 'Design handoff is broken. Redlines are tedious. Prototyping shouldn\'t require rebuilding everything from scratch. We need closer collaboration between design and code, where design files directly map to component trees.',
-      type: 'problem',
-      image_url: JSON.stringify(['https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?w=800&auto=format&fit=crop&q=80']),
-      external_link: 'https://figma.com',
-      link_name: 'Figma Design',
-      upvotes: 142,
-      downvotes: 3,
-      comments_count: 2,
-      views_count: 420,
-      solutions_count: 2,
-      solved: true,
-      slug: 'why-designing-sucks',
-      created_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-      updated_at: new Date(Date.now() - 1000 * 3600 * 24).toISOString(),
-      profiles: {
-        full_name: 'Dylan Field',
-        avatar_url: 'https://i.pravatar.cc/150?u=dylan2',
-        role: 'CEO of Figma',
-        username: 'dylan_field'
-      }
-    };
-  } else if (slug === 'recruiting-in-2026-is-totally-broken') {
-    return {
-      id: 'ryan-post',
-      user_id: 'user-linkedin',
-      title: 'Recruiting in 2026 is totally broken',
-      body: 'LinkedIn is full of spam and automated outreach. Founders can\'t find genuine early-stage talent who want to build, and builders are drowned in AI-generated recruiter messages. We need a peer-reviewed network of problem solvers.',
-      type: 'problem',
-      image_url: JSON.stringify(['https://images.unsplash.com/photo-1521737604893-d14cc237f11d?w=800&auto=format&fit=crop&q=80']),
-      external_link: 'https://linkedin.com',
-      link_name: 'LinkedIn Recruiting',
-      upvotes: 95,
-      downvotes: 1,
-      comments_count: 1,
-      views_count: 310,
-      solutions_count: 0,
-      solved: false,
-      slug: 'recruiting-in-2026-is-totally-broken',
-      created_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
-      updated_at: new Date(Date.now() - 1000 * 3600 * 48).toISOString(),
-      profiles: {
-        full_name: 'Ryan Roslansky',
-        avatar_url: 'https://i.pravatar.cc/150?u=ryan2',
-        role: 'CEO of LinkedIn',
-        username: 'ryan_roslansky'
-      }
-    };
-  }
   return null;
 }
 
@@ -124,42 +71,6 @@ async function getPost(slug: string): Promise<Post | null> {
 
 // Fetch Comments
 async function getComments(post: Post): Promise<Comment[]> {
-  if (post.id === 'dylan-post') {
-    return [
-      {
-        id: 'comment-1',
-        post_id: 'dylan-post',
-        user_id: 'user-ryan',
-        body: 'Absolutely. Design handoff shouldn\'t be a transition between two different mental models.',
-        created_at: new Date(Date.now() - 1000 * 3600 * 20).toISOString(),
-        updated_at: new Date(Date.now() - 1000 * 3600 * 20).toISOString(),
-        profiles: {
-          full_name: 'Ryan Roslansky',
-          avatar_url: 'https://i.pravatar.cc/150?u=ryan2',
-          role: 'CEO of LinkedIn',
-          username: 'ryan_roslansky'
-        }
-      }
-    ];
-  } else if (post.id === 'ryan-post') {
-    return [
-      {
-        id: 'comment-2',
-        post_id: 'ryan-post',
-        user_id: 'user-dylan',
-        body: 'Fully agree, Ryan. I experience this firsthand with design hires.',
-        created_at: new Date(Date.now() - 1000 * 3600 * 40).toISOString(),
-        updated_at: new Date(Date.now() - 1000 * 3600 * 40).toISOString(),
-        profiles: {
-          full_name: 'Dylan Field',
-          avatar_url: 'https://i.pravatar.cc/150?u=dylan2',
-          role: 'CEO of Figma',
-          username: 'dylan_field'
-        }
-      }
-    ];
-  }
-
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const { data, error } = await supabase
     .from('comments')

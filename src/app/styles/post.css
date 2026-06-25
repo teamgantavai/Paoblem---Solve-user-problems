@@ -168,6 +168,100 @@
   border-color: var(--chip-solution-border);
 }
 
+/* ─── AI Quality Score Badge ─────────────────────────────────────────────── */
+.quality-score-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.2rem;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  padding: 2px 7px 2px 5px;
+  border-radius: 999px;
+  border: 1px solid rgba(245, 158, 11, 0.25);
+  background: rgba(245, 158, 11, 0.08);
+  color: var(--text-muted);
+  vertical-align: middle;
+  align-self: center;
+  cursor: default;
+  user-select: none;
+  transition: background 0.2s, border-color 0.2s, opacity 0.2s;
+  white-space: nowrap;
+}
+
+.quality-score-badge:hover {
+  background: rgba(245, 158, 11, 0.14);
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.quality-score-badge__star {
+  font-size: 9px;
+  line-height: 1;
+  filter: drop-shadow(0 0 2px rgba(245, 158, 11, 0.5));
+}
+
+.quality-score-badge__value {
+  color: #d97706;
+  font-weight: 800;
+  font-size: 10px;
+  letter-spacing: -0.01em;
+}
+
+.quality-score-badge__provisional {
+  color: var(--text-muted);
+  font-size: 9px;
+  font-weight: 600;
+  opacity: 0.7;
+  margin-left: -1px;
+}
+
+.quality-score-badge--new {
+  border-color: rgba(99, 102, 241, 0.25);
+  background: rgba(99, 102, 241, 0.08);
+  color: #a5b4fc;
+  padding: 2px 7px;
+}
+
+.quality-score-badge--new:hover {
+  background: rgba(99, 102, 241, 0.15);
+  border-color: rgba(99, 102, 241, 0.35);
+}
+
+.light-theme .quality-score-badge--new {
+  color: #4f46e5;
+  background: rgba(99, 102, 241, 0.06);
+  border-color: rgba(99, 102, 241, 0.22);
+}
+
+.light-theme .quality-score-badge--new:hover {
+  background: rgba(99, 102, 241, 0.12);
+  border-color: rgba(99, 102, 241, 0.32);
+}
+
+.quality-score-badge__new {
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1.2;
+  color: inherit;
+}
+
+/* Flash animation when score updates live */
+@keyframes quality-score-flash {
+  0% {
+    background: rgba(245, 158, 11, 0.3);
+    border-color: rgba(245, 158, 11, 0.6);
+  }
+
+  100% {
+    background: rgba(245, 158, 11, 0.08);
+    border-color: rgba(245, 158, 11, 0.25);
+  }
+}
+
+.quality-score-badge--flash {
+  animation: quality-score-flash 0.6s ease-out forwards;
+}
+
 .post-author-dot {
   opacity: 0.6;
 }

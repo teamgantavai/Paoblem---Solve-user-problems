@@ -26,6 +26,7 @@ const updatePostSchema = z.object({
   }),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
+  metadata: z.any().optional(),
 });
 
 function sanitize(text: string): string {
@@ -61,12 +62,12 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const { id, title, body: postBody, type, image_url, external_link, link_name } = parsed.data;
+    const { id, title, body: postBody, type, image_url, external_link, link_name, metadata } = parsed.data;
 
     // Verify ownership
     const { data: post, error: fetchError } = await supabase
       .from('posts')
-      .select('user_id')
+      .select('user_id, metadata')
       .eq('id', id)
       .single();
 
@@ -81,12 +82,19 @@ export async function PUT(req: NextRequest) {
     const sanitizedTitle = sanitize(title);
     const sanitizedBody = sanitize(postBody);
 
+    const existingMetadata = typeof post.metadata === 'object' && post.metadata !== null ? post.metadata : {};
+    const metadataValue = {
+      ...existingMetadata,
+      ...(typeof metadata === 'object' && metadata !== null ? metadata : {}),
+    };
+
     const updatePayload: Record<string, unknown> = {
       title: sanitizedTitle,
       body: sanitizedBody,
       type,
       image_url: image_url || null,
       external_link: external_link || null,
+      metadata: metadataValue,
       updated_at: new Date().toISOString(),
     };
 

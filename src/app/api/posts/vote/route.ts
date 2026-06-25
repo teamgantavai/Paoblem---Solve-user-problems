@@ -12,6 +12,26 @@ const voteSchema = z.object({
   vote_type: z.enum(['up', 'down']),
 });
 
+async function recalculateQualityScore(
+  admin: ReturnType<typeof createClient>,
+  post_id: string
+): Promise<{ quality_score: number | null; unique_viewers: number }> {
+  try {
+    await admin.rpc('recalculate_quality_score', { p_post_id: post_id });
+    const { data } = await admin
+      .from('posts')
+      .select('quality_score, unique_viewers')
+      .eq('id', post_id)
+      .single();
+    return {
+      quality_score: data?.quality_score ?? null,
+      unique_viewers: data?.unique_viewers ?? 0,
+    };
+  } catch {
+    return { quality_score: null, unique_viewers: 0 };
+  }
+}
+
 export async function POST(req: NextRequest) {
   try {
     const authHeader = req.headers.get('authorization');
@@ -58,7 +78,9 @@ export async function POST(req: NextRequest) {
       if (existing.vote_type === vote_type) {
         // Remove vote (toggle off)
         await supabase.from('votes').delete().eq('id', existing.id);
-        return NextResponse.json({ action: 'removed' });
+        // Recalculate quality score after vote removal
+        const qualityResult = await recalculateQualityScore(supabaseAdmin, post_id);
+        return NextResponse.json({ action: 'removed', ...qualityResult });
       } else {
         // Update vote type
         await supabase
@@ -69,7 +91,8 @@ export async function POST(req: NextRequest) {
           const { data: post } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
           await updateUserInterestsForContent(supabaseAdmin, user.id, post, 'POST_UPVOTE');
         }
-        return NextResponse.json({ action: 'updated', vote_type });
+        const qualityResult = await recalculateQualityScore(supabaseAdmin, post_id);
+        return NextResponse.json({ action: 'updated', vote_type, ...qualityResult });
       }
     }
 
@@ -88,6 +111,9 @@ export async function POST(req: NextRequest) {
       const { data: post } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();
       await updateUserInterestsForContent(supabaseAdmin, user.id, post, 'POST_UPVOTE');
     }
+
+    // Recalculate quality score after new vote
+    const qualityResult = await recalculateQualityScore(supabaseAdmin, post_id);
 
     // Send notification via Queue (don't block the response on this)
     (async () => {
@@ -108,7 +134,7 @@ export async function POST(req: NextRequest) {
       }
     })();
 
-    return NextResponse.json({ action: 'created', vote_type }, { status: 201 });
+    return NextResponse.json({ action: 'created', vote_type, ...qualityResult }, { status: 201 });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

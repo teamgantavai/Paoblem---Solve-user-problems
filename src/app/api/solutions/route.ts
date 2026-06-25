@@ -193,7 +193,7 @@ export async function GET(req: NextRequest) {
     if (!problemId && filter !== 'mine') {
       const admin = createClient(supabaseUrl, supabaseServiceKey);
       const interests = await getUserInterests(admin, userId);
-      const seenIds = await getSeenPostIds(admin, userId);
+      const seenIds = await getSeenPostIds(admin, userId, cursor ? 10 * 60 * 1000 : 0);
       const { offset } = parseRecommendationCursor(cursor);
       const ranked = rankSolutions(searchedSolutions as any[], interests, {
         offset,

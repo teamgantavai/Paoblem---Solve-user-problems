@@ -39,9 +39,15 @@ export function getPageSize() {
 }
 
 export function parseRecommendationCursor(cursor: string | null) {
-  if (!cursor?.startsWith('rec:')) return { offset: 0, isRecommendationCursor: false };
-  const offset = Number(cursor.replace('rec:', ''));
-  return { offset: Number.isFinite(offset) && offset > 0 ? offset : 0, isRecommendationCursor: true };
+  if (!cursor?.startsWith('rec:')) return { offset: 0, excludeIds: [] as string[], isRecommendationCursor: false };
+  const parts = cursor.split(':');
+  const offset = Number(parts[1]);
+  const excludeIds = parts[2] ? parts[2].split(',') : [];
+  return { 
+    offset: Number.isFinite(offset) && offset > 0 ? offset : 0, 
+    excludeIds, 
+    isRecommendationCursor: true 
+  };
 }
 
 export function extractCategories(row: AnyRow): string[] {
@@ -163,14 +169,19 @@ export async function updateUserInterestsForContent(
   }));
 }
 
-export async function getSeenPostIds(supabase: any, userId: string | null) {
+export async function getSeenPostIds(supabase: any, userId: string | null, excludeRecentMs = 0) {
   if (!userId) return new Set<string>();
-  const { data, error } = await supabase
+  let query = supabase
     .from('feed_impressions')
     .select('post_id')
     .eq('user_id', userId)
-    .gte('shown_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString())
-    .limit(500);
+    .gte('shown_at', new Date(Date.now() - 14 * 24 * 60 * 60 * 1000).toISOString());
+
+  if (excludeRecentMs > 0) {
+    query = query.lt('shown_at', new Date(Date.now() - excludeRecentMs).toISOString());
+  }
+
+  const { data, error } = await query.limit(500);
   if (error) return new Set<string>();
   return new Set<string>((data || []).map((row: AnyRow) => String(row.post_id)).filter(Boolean));
 }
@@ -208,7 +219,9 @@ function scorePost<T extends AnyRow>(row: T, interests: Map<string, number>, see
   const interestMatch = categories.reduce((sum, category) => sum + (interests.get(category) || 0), 0);
   const engagement = Number(row.upvotes || 0) * 4 + Number(row.comments_count || 0) * 6 + Number(row.views_count || 0) * 0.4 - Number(row.downvotes || 0) * 3;
   const solutionActivity = Number(row.solutions_count || 0) * 10 + (row.solved ? 8 : 0);
-  const quality = Number(row.ai_quality_score || row.quality_score || 0) * 8;
+  const qualityScore = Number(row.ai_quality_score || row.quality_score || 0);
+  const confidenceScore = Number(row.confidence_score !== undefined && row.confidence_score !== null ? row.confidence_score : 1.0);
+  const quality = qualityScore * confidenceScore * 8;
   const freshness = freshnessScore(row.created_at);
   const repeatPenalty = seenIds.has(row.id) ? 35 : 0;
   const score = interestMatch * 1.8 + engagement + solutionActivity + quality + freshness - repeatPenalty;
@@ -245,16 +258,18 @@ function mixRows<T extends RankedRow<AnyRow>>(
   const targetSize = pageSize + 1;
   const mixed: T[] = [];
   const used = new Set<string>();
-  const expandedSize = targetSize + offset;
+  
+  // Mix the entire candidate pool once to build a stable list, avoiding skipping/duplicating items
+  const totalCandidates = Object.values(pools).flat().length;
 
   Object.entries(mix).forEach(([bucket, ratio]) => {
-    const count = Math.max(1, Math.round(expandedSize * ratio));
+    const count = Math.max(1, Math.round(totalCandidates * ratio));
     takeFromPool(pools[bucket] || [], count, mixed, used);
   });
 
   takeFromPool(
     Object.values(pools).flat().sort(sortByRecommendation),
-    expandedSize - mixed.length,
+    totalCandidates - mixed.length,
     mixed,
     used
   );

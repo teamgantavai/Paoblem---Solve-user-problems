@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, useRef, Suspense, useMemo } from 'react';
+import React, { useState, useEffect, useRef, Suspense, useMemo, useCallback } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   Image as ImageIcon,
@@ -35,8 +35,328 @@ import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import CommentsModal from './CommentsModal';
 import Avatar from './Avatar';
+import QualityScoreBadge from './QualityScoreBadge';
 
-// ─── helpers (unchanged) ─────────────────────────────────────────────────────
+// ─── helpers ─────────────────────────────────────────────────────────────────
+
+const formatPostTime = (dateStr: string) => {
+  const diffMs = Date.now() - new Date(dateStr).getTime();
+  const sec = Math.max(0, Math.floor(diffMs / 1000));
+  if (sec < 60) return 'just now';
+  const min = Math.floor(sec / 60);
+  if (min < 60) return `${min}m ago`;
+  const hr = Math.floor(min / 60);
+  if (hr < 24) return `${hr}h ago`;
+  const day = Math.floor(hr / 24);
+  if (day < 7) return `${day}d ago`;
+  return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
+};
+
+const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
+const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
+const getRoleClass = (role?: string | null) => {
+  const normalized = (role || '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
+  if (['founder', 'developer', 'moderator', 'admin', 'problem-solver'].includes(normalized)) {
+    return `role-badge--${normalized}`;
+  }
+  return 'role-badge--default';
+};
+
+// ─── PostCard Component ──────────────────────────────────────────────────────
+
+interface PostCardProps {
+  post: Post;
+  session: any;
+  profile: any;
+  hasUpvoted: boolean;
+  hasDownvoted: boolean;
+  followings: string[];
+  savedIds: string[];
+  activeShareMenuPostId: string | null;
+  setActiveShareMenuPostId: (id: string | null) => void;
+  handleToggleSave: (id: string) => void;
+  handleVote: (id: string, voteType: 'up' | 'down') => void;
+  openCommentsModal: (id: string) => void;
+  followMutation: any;
+  setEditingPost: (post: Post) => void;
+  setDeletingPostId: (id: string | null) => void;
+  trackPostEvent: (postId: string, eventType: string, metadata?: any) => void;
+  showToast: (message: string) => void;
+}
+
+const PostCard = React.memo(function PostCard({
+  post,
+  session,
+  profile,
+  hasUpvoted,
+  hasDownvoted,
+  followings,
+  savedIds,
+  activeShareMenuPostId,
+  setActiveShareMenuPostId,
+  handleToggleSave,
+  handleVote,
+  openCommentsModal,
+  followMutation,
+  setEditingPost,
+  setDeletingPostId,
+  trackPostEvent,
+  showToast,
+}: PostCardProps) {
+  const router = useRouter();
+  const { animateCardHover, animateCardHoverOut, animateUpvote } = useMicroAnimations();
+
+  const isOwner = session?.user?.id === post.user_id;
+  const authorName = isOwner
+    ? (profile?.full_name || session?.user?.user_metadata?.full_name || post.profiles?.full_name || 'You')
+    : (post.profiles?.full_name || (post.profiles?.username ? `@${post.profiles.username}` : 'Anonymous'));
+  const authorAvatar = isOwner
+    ? (profile?.avatar_url || session?.user?.user_metadata?.avatar_url || post.profiles?.avatar_url)
+    : (post.profiles?.avatar_url);
+  const authorUsername = isOwner
+    ? (profile?.username || session?.user?.user_metadata?.username || post.profiles?.username)
+    : (post.profiles?.username);
+
+  return (
+    <div
+      className="card post-card-animate"
+      data-post-id={post.id}
+      onMouseEnter={animateCardHover}
+      onMouseLeave={animateCardHoverOut}
+      style={{ position: 'relative', overflow: 'visible' }}
+    >
+      {/* Post header (author, share menu) */}
+      <div className="post-header">
+        <div className="post-user">
+          <Avatar
+            src={authorAvatar}
+            name={authorName}
+            className="avatar" size={42}
+            onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
+            style={{ cursor: 'pointer', flexShrink: 0 }}
+          />
+          <div className="post-user-info">
+            <h4 className="post-author-name-container" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
+              <span className="post-author-name"
+                onClick={() => {
+                  router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`);
+                  trackPostEvent(post.id, 'PROFILE_CLICK');
+                  fetch('/api/posts/quality', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
+                  }).catch(() => {});
+                }}>
+                {authorName}
+              </span>
+              <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize' }}>
+                {post.type}
+              </span>
+              <QualityScoreBadge
+                qualityScore={post.quality_score}
+                uniqueViewers={post.unique_viewers}
+                animate
+              />
+            </h4>
+            {authorUsername && (
+              <p className="post-author-username" onClick={() => router.push(`/user/${authorUsername}`)}>
+                @{authorUsername}
+              </p>
+            )}
+            <p className="post-author-meta" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
+              <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
+                {formatPostTime(post.created_at)}
+              </time>
+              {session?.user?.id && session.user.id !== post.user_id && (
+                <>
+                  <span style={{ color: 'var(--text-muted)' }}>·</span>
+                  <button
+                    type="button"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      followMutation.mutate(post.user_id);
+                    }}
+                    disabled={followMutation.isPending}
+                    style={{
+                      background: 'transparent',
+                      border: 'none',
+                      color: followings.includes(post.user_id) ? 'var(--text-muted)' : 'var(--accent-primary, #2563eb)',
+                      fontWeight: 700,
+                      fontSize: '0.72rem',
+                      cursor: 'pointer',
+                      padding: 0,
+                    }}
+                  >
+                    {followings.includes(post.user_id) ? 'Following' : 'Follow'}
+                  </button>
+                </>
+              )}
+            </p>
+          </div>
+        </div>
+
+        <div className="post-menu-shell flex items-center gap-1"
+          style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start', zIndex: 10 }}>
+          <button
+            type="button"
+            aria-haspopup="menu"
+            aria-expanded={activeShareMenuPostId === post.id}
+            onClick={e => { e.stopPropagation(); setActiveShareMenuPostId(activeShareMenuPostId === post.id ? null : post.id); }}
+            style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
+            className="post-header-action-btn" title="More Options">
+            <MoreVertical size={18} />
+          </button>
+
+          {activeShareMenuPostId === post.id && (
+            <div className="post-overflow-menu" role="menu" onClick={e => e.stopPropagation()}>
+              <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const url = `${window.location.origin}/post/${post.slug || post.id}`; if (navigator.share) navigator.share({ title: post.title, url }).catch(() => undefined); else navigator.clipboard.writeText(url); trackPostEvent(post.id, 'POST_SHARE', { destination: 'native' }); showToast('Share link ready.'); }}>
+                <Share2 size={15} /> Share
+              </button>
+              <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`; navigator.clipboard.writeText(shareUrl); trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' }); showToast('Link copied.'); }}>
+                <Copy size={15} /> Copy Link
+              </button>
+              <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); handleToggleSave(post.id); }}>
+                <Bookmark size={15} fill={savedIds.includes(post.id) ? 'currentColor' : 'none'} /> {savedIds.includes(post.id) ? 'Unsave' : 'Save'}
+              </button>
+              {isOwner && (
+                <>
+                  <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); setEditingPost(post); }}>
+                    <Pencil size={15} /> Edit
+                  </button>
+                  <button role="menuitem" className="danger" onClick={() => { setActiveShareMenuPostId(null); setDeletingPostId(post.id); }}>
+                    <Trash2 size={15} /> Delete
+                  </button>
+                </>
+              )}
+              {!isOwner && (
+                <>
+                  <button role="menuitem" onClick={() => {
+                    setActiveShareMenuPostId(null);
+                    trackPostEvent(post.id, 'REPORT_SPAM');
+                    fetch('/api/posts/quality', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ post_id: post.id, counter: 'reports', delta: 1 }),
+                    }).catch(() => {});
+                    showToast('Report received for review.');
+                  }}>
+                    <Flag size={15} /> Report
+                  </button>
+                  <button role="menuitem" className="danger" onClick={() => {
+                    setActiveShareMenuPostId(null);
+                    trackPostEvent(post.id, 'HIDE_POST');
+                    fetch('/api/posts/quality', {
+                      method: 'POST',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({ post_id: post.id, counter: 'hidden_count', delta: 1 }),
+                    }).catch(() => {});
+                    showToast('User blocked locally.');
+                  }}>
+                    <UserX size={15} /> Block User
+                  </button>
+                </>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Post content */}
+      <div className="post-content">
+        {post.external_link && (
+          <a href={post.external_link} target="_blank" rel="noopener noreferrer"
+             className="flex items-center gap-1"
+             onClick={() => {
+               trackPostEvent(post.id, 'LINK_CLICK');
+               fetch('/api/posts/quality', {
+                 method: 'POST',
+                 headers: { 'Content-Type': 'application/json' },
+                 body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
+               }).catch(() => {});
+             }}
+             style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
+            <ExternalLink size={12} />
+            <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
+          </a>
+        )}
+
+        <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: '1.3', marginBottom: '0.6rem', color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
+          {decodeHTMLEntities(post.title)}
+        </h3>
+
+        <ExpandableBody body={post.body} postId={post.id} />
+
+        {(getPostCategory(post) || getPostTags(post).length > 0) && (
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem' }}>
+            {getPostCategory(post) && (
+              <span 
+                className="post-taxonomy-tag category-hashtag"
+                style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  router.push(`/?category=${encodeURIComponent(getPostCategory(post)!)}`);
+                }}
+              >
+                #{getPostCategory(post).toLowerCase().replace(/\s+/g, '')}
+              </span>
+            )}
+            {getPostTags(post).map((tag: string) => (
+              <span key={tag} className="post-taxonomy-tag" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
+                #{tag}
+              </span>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Image gallery */}
+      <ImageGallery imageUrlsString={post.image_url} />
+
+      {/* Footer — votes, comments, type badge */}
+      <div className="post-footer">
+        <div className="flex items-center gap-2 post-footer-actions">
+          <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34,197,94,0.08)' : undefined }}>
+            <button className="vote-btn" onClick={e => { animateUpvote(e.currentTarget); handleVote(post.id, 'up'); }} style={{ color: hasUpvoted ? '#22c55e' : undefined }} aria-label="Upvote">
+              <TriangleIcon size={16} fill={hasUpvoted ? 'currentColor' : 'none'} />
+            </button>
+            <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? '#22c55e' : undefined }}>+{post.upvotes}</span>
+          </div>
+
+          <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239,68,68,0.08)' : undefined }}>
+            <button className="vote-btn" onClick={() => handleVote(post.id, 'down')} style={{ color: hasDownvoted ? '#ef4444' : undefined }} aria-label="Downvote">
+              <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
+            </button>
+            <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>-{post.downvotes}</span>
+          </div>
+
+          <button type="button" className="post-comment-btn" onClick={() => openCommentsModal(post.id)} aria-label="View comments">
+            <MessageCircle size={19} />
+            <span className="post-comment-count">{post.comments_count}</span>
+          </button>
+
+          {post.type === 'problem' && (
+            <button
+              type="button"
+              className="solve-it-btn"
+              onClick={(e) => {
+                e.stopPropagation();
+                window.dispatchEvent(new CustomEvent('top-loader:start'));
+                router.push(`/problems/${post.id}/solutions`);
+              }}
+              style={{
+                marginLeft: '0.4rem',
+              }}
+            >
+              Solve It
+            </button>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+});
+
+// ─── FeedInner Component ─────────────────────────────────────────────────────
 
 function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance, animateUpvote } = useMicroAnimations();
@@ -51,7 +371,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [session, setSession] = useState<any>(null);
   const [profile, setProfile] = useState<any>(null);
   const [commentsModalPostId, setCommentsModalPostId] = useState<string | null>(null);
-  const [shuffledPosts, setShuffledPosts] = useState<Post[]>([]);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
@@ -61,29 +380,6 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
   const dwellStartRef = useRef<Record<string, number>>({});
   const viewedPostIdsRef = useRef<Set<string>>(new Set());
-
-  const formatPostTime = (dateStr: string) => {
-    const diffMs = Date.now() - new Date(dateStr).getTime();
-    const sec = Math.max(0, Math.floor(diffMs / 1000));
-    if (sec < 60) return 'just now';
-    const min = Math.floor(sec / 60);
-    if (min < 60) return `${min}m ago`;
-    const hr = Math.floor(min / 60);
-    if (hr < 24) return `${hr}h ago`;
-    const day = Math.floor(hr / 24);
-    if (day < 7) return `${day}d ago`;
-    return new Date(dateStr).toLocaleDateString(undefined, { month: 'short', day: 'numeric' });
-  };
-
-  const getPostCategory = (post: Post) => post.category || post.metadata?.category || null;
-  const getPostTags = (post: Post) => post.tags || post.metadata?.tags || [];
-  const getRoleClass = (role?: string | null) => {
-    const normalized = (role || '').toLowerCase().replace(/[^a-z]+/g, '-').replace(/^-|-$/g, '');
-    if (['founder', 'developer', 'moderator', 'admin', 'problem-solver'].includes(normalized)) {
-      return `role-badge--${normalized}`;
-    }
-    return 'role-badge--default';
-  };
 
   useEffect(() => { setFilterType(activeFilter); }, [activeFilter]);
 
@@ -102,7 +398,23 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     }
   }, []);
 
-  const handleToggleSave = (postId: string) => {
+  const showToast = useCallback((message: string) => {
+    setToastMessage(message);
+    setTimeout(() => setToastMessage(null), 2500);
+  }, []);
+
+  const trackPostEvent = useCallback(async (postId: string, eventType: string, metadata: Record<string, unknown> = {}) => {
+    try {
+      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
+      await fetch('/api/analytics/track', {
+        method: 'POST', headers,
+        body: JSON.stringify({ post_id: postId, event_type: eventType, metadata }),
+      });
+    } catch (err) { console.warn('[feed] Failed to track event', err); }
+  }, [session?.access_token]);
+
+  const handleToggleSave = useCallback((postId: string) => {
     let nextSaved: string[];
     if (savedIds.includes(postId)) {
       nextSaved = savedIds.filter(id => id !== postId);
@@ -115,12 +427,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
     if (!savedIds.includes(postId)) trackPostEvent(postId, 'POST_SAVE');
     if (filterType === 'saved') queryClient.invalidateQueries({ queryKey: ['posts', 'saved'] });
-  };
-
-  const showToast = (message: string) => {
-    setToastMessage(message);
-    setTimeout(() => setToastMessage(null), 2500);
-  };
+  }, [savedIds, filterType, trackPostEvent, queryClient, showToast]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -358,6 +665,25 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         queryClient.setQueryData(['userVotes', session?.user?.id], context.previousUserVotes);
       }
     },
+    onSuccess: (data, { postId }) => {
+      // Update quality score in cache when vote API returns fresh score
+      if (data?.quality_score != null) {
+        queryClient.setQueriesData({ queryKey: ['posts'] }, (old: any) => {
+          if (!old?.pages) return old;
+          return {
+            ...old,
+            pages: old.pages.map((page: any) => ({
+              ...page,
+              posts: page.posts.map((post: any) =>
+                post.id === postId
+                  ? { ...post, quality_score: data.quality_score, unique_viewers: data.unique_viewers }
+                  : post
+              ),
+            })),
+          };
+        });
+      }
+    },
     onSettled: () => { queryClient.invalidateQueries({ queryKey: ['userVotes', session?.user?.id] }); },
   });
 
@@ -432,30 +758,19 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     },
   });
 
-  const handleVote = (postId: string, voteType: 'up' | 'down') => {
+  const handleVote = useCallback((postId: string, voteType: 'up' | 'down') => {
     if (!session) { setIsAuthOpen(true); return; }
     if (votingPostIds[postId]) return;
     setVotingPostIds(prev => ({ ...prev, [postId]: true }));
     voteMutation.mutate({ postId, voteType }, {
       onSettled: () => setVotingPostIds(prev => ({ ...prev, [postId]: false })),
     });
-  };
+  }, [session, votingPostIds, voteMutation]);
 
-  const openCommentsModal = (postId: string) => {
+  const openCommentsModal = useCallback((postId: string) => {
     trackPostEvent(postId, 'POST_OPEN');
     setCommentsModalPostId(postId);
-  };
-
-  const trackPostEvent = async (postId: string, eventType: string, metadata: Record<string, unknown> = {}) => {
-    try {
-      const headers: Record<string, string> = { 'Content-Type': 'application/json' };
-      if (session?.access_token) headers.Authorization = `Bearer ${session.access_token}`;
-      await fetch('/api/analytics/track', {
-        method: 'POST', headers,
-        body: JSON.stringify({ post_id: postId, event_type: eventType, metadata }),
-      });
-    } catch (err) { console.warn('[feed] Failed to track event', err); }
-  };
+  }, [trackPostEvent]);
 
   const rawPosts = data?.pages.flatMap(page => page.posts) || [];
 
@@ -485,19 +800,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     return posts;
   }, [newlyCreatedPosts, filterType, categoryParam]);
 
-  const mergedPosts = [...filteredNewPosts, ...rawPosts];
-  const posts = mergedPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
+  const posts = useMemo(() => {
+    const rawPosts = data?.pages.flatMap(page => page.posts) || [];
+    const mergedPosts = [...filteredNewPosts, ...rawPosts];
+    return mergedPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
+  }, [data, filteredNewPosts]);
 
-  useEffect(() => {
-    if (!session && posts.length > 0 && shuffledPosts.length === 0) {
-      const shuffled = [...posts].sort(() => 0.5 - Math.random());
-      setShuffledPosts(shuffled.slice(0, Math.min(shuffled.length, 4)));
-    }
-  }, [posts, session, shuffledPosts.length]);
-
-  useEffect(() => { if (session) setShuffledPosts([]); }, [session]);
-
-  const displayedPosts = session ? posts : shuffledPosts;
+  const displayedPosts = posts;
   const commentsModalPost = commentsModalPostId
     ? displayedPosts.find(p => p.id === commentsModalPostId) || null
     : null;
@@ -519,11 +828,41 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           if (!viewedPostIdsRef.current.has(postId)) {
             viewedPostIdsRef.current.add(postId);
             trackPostEvent(postId, 'POST_VIEW');
+            // Increment unique_viewers counter for quality score
+            fetch('/api/posts/quality', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ post_id: postId, counter: 'unique_viewers', delta: 1 }),
+            }).catch(() => {});
           }
         } else if (dwellStartRef.current[postId]) {
           const dwellSeconds = Math.round((Date.now() - dwellStartRef.current[postId]) / 1000);
           delete dwellStartRef.current[postId];
           if (dwellSeconds >= 3) trackPostEvent(postId, 'DWELL', { dwellSeconds });
+          // LONG_READ: dwell >= 20 seconds triggers quality signal
+          if (dwellSeconds >= 20) {
+            trackPostEvent(postId, 'LONG_READ');
+            fetch('/api/posts/quality', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ post_id: postId, counter: 'long_reads', delta: 1 }),
+            }).then(res => res.json()).then(data => {
+              if (data?.quality_score != null) {
+                queryClient.setQueriesData({ queryKey: ['posts'] }, (old: any) => {
+                  if (!old?.pages) return old;
+                  return {
+                    ...old,
+                    pages: old.pages.map((page: any) => ({
+                      ...page,
+                      posts: page.posts.map((p: any) =>
+                        p.id === postId ? { ...p, quality_score: data.quality_score, unique_viewers: data.unique_viewers } : p
+                      ),
+                    })),
+                  };
+                });
+              }
+            }).catch(() => {});
+          }
         }
       });
     }, { threshold: 0.55 });
@@ -535,6 +874,14 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           const dwellSeconds = Math.round((Date.now() - dwellStartRef.current[postId]) / 1000);
           delete dwellStartRef.current[postId];
           if (dwellSeconds >= 3) trackPostEvent(postId, 'DWELL', { dwellSeconds });
+          if (dwellSeconds >= 20) {
+            trackPostEvent(postId, 'LONG_READ');
+            fetch('/api/posts/quality', {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ post_id: postId, counter: 'long_reads', delta: 1 }),
+            }).catch(() => {});
+          }
         }
       });
       observer.disconnect();
@@ -649,7 +996,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       )}
 
       {/* Posts list */}
-      <div ref={feedListRef} className="feed-list-container" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+      <div 
+        key={`${filterType}-${categoryParam || ''}`}
+        ref={feedListRef} 
+        className="feed-list-container" 
+        style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
+      >
         {isLoading && (<><PostSkeleton /><PostSkeleton /></>)}
 
         {isError && (
@@ -664,226 +1016,33 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           </div>
         )}
 
-        {displayedPosts.map((post: Post) => {
-          const hasUpvoted = userVotes?.[post.id] === 'up';
-          const hasDownvoted = userVotes?.[post.id] === 'down';
-          const isOwner = session?.user?.id === post.user_id;
-          const authorName = isOwner
-            ? (profile?.full_name || session?.user?.user_metadata?.full_name || post.profiles?.full_name || 'You')
-            : (post.profiles?.full_name || (post.profiles?.username ? `@${post.profiles.username}` : 'Anonymous'));
-          const authorAvatar = isOwner
-            ? (profile?.avatar_url || session?.user?.user_metadata?.avatar_url || post.profiles?.avatar_url)
-            : (post.profiles?.avatar_url);
-          const authorUsername = isOwner
-            ? (profile?.username || session?.user?.user_metadata?.username || post.profiles?.username)
-            : (post.profiles?.username);
-
-          return (
-            <ErrorBoundary key={post.id}>
-              <div
-                className="card post-card-animate"
-                data-post-id={post.id}
-                onMouseEnter={animateCardHover}
-                onMouseLeave={animateCardHoverOut}
-                style={{ position: 'relative', overflow: 'visible' }}
-              >
-                {/* Post header (author, share menu) — unchanged */}
-                <div className="post-header">
-                  <div className="post-user">
-                    <Avatar
-                      src={authorAvatar}
-                      name={authorName}
-                      className="avatar" size={42}
-                      onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
-                      style={{ cursor: 'pointer', flexShrink: 0 }}
-                    />
-                    <div className="post-user-info">
-                      <h4 className="post-author-name-container" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-                        <span className="post-author-name"
-                          onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}>
-                          {authorName}
-                        </span>
-                        <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize' }}>
-                          {post.type}
-                        </span>
-                      </h4>
-                      {authorUsername && (
-                        <p className="post-author-username" onClick={() => router.push(`/user/${authorUsername}`)}>
-                          @{authorUsername}
-                        </p>
-                      )}
-                      <p className="post-author-meta" style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', flexWrap: 'wrap' }}>
-                        <time dateTime={post.created_at} title={new Date(post.created_at).toLocaleString()}>
-                          {formatPostTime(post.created_at)}
-                        </time>
-                        {session?.user?.id && session.user.id !== post.user_id && (
-                          <>
-                            <span style={{ color: 'var(--text-muted)' }}>·</span>
-                            <button
-                              type="button"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                followMutation.mutate(post.user_id);
-                              }}
-                              disabled={followMutation.isPending}
-                              style={{
-                                background: 'transparent',
-                                border: 'none',
-                                color: followings.includes(post.user_id) ? 'var(--text-muted)' : 'var(--accent-primary, #2563eb)',
-                                fontWeight: 700,
-                                fontSize: '0.72rem',
-                                cursor: 'pointer',
-                                padding: 0,
-                              }}
-                            >
-                              {followings.includes(post.user_id) ? 'Following' : 'Follow'}
-                            </button>
-                          </>
-                        )}
-                      </p>
-                    </div>
-                  </div>
-
-                  <div className="post-menu-shell flex items-center gap-1"
-                    style={{ color: 'var(--text-muted)', position: 'relative', flexShrink: 0, alignSelf: 'flex-start', zIndex: 10 }}>
-                    <button
-                      type="button"
-                      aria-haspopup="menu"
-                      aria-expanded={activeShareMenuPostId === post.id}
-                      onClick={e => { e.stopPropagation(); setActiveShareMenuPostId(activeShareMenuPostId === post.id ? null : post.id); }}
-                      style={{ background: 'transparent', border: 'none', color: 'var(--text-muted)', cursor: 'pointer', display: 'flex', padding: '6px', borderRadius: '50%' }}
-                      className="post-header-action-btn" title="More Options">
-                      <MoreVertical size={18} />
-                    </button>
-
-                    {activeShareMenuPostId === post.id && (
-                      <div className="post-overflow-menu" role="menu" onClick={e => e.stopPropagation()}>
-                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const url = `${window.location.origin}/post/${post.slug || post.id}`; if (navigator.share) navigator.share({ title: post.title, url }).catch(() => undefined); else navigator.clipboard.writeText(url); trackPostEvent(post.id, 'POST_SHARE', { destination: 'native' }); showToast('Share link ready.'); }}>
-                          <Share2 size={15} /> Share
-                        </button>
-                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`; navigator.clipboard.writeText(shareUrl); trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' }); showToast('Link copied.'); }}>
-                          <Copy size={15} /> Copy Link
-                        </button>
-                        <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); handleToggleSave(post.id); }}>
-                          <Bookmark size={15} fill={savedIds.includes(post.id) ? 'currentColor' : 'none'} /> {savedIds.includes(post.id) ? 'Unsave' : 'Save'}
-                        </button>
-                        {isOwner && (
-                          <>
-                            <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); setEditingPost(post); }}>
-                              <Pencil size={15} /> Edit
-                            </button>
-                            <button role="menuitem" className="danger" onClick={() => { setActiveShareMenuPostId(null); setDeletingPostId(post.id); }}>
-                              <Trash2 size={15} /> Delete
-                            </button>
-                          </>
-                        )}
-                        {!isOwner && (
-                          <>
-                            <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); showToast('Report received for review.'); }}>
-                              <Flag size={15} /> Report
-                            </button>
-                            <button role="menuitem" className="danger" onClick={() => { setActiveShareMenuPostId(null); showToast('User blocked locally.'); }}>
-                              <UserX size={15} /> Block User
-                            </button>
-                          </>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                </div>
-
-                {/* Post content */}
-                <div className="post-content">
-                  {post.external_link && (
-                    <a href={post.external_link} target="_blank" rel="noopener noreferrer"
-                       className="flex items-center gap-1"
-                       style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
-                      <ExternalLink size={12} />
-                      <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
-                    </a>
-                  )}
-
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 700, letterSpacing: '-0.015em', lineHeight: '1.3', marginBottom: '0.6rem', color: 'var(--text-main)', wordBreak: 'break-word', overflowWrap: 'break-word' }}>
-                    {decodeHTMLEntities(post.title)}
-                  </h3>
-
-                  <ExpandableBody body={post.body} />
-
-                  {(getPostCategory(post) || getPostTags(post).length > 0) && (
-                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem' }}>
-                      {getPostCategory(post) && (
-                        <span 
-                          className="post-taxonomy-tag category-hashtag"
-                          style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            router.push(`/?category=${encodeURIComponent(getPostCategory(post)!)}`);
-                          }}
-                        >
-                          #{getPostCategory(post).toLowerCase().replace(/\s+/g, '')}
-                        </span>
-                      )}
-                      {getPostTags(post).map((tag: string) => (
-                        <span key={tag} className="post-taxonomy-tag" style={{ color: 'var(--text-muted)', fontSize: '0.85rem' }}>
-                          #{tag}
-                        </span>
-                      ))}
-                    </div>
-                  )}
-                </div>
-
-                {/* Image gallery */}
-                <ImageGallery imageUrlsString={post.image_url} />
-
-                {/* Footer — votes, comments, type badge */}
-                <div className="post-footer">
-                  <div className="flex items-center gap-2 post-footer-actions">
-                    <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34,197,94,0.08)' : undefined }}>
-                      <button className="vote-btn" onClick={e => { animateUpvote(e.currentTarget); handleVote(post.id, 'up'); }} style={{ color: hasUpvoted ? '#22c55e' : undefined }} aria-label="Upvote">
-                        <TriangleIcon size={16} fill={hasUpvoted ? 'currentColor' : 'none'} />
-                      </button>
-                      <span className={`vote-label up ${hasUpvoted ? 'active' : ''}`} style={{ color: hasUpvoted ? '#22c55e' : undefined }}>+{post.upvotes}</span>
-                    </div>
-
-                    <div className="vote-container" style={{ borderColor: hasDownvoted ? '#ef4444' : undefined, background: hasDownvoted ? 'rgba(239,68,68,0.08)' : undefined }}>
-                      <button className="vote-btn" onClick={() => handleVote(post.id, 'down')} style={{ color: hasDownvoted ? '#ef4444' : undefined }} aria-label="Downvote">
-                        <TriangleIcon size={16} style={{ transform: 'rotate(180deg)' }} fill={hasDownvoted ? 'currentColor' : 'none'} />
-                      </button>
-                      <span className={`vote-label down ${hasDownvoted ? 'active' : ''}`}>-{post.downvotes}</span>
-                    </div>
-
-                    <button type="button" className="post-comment-btn" onClick={() => openCommentsModal(post.id)} aria-label="View comments">
-                      <MessageCircle size={19} />
-                      <span className="post-comment-count">{post.comments_count}</span>
-                    </button>
-
-                    {post.type === 'problem' && (
-                      <button
-                        type="button"
-                        className="solve-it-btn"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.dispatchEvent(new CustomEvent('top-loader:start'));
-                          router.push(`/problems/${post.id}/solutions`);
-                        }}
-                        style={{
-                          marginLeft: '0.4rem',
-                        }}
-                      >
-                        Solve It
-                      </button>
-                    )}
-
-                  </div>
-                </div>
-              </div>
-            </ErrorBoundary>
-          );
-        })}
+        {displayedPosts.map((post: Post) => (
+          <ErrorBoundary key={post.id}>
+            <PostCard
+              post={post}
+              session={session}
+              profile={profile}
+              hasUpvoted={userVotes?.[post.id] === 'up'}
+              hasDownvoted={userVotes?.[post.id] === 'down'}
+              followings={followings}
+              savedIds={savedIds}
+              activeShareMenuPostId={activeShareMenuPostId}
+              setActiveShareMenuPostId={setActiveShareMenuPostId}
+              handleToggleSave={handleToggleSave}
+              handleVote={handleVote}
+              openCommentsModal={openCommentsModal}
+              followMutation={followMutation}
+              setEditingPost={setEditingPost}
+              setDeletingPostId={setDeletingPostId}
+              trackPostEvent={trackPostEvent}
+              showToast={showToast}
+            />
+          </ErrorBoundary>
+        ))}
       </div>
 
       {/* Sign-in nudge for unauthenticated */}
-      {!session && displayedPosts.length > 0 && (
+      {!session && displayedPosts.length > 0 && !hasNextPage && (
         <div className="card" style={{ textAlign: 'center', padding: '3rem 2rem', background: 'linear-gradient(180deg, var(--bg-card) 0%, rgba(99,102,241,0.15) 100%)', borderColor: 'rgba(99,102,241,0.3)', boxShadow: '0 8px 32px rgba(99,102,241,0.1)', position: 'relative', overflow: 'hidden', marginTop: '1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem', alignItems: 'center', borderRadius: '24px' }}>
           <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '4px', background: 'linear-gradient(90deg, #6366f1, #3b82f6)' }} />
           <h3 style={{ fontSize: '1.35rem', fontWeight: 700, color: 'var(--text-main)' }}>
@@ -899,7 +1058,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         </div>
       )}
 
-      {session && hasNextPage && (
+      {hasNextPage && (
         <div ref={observerRef} style={{ display: 'flex', justifyContent: 'center', padding: '1.5rem 0' }}>
           <Loader2 size={24} className="spin" style={{ color: 'var(--text-muted)' }} />
         </div>
@@ -1138,7 +1297,7 @@ function closeUnclosedTags(text: string, suffix: string = ''): string {
   return result;
 }
 
-function ExpandableBody({ body }: { body: string }) {
+function ExpandableBody({ body, postId }: { body: string; postId?: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
   const maxLength = 320;
   const decodedBody = decodeHTMLEntities(body).replace(/\n{3,}/g, '\n\n');
@@ -1163,7 +1322,22 @@ function ExpandableBody({ body }: { body: string }) {
       <div className="post-body-text" style={{ ...baseStyle, margin: 0 }}>
         <RenderSegments segments={displaySegments} />
       </div>
-      <button onClick={e => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
+      <button onClick={e => {
+        e.stopPropagation();
+        if (!isExpanded && postId) {
+          fetch('/api/analytics/track', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ post_id: postId, event_type: 'SEE_MORE' }),
+          }).catch(() => {});
+          fetch('/api/posts/quality', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ post_id: postId, counter: 'see_more_clicks', delta: 1 }),
+          }).catch(() => {});
+        }
+        setIsExpanded(!isExpanded);
+      }}
         style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginTop: '4px', display: 'inline-flex', alignItems: 'center' }}>
         {isExpanded ? 'See less' : 'See more'}
       </button>
