@@ -451,6 +451,42 @@ function ChatsPageContent() {
     router.replace(`/chats?conversationId=${conversationId}`, { scroll: false });
   };
 
+  useEffect(() => {
+    const urlUserId = searchParams?.get('userId');
+    if (!urlUserId || !session?.access_token || conversationsQuery.isLoading) return;
+
+    const handleAutoStartChat = async () => {
+      const list = conversationsQuery.data || [];
+      const existing = list.find((c) => c.partner?.id === urlUserId);
+
+      if (existing) {
+        openConversation(existing.id);
+      } else {
+        startTopLoader();
+        try {
+          const res = await fetch('/api/messages', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', ...(await authHeaders(session)) },
+            body: JSON.stringify({
+              recipientId: urlUserId,
+              startOnly: true,
+            }),
+          });
+          if (!res.ok) throw new Error((await res.json()).error || 'Could not start conversation');
+          const data = await res.json();
+          await conversationsQuery.refetch();
+          openConversation(data.conversationId);
+        } catch (error: any) {
+          toast.error(error.message || 'Could not start chat');
+        } finally {
+          finishTopLoader();
+        }
+      }
+    };
+
+    handleAutoStartChat();
+  }, [searchParams, session, conversationsQuery.isLoading, conversationsQuery.data]);
+
   const startTopLoader = () => window.dispatchEvent(new Event('top-loader:start'));
   const finishTopLoader = () => window.dispatchEvent(new Event('top-loader:finish'));
 

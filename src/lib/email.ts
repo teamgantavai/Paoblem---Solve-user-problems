@@ -150,24 +150,49 @@ export async function sendChatNotificationEmail(receiverId: string) {
   const subject = `You have ${unreadCount} unread message${unreadCount > 1 ? 's' : ''} on Paoblem`;
   const plural = unreadCount > 1 ? 's' : '';
   const html = `
-<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0b0f19; color: #f3f4f6; padding: 40px 20px; text-align: center; min-height: 100%;">
-  <div style="max-width: 500px; margin: 0 auto; background-color: #111827; border: 1px solid #1f2937; border-radius: 16px; padding: 32px; box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.3); text-align: left;">
-    <div style="text-align: center; margin-bottom: 24px;">
-      <img src="https://res.cloudinary.com/dh7fjswdt/image/upload/f_auto,q_auto/p_n7ajqn" alt="Paoblem Logo" style="height: 40px; display: block; margin: 0 auto;" />
+<div style="font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background-color: #0d0e12; color: #e4e4e7; padding: 50px 20px; min-height: 100%;">
+  <div style="max-width: 540px; margin: 0 auto; background-color: #15171e; border: 1px solid #272a34; border-radius: 20px; overflow: hidden; box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.5), 0 10px 10px -5px rgba(0, 0, 0, 0.4);">
+    <!-- Decorative Gradient Top Bar -->
+    <div style="height: 6px; background: linear-gradient(90deg, #3b82f6 0%, #8b5cf6 50%, #ec4899 100%);"></div>
+    
+    <div style="padding: 40px 32px;">
+      <!-- Logo Section -->
+      <div style="text-align: center; margin-bottom: 32px;">
+        <img src="https://res.cloudinary.com/dh7fjswdt/image/upload/f_auto,q_auto/p_n7ajqn" alt="Paoblem Logo" style="height: 36px; display: inline-block;" />
+      </div>
+      
+      <!-- Greeting / Header -->
+      <h2 style="font-size: 22px; font-weight: 700; color: #ffffff; margin-top: 0; margin-bottom: 12px; text-align: center; letter-spacing: -0.02em;">
+        New messages are waiting
+      </h2>
+      
+      <!-- Body Text -->
+      <p style="font-size: 15px; color: #a1a1aa; line-height: 1.6; margin-top: 0; margin-bottom: 24px; text-align: center;">
+        Hi <strong>${profile.full_name || profile.username || 'there'}</strong>, you have <span style="color: #3b82f6; font-weight: 600; font-size: 16px;">${unreadCount}</span> new message${plural} waiting in your chat.
+      </p>
+
+      <!-- Message Alert Callout -->
+      <div style="background-color: #1c1e26; border-left: 4px solid #8b5cf6; border-radius: 8px; padding: 18px; margin-bottom: 32px;">
+        <p style="font-size: 14px; color: #d4d4d8; margin: 0; line-height: 1.5;">
+          💬 Don't miss out on the conversation. Click below to reply and keep collaborating with fellow builders.
+        </p>
+      </div>
+
+      <!-- Action Button -->
+      <div style="text-align: center; margin-bottom: 16px;">
+        <a href="${chatUrl}" style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #8b5cf6 100%); color: #ffffff; text-decoration: none; padding: 14px 36px; font-weight: 600; font-size: 15px; border-radius: 10px; box-shadow: 0 4px 15px rgba(59, 130, 246, 0.3);">
+          Open Chats
+        </a>
+      </div>
+      
+      <!-- Footer Info -->
+      <hr style="border: 0; border-top: 1px solid #272a34; margin: 32px 0 20px 0;" />
+      
+      <p style="font-size: 12px; color: #71717a; text-align: center; line-height: 1.5; margin: 0;">
+        You are receiving this email because notifications are enabled on your account.<br />
+        If you have any questions, visit <a href="${appUrl}" style="color: #3b82f6; text-decoration: none;">Paoblem</a>.
+      </p>
     </div>
-    <h2 style="font-size: 20px; font-weight: 600; margin-top: 0; color: #ffffff; text-align: center;">Unread Messages Waiting</h2>
-    <p style="font-size: 16px; color: #9ca3af; line-height: 1.5; margin-bottom: 24px; text-align: center;">
-      Hello ${profile.full_name || profile.username || 'there'}, you have <strong style="color: #3b82f6;">${unreadCount}</strong> unread message${plural} waiting in your chat.
-    </p>
-    <div style="text-align: center;">
-      <a href="${chatUrl}" style="display: inline-block; background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%); color: #ffffff; text-decoration: none; padding: 12px 28px; font-weight: 600; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(37, 99, 235, 0.2);">
-        Open Chats
-      </a>
-    </div>
-    <hr style="border: 0; border-top: 1px solid #1f2937; margin: 32px 0 16px 0;" />
-    <p style="font-size: 12px; color: #6b7280; text-align: center; margin: 0;">
-      You received this because you have notifications enabled. If you have any questions, visit <a href="${appUrl}" style="color: #3b82f6; text-decoration: none;">Paoblem</a>.
-    </p>
   </div>
 </div>
   `;
