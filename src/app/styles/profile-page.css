@@ -2,14 +2,14 @@
    Profile Page Styles
    ============================================================ */
 
-/* ── Page Layout ── */
+/* -- Page Layout -- */
 .profile-page-wrap {
   max-width: 860px;
   margin: 0 auto;
   padding: 0 0 6rem;
 }
 
-/* ── Profile Card (cover + body) ── */
+/* -- Profile Card (cover + body) -- */
 .profile-main-card {
   background-color: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -18,7 +18,7 @@
   margin-bottom: 1rem;
 }
 
-/* ── Cover Banner ── */
+/* -- Cover Banner -- */
 .profile-cover {
   position: relative;
   height: 130px;
@@ -102,7 +102,7 @@
   background: rgba(255, 255, 255, 0.15);
 }
 
-/* ── Avatar Section ── */
+/* -- Avatar Section -- */
 .profile-identity-section {
   padding: 0 1.5rem 1.5rem;
   display: flex;
@@ -155,7 +155,7 @@
   opacity: 0.85;
 }
 
-/* ── Identity Info ── */
+/* -- Identity Info -- */
 .profile-info-col {
   width: 100%;
   display: flex;
@@ -178,7 +178,7 @@
   line-height: 1.2;
 }
 
-/* ── Role Tag (editable) ── */
+/* -- Role Tag (editable) -- */
 .profile-role-tag {
   display: inline-flex;
   align-items: center;
@@ -201,39 +201,39 @@
   border-color: rgba(99, 102, 241, 0.5);
 }
 
-.profile-role-tag svg {
+.profile-role-tag > :is(svg) {
   opacity: 0.7;
 }
 
-/* ── Role Picker Dropdown ── */
 .profile-role-picker {
   position: absolute;
   top: calc(100% + 6px);
   left: 0;
-  background: var(--glass-menu-bg);
-  border: 1px solid var(--glass-menu-border);
-  border-radius: 14px;
-  box-shadow: var(--glass-menu-shadow);
-  backdrop-filter: blur(18px) saturate(1.25);
-  -webkit-backdrop-filter: blur(18px) saturate(1.25);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  border-radius: 12px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
   z-index: 5000;
   min-width: 180px;
-  padding: 0.5rem;
+  max-width: calc(100vw - 32px);
+  max-height: 220px;
+  overflow-y: auto;
+  padding: 0.4rem 0.4rem 0.8rem 0.4rem;
   display: flex;
   flex-direction: column;
-  gap: 0.15rem;
+  gap: 0.2rem;
 }
 
 .profile-role-option {
   display: flex;
   align-items: center;
   gap: 0.5rem;
-  padding: 0.45rem 0.65rem;
+  padding: 0.5rem 0.75rem;
   border-radius: 8px;
-  font-size: 0.82rem;
+  font-size: 0.85rem;
   color: var(--text-body);
   cursor: pointer;
-  transition: background 0.15s;
+  transition: all 0.15s ease;
   border: none;
   background: transparent;
   text-align: left;
@@ -246,12 +246,11 @@
 }
 
 .profile-role-option.active {
-  color: #a5b4fc;
-  background: rgba(99, 102, 241, 0.1);
+  color: #818cf8;
+  background: rgba(99, 102, 241, 0.15);
   font-weight: 600;
 }
 
-/* ── Location & Stats line ── */
 .profile-location-row {
   display: flex;
   align-items: center;
@@ -262,7 +261,7 @@
   margin-bottom: 0.75rem;
 }
 
-/* ── Bio ── */
+/* -- Bio -- */
 .profile-bio-text {
   font-size: 0.875rem;
   color: var(--text-body);
@@ -290,7 +289,7 @@
   color: var(--text-main);
 }
 
-/* ── Action Buttons ── */
+/* -- Action Buttons -- */
 .profile-actions-row {
   display: flex;
   gap: 0.65rem;
@@ -302,7 +301,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid rgba(255,255,255,0.2);
+  border: 1px solid rgba(255, 255, 255, 0.2);
   border-radius: 20px;
   padding: 0.45rem 1.1rem;
   font-size: 0.8rem;
@@ -316,7 +315,7 @@
 
 .profile-action-btn:hover {
   background: var(--bg-hover);
-  border-color: rgba(255,255,255,0.3);
+  border-color: rgba(255, 255, 255, 0.3);
 }
 
 .profile-action-btn.primary {
@@ -329,11 +328,7 @@
   opacity: 0.88;
 }
 
-/* Removed .profile-stats-row as it moved to sidebar */
-
-
-
-/* ── About section in Profile tab ── */
+/* -- About section in Profile tab -- */
 .profile-about-section {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -357,7 +352,7 @@
   word-break: break-word;
 }
 
-/* ── Empty state ── */
+/* -- Empty state -- */
 .profile-empty-state {
   text-align: center;
   padding: 3rem 2rem;
@@ -365,14 +360,14 @@
   font-size: 0.875rem;
 }
 
-/* ── Profile post cards (slim, no composer) ── */
+/* -- Profile post cards (slim, no composer) -- */
 .profile-post-list {
   display: flex;
   flex-direction: column;
   gap: 0.85rem;
 }
 
-/* ── Edit Profile Modal fields ── */
+/* -- Edit Profile Modal fields -- */
 .profile-edit-field {
   display: flex;
   flex-direction: column;
@@ -414,7 +409,7 @@
   line-height: 1.5;
 }
 
-/* ── Save button ── */
+/* -- Save button -- */
 .profile-save-btn {
   width: 100%;
   padding: 0.75rem;
@@ -438,7 +433,7 @@
   cursor: not-allowed;
 }
 
-/* ── Comment list in Comments tab ── */
+/* -- Comment list in Comments tab -- */
 .profile-comment-item {
   background: var(--bg-card);
   border: 1px solid var(--border-color);
@@ -479,7 +474,7 @@
   margin-top: 0.4rem;
 }
 
-/* ── Responsive ── */
+/* -- Responsive -- */
 @media (max-width: 768px) {
   .profile-page-wrap {
     padding: 0 0 5rem;
@@ -532,7 +527,7 @@
   }
 }
 
-/* ── Content Container Layout (Two Column) ── */
+/* -- Content Container Layout (Two Column) -- */
 .profile-content-container {
   display: flex;
   gap: 1.5rem;
@@ -545,7 +540,7 @@
   min-width: 0;
 }
 
-/* ── Right Sidebar (Reddit/LinkedIn style) ── */
+/* -- Right Sidebar (Reddit/LinkedIn style) -- */
 .profile-right-sidebar {
   width: 320px;
   flex-shrink: 0;
@@ -674,7 +669,7 @@
   background: rgba(239, 68, 68, 0.1);
 }
 
-/* ── Reddit Style Horizontal Nav ── */
+/* -- Reddit Style Horizontal Nav -- */
 .profile-horizontal-nav {
   display: flex;
   gap: 0.25rem;
@@ -769,10 +764,9 @@
   .profile-content-container {
     flex-direction: column;
   }
-  
+
   .profile-right-sidebar {
     width: 100%;
-    order: -1; /* Make sidebar info appear above feed on mobile */
+    order: -1;
   }
 }
-

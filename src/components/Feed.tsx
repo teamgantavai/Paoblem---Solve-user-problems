@@ -958,23 +958,105 @@ function PostSkeleton() {
 }
 
 // ── Link-aware body renderer (unchanged) ──────────────────────────────────────
-function renderFormattedText(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/g);
+function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
+  if (!text) return [];
+  const regex = /(<strong\b[^>]*>[\s\S]*?<\/strong>|<b\b[^>]*>[\s\S]*?<\/b>|<em\b[^>]*>[\s\S]*?<\/em>|<i\b[^>]*>[\s\S]*?<\/i>|<u\b[^>]*>[\s\S]*?<\/u>|<code\b[^>]*>[\s\S]*?<\/code>|<ul\b[^>]*>[\s\S]*?<\/ul>|<ol\b[^>]*>[\s\S]*?<\/ol>|<li\b[^>]*>[\s\S]*?<\/li>|\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/gi;
+  const parts = text.split(regex);
+  let liCounter = 1;
   return parts.map((part, idx) => {
+    if (!part) return null;
+    if (listType && !/^<li\b/i.test(part)) return null;
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      return <strong key={idx}>{renderFormattedText(part.slice(2, -2))}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={idx}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('<u>') && part.endsWith('</u>')) {
-      return <u key={idx}>{part.slice(3, -4)}</u>;
+      return <em key={idx}>{renderFormattedText(part.slice(1, -1))}</em>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{part.slice(1, -1)}</code>;
     }
+    if (/^<strong\b/i.test(part)) {
+      const inner = part.replace(/^<strong\b[^>]*>|<\/strong>$/gi, '');
+      return <strong key={idx}>{renderFormattedText(inner)}</strong>;
+    }
+    if (/^<b\b/i.test(part)) {
+      const inner = part.replace(/^<b\b[^>]*>|<\/b>$/gi, '');
+      return <strong key={idx}>{renderFormattedText(inner)}</strong>;
+    }
+    if (/^<em\b/i.test(part)) {
+      const inner = part.replace(/^<em\b[^>]*>|<\/em>$/gi, '');
+      return <em key={idx}>{renderFormattedText(inner)}</em>;
+    }
+    if (/^<i\b/i.test(part)) {
+      const inner = part.replace(/^<i\b[^>]*>|<\/i>$/gi, '');
+      return <em key={idx}>{renderFormattedText(inner)}</em>;
+    }
+    if (/^<u\b/i.test(part)) {
+      const inner = part.replace(/^<u\b[^>]*>|<\/u>$/gi, '');
+      return <u key={idx}>{renderFormattedText(inner)}</u>;
+    }
+    if (/^<code\b/i.test(part)) {
+      const inner = part.replace(/^<code\b[^>]*>|<\/code>$/gi, '');
+      return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{inner}</code>;
+    }
+    if (/^<ul\b/i.test(part)) {
+      const inner = part.replace(/^<ul\b[^>]*>|<\/ul>$/gi, '').trim();
+      return <ul key={idx} style={{ margin: '0.4rem 0', paddingLeft: '1.15rem', listStyleType: 'none' }}>{renderFormattedText(inner, 'ul')}</ul>;
+    }
+    if (/^<ol\b/i.test(part)) {
+      const inner = part.replace(/^<ol\b[^>]*>|<\/ol>$/gi, '').trim();
+      return <ol key={idx} style={{ margin: '0.4rem 0', paddingLeft: '1.15rem', listStyleType: 'none' }}>{renderFormattedText(inner, 'ol')}</ol>;
+    }
+    if (/^<li\b/i.test(part)) {
+      const inner = part.replace(/^<li\b[^>]*>|<\/li>$/gi, '').trim();
+      const currentNumber = liCounter++;
+      const marker = listType === 'ol' ? `${currentNumber}.` : '•';
+      return (
+        <li key={idx} style={{ 
+          marginBottom: '0.38rem', 
+          display: 'flex', 
+          alignItems: 'flex-start',
+          gap: '0.6rem',
+          lineHeight: '1.45'
+        }}>
+          <span style={{ color: 'var(--text-muted)', flexShrink: 0, minWidth: listType === 'ol' ? '1.25rem' : 'auto' }}>{marker}</span>
+          <div style={{ flex: 1 }}>{renderFormattedText(inner)}</div>
+        </li>
+      );
+    }
     return part;
+  }).filter(Boolean) as React.ReactNode[];
+}
+
+function stripHtmlTags(html: string): string {
+  if (!html) return '';
+  let text = html;
+  text = text.replace(/<strong\b[^>]*>([\s\S]*?)<\/strong>/gi, '**$1**');
+  text = text.replace(/<b\b[^>]*>([\s\S]*?)<\/b>/gi, '**$1**');
+  text = text.replace(/<em\b[^>]*>([\s\S]*?)<\/em>/gi, '*$1*');
+  text = text.replace(/<i\b[^>]*>([\s\S]*?)<\/i>/gi, '*$1*');
+  text = text.replace(/<u\b[^>]*>([\s\S]*?)<\/u>/gi, '<u>$1</u>');
+  text = text.replace(/<code\b[^>]*>([\s\S]*?)<\/code>/gi, '`$1`');
+  text = text.replace(/<li\b[^>]*>([\s\S]*?)<\/li>/gi, (match, inner) => {
+    return `• ${inner.trim()}\n`;
   });
+  text = text.replace(/<\/?[a-z][a-z0-9]*\b[^>]*>/gi, '');
+  text = text.replace(/\n{3,}/g, '\n\n');
+  return text.trim();
+}
+
+function renderParagraphs(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
+  if (!text) return [];
+  const paragraphs = text.split(/\n{2,}/g);
+  return paragraphs.map((para, pIdx) => {
+    if (!para.trim()) return null;
+    const isLast = pIdx === paragraphs.length - 1;
+    return (
+      <div key={pIdx} style={{ marginBottom: isLast ? '0' : '0.75rem' }}>
+        {renderFormattedText(para, listType)}
+      </div>
+    );
+  }).filter(Boolean) as React.ReactNode[];
 }
 
 function RenderSegments({ segments }: { segments: Segment[] }) {
@@ -992,16 +1074,75 @@ function RenderSegments({ segments }: { segments: Segment[] }) {
             </a>
           );
         }
-        return <React.Fragment key={i}>{renderFormattedText(seg.content)}</React.Fragment>;
+        return <React.Fragment key={i}>{renderParagraphs(seg.content)}</React.Fragment>;
       })}
     </>
   );
 }
 
+function closeUnclosedTags(text: string, suffix: string = ''): string {
+  let result = text.trimEnd();
+  
+  // Handle HTML tag cut-offs: if we cut inside a tag like "<st" or "<li st", truncate before the opening "<"
+  const openBracketIndex = result.lastIndexOf('<');
+  const closeBracketIndex = result.lastIndexOf('>');
+  if (openBracketIndex > closeBracketIndex) {
+    result = result.substring(0, openBracketIndex);
+  }
+
+  const tags = ['strong', 'b', 'em', 'i', 'u', 'code', 'ul', 'ol', 'li'];
+  const stack: string[] = [];
+  const tagRegex = /<\/?([a-zA-Z0-9]+)\b[^>]*>/g;
+  let match;
+  while ((match = tagRegex.exec(result)) !== null) {
+    const isClose = match[0].startsWith('</');
+    const tagName = match[1].toLowerCase();
+    if (tags.includes(tagName)) {
+      if (isClose) {
+        if (stack.length > 0 && stack[stack.length - 1] === tagName) {
+          stack.pop();
+        }
+      } else {
+        stack.push(tagName);
+      }
+    }
+  }
+
+  // Append suffix before closing HTML tags
+  result += suffix;
+
+  // Close any open HTML tags in reverse order
+  while (stack.length > 0) {
+    const tag = stack.pop();
+    result += `</${tag}>`;
+  }
+
+  // Handle markdown bold/italic tags
+  const doubleStars = (result.match(/\*\*/g) || []).length;
+  if (doubleStars % 2 !== 0) {
+    result += '**';
+  }
+  
+  const temp = result.replace(/\*\*/g, '@@');
+  const singleStars = (temp.match(/\*/g) || []).length;
+  if (singleStars % 2 !== 0) {
+    result += '*';
+  }
+  
+  const openU = (result.match(/<u>/gi) || []).length;
+  const closeU = (result.match(/<\/u>/gi) || []).length;
+  if (openU > closeU) {
+    result += '</u>';
+  }
+  
+  return result;
+}
+
 function ExpandableBody({ body }: { body: string }) {
   const [isExpanded, setIsExpanded] = useState(false);
-  const maxLength = 250;
-  const decodedBody = decodeHTMLEntities(body);   // keep as-is if you have this util
+  const maxLength = 320;
+  const decodedBody = decodeHTMLEntities(body).replace(/\n{3,}/g, '\n\n');
+  const cleanBody = stripHtmlTags(decodedBody);
   const segments = parseLinksInText(decodedBody);
 
   const baseStyle = {
@@ -1010,18 +1151,18 @@ function ExpandableBody({ body }: { body: string }) {
     overflowWrap: 'break-word' as const, whiteSpace: 'pre-wrap' as const,
   };
 
-  if (decodedBody.length <= maxLength) {
-    return <p className="post-body-text" style={baseStyle}><RenderSegments segments={segments} /></p>;
+  if (cleanBody.length <= maxLength) {
+    return <div className="post-body-text" style={baseStyle}><RenderSegments segments={segments} /></div>;
   }
 
-  const displayText = isExpanded ? decodedBody : decodedBody.slice(0, maxLength) + '…';
+  const displayText = isExpanded ? decodedBody : closeUnclosedTags(decodedBody.slice(0, maxLength), '…');
   const displaySegments = parseLinksInText(displayText);
 
   return (
     <div>
-      <p className="post-body-text" style={{ ...baseStyle, margin: 0 }}>
+      <div className="post-body-text" style={{ ...baseStyle, margin: 0 }}>
         <RenderSegments segments={displaySegments} />
-      </p>
+      </div>
       <button onClick={e => { e.stopPropagation(); setIsExpanded(!isExpanded); }}
         style={{ background: 'none', border: 'none', color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 600, cursor: 'pointer', padding: '4px 0', marginTop: '4px', display: 'inline-flex', alignItems: 'center' }}>
         {isExpanded ? 'See less' : 'See more'}

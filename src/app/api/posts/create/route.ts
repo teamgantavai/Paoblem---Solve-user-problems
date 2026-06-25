@@ -63,11 +63,9 @@ async function insertWithFallback(
     .single() as { data: Record<string, unknown> | null; error: { message: string; code?: string } | null };
 
   if (error && (error.code === 'PGRST204' || /column|schema cache/i.test(error.message || ''))) {
-    console.warn('[posts/create] Primary insert failed, trying fallback keeping metadata:', error.message);
+    console.warn('[posts/create] Primary insert failed, trying fallback without metadata and video_url:', error.message);
     const fallback = { ...payload };
-    delete fallback['category'];
-    delete fallback['tags'];
-    delete fallback['link_name'];
+    delete fallback['metadata'];
     delete fallback['video_url'];
     
     const res = await (supabase as any)
@@ -77,9 +75,11 @@ async function insertWithFallback(
       .single();
       
     if (res.error && (res.error.code === 'PGRST204' || /column|schema cache/i.test(res.error.message || ''))) {
-      console.warn('[posts/create] Fallback keeping metadata failed, trying absolute minimal fallback:', res.error.message);
+      console.warn('[posts/create] Fallback keeping category/tags/link_name failed, trying absolute minimal fallback:', res.error.message);
       const minimalFallback = { ...fallback };
-      delete minimalFallback['metadata'];
+      delete minimalFallback['category'];
+      delete minimalFallback['tags'];
+      delete minimalFallback['link_name'];
       ({ data, error } = await (supabase as any)
         .from('posts')
         .insert(minimalFallback)

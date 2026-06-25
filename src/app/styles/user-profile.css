@@ -38,7 +38,7 @@
   background: var(--bg-card);
   border: 1px solid var(--border-color);
   border-radius: 20px;
-  overflow: hidden;
+  overflow: visible;
   margin-bottom: 1rem;
   box-shadow: 0 8px 40px rgba(0, 0, 0, 0.35);
 }
@@ -56,6 +56,8 @@
   background-size: cover;
   background-position: center;
   position: relative;
+  border-top-left-radius: 19px;
+  border-top-right-radius: 19px;
 }
 
 .upf-cover-overlay {
@@ -865,6 +867,8 @@
 
   .upf-root {
     gap: 0;
+    max-width: 100%;
+    overflow-x: hidden;
   }
 
   .upf-header-card {
@@ -877,13 +881,14 @@
 
   .upf-cover {
     height: 130px;
+    border-radius: 0 !important;
   }
 
   .upf-identity {
-    padding: 0 1rem 1.25rem;
-    gap: 0.85rem;
-    flex-direction: column;
-    align-items: flex-start;
+    padding: 0 20px 20px 20px !important;
+    gap: 10px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
   }
 
   .upf-avatar-wrap {
@@ -904,72 +909,138 @@
     border-radius: 21px;
   }
 
-  .upf-name-row {
-    flex-direction: row;
-    justify-content: space-between;
-    align-items: flex-start;
-    gap: 0.4rem;
-    width: 100%;
-    flex-wrap: nowrap;
+  .upf-identity-body {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 10px !important;
+    width: 100% !important;
+    padding-top: 0.5rem !important;
   }
 
-  /* Smaller name so it stays on one line and doesn't hide the buttons */
-  .upf-name {
-    font-size: 0.95rem;
-    letter-spacing: -0.01em;
+  .upf-name-row {
+    display: contents !important;
+  }
+
+  .upf-name-group {
+    display: contents !important;
   }
 
   .upf-name-line {
-    gap: 0.3rem;
-    flex-wrap: wrap;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    gap: 8px !important;
+    flex-wrap: wrap !important;
+    width: 100% !important;
+    order: 1 !important;
   }
 
-  .upf-role-badge {
-    font-size: 0.64rem;
-    padding: 2px 7px;
-  }
-
-  .upf-actions {
-    flex-direction: row;
-    flex-shrink: 0;
-    gap: 0.35rem;
-    width: auto;
-  }
-
-  .upf-btn-follow,
-  .upf-btn-message {
-    flex: none;
-    padding: 0.4rem 0.65rem;
-    font-size: 0.73rem;
-    gap: 0.3rem;
-  }
-
-  /* Hide button text, show only icon on very constrained layouts */
-  .upf-btn-follow .btn-label,
-  .upf-btn-message .btn-label {
-    display: none;
+  .upf-name {
+    font-size: 26px !important; /* Reduce profile name size to 24-28px range */
+    font-weight: 800;
+    line-height: 1.2;
+    margin: 0;
+    max-width: 100%;
+    word-break: break-word;
+    overflow: hidden;
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    -webkit-box-orient: vertical;
   }
 
   .upf-username {
-    font-size: 0.75rem;
+    font-size: 0.85rem !important;
+    margin: 0 !important;
+    order: 2 !important;
+    color: var(--text-muted);
+  }
+
+  .upf-role-badge-container {
+    position: relative !important;
+    display: inline-block !important;
+    width: fit-content !important;
+  }
+
+  .upf-role-badge {
+    font-size: 0.75rem !important;
+    padding: 6px 12px !important;
+    border-radius: 20px !important;
+  }
+
+  .profile-role-picker {
+    position: absolute !important;
+    top: calc(100% + 6px) !important;
+    bottom: auto !important;
+    right: 0 !important;
+    left: auto !important;
+    transform: none !important;
+    width: 200px !important;
+    max-height: 220px !important;
+    overflow-y: auto !important;
+    z-index: 100000 !important;
+    background: var(--bg-card) !important;
+    border: 1px solid var(--border-color) !important;
+    border-radius: 12px !important;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.6) !important;
+    padding: 8px 8px 16px 8px !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 4px !important;
+    animation: mobile-picker-slide 0.25s cubic-bezier(0.16, 1, 0.3, 1) !important;
   }
 
   .upf-bio {
-    font-size: 0.82rem;
+    font-size: 0.875rem !important;
+    line-height: 1.5 !important;
+    margin: 0 !important;
+    order: 3 !important;
   }
 
   .upf-location {
-    font-size: 0.72rem;
+    font-size: 0.78rem !important;
+    margin: 0 !important;
+    order: 4 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+  }
+
+  .upf-actions {
+    display: flex !important;
+    flex-direction: row !important;
+    width: 100% !important;
+    gap: 8px !important;
+    margin: 0 !important;
+    order: 5 !important;
+  }
+
+  .upf-actions button,
+  .upf-btn-follow,
+  .upf-btn-message {
+    flex: 1 !important;
+    min-height: 44px !important;
+    height: 44px !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    font-size: 0.82rem !important;
+    padding: 0.5rem 0.75rem !important;
+    border-radius: 12px !important;
+    margin: 0 !important;
+    white-space: nowrap !important;
   }
 
   /* Stats bar: equal-width cells that never overflow */
   .upf-stats-bar {
-    margin-top: 0.5rem;
-    padding-top: 0.5rem;
-    display: flex;
-    justify-content: space-between;
-    gap: 0;
-    overflow: visible;
+    order: 6 !important;
+    margin-top: 0.75rem !important;
+    padding-top: 0.75rem !important;
+    display: flex !important;
+    justify-content: space-between !important;
+    gap: 0 !important;
+    overflow: visible !important;
+    width: 100% !important;
+    border-top: 1px solid var(--border-color) !important;
   }
 
   .upf-stat,
@@ -1043,31 +1114,15 @@
   .upf-tab-btn {
     padding: 0.65rem 0.75rem;
   }
+}
 
-  /* Even smaller name at 480px - must not wrap on 375px screens */
-  .upf-name {
-    font-size: 0.85rem;
+@keyframes mobile-picker-slide {
+  from {
+    opacity: 0;
+    transform: translateY(10px) scale(0.95);
   }
-
-  .upf-name-line {
-    gap: 0.25rem;
-  }
-
-  .upf-username {
-    font-size: 0.68rem;
-  }
-
-  .upf-stat-num {
-    font-size: 0.88rem;
-  }
-
-  .upf-stat-label {
-    font-size: 0.5rem;
-  }
-
-  /* On very small screens the logout icon button should be smaller */
-  .upf-btn-message[title="Sign out"] {
-    flex: 0;
-    padding: 0.42rem 0.6rem;
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
   }
 }

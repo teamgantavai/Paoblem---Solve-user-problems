@@ -33,23 +33,88 @@ import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 
-function renderFormattedText(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/g);
+function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
+  if (!text) return [];
+  const regex = /(<strong\b[^>]*>[\s\S]*?<\/strong>|<b\b[^>]*>[\s\S]*?<\/b>|<em\b[^>]*>[\s\S]*?<\/em>|<i\b[^>]*>[\s\S]*?<\/i>|<u\b[^>]*>[\s\S]*?<\/u>|<code\b[^>]*>[\s\S]*?<\/code>|<ul\b[^>]*>[\s\S]*?<\/ul>|<ol\b[^>]*>[\s\S]*?<\/ol>|<li\b[^>]*>[\s\S]*?<\/li>|\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/gi;
+  const parts = text.split(regex);
+  let liCounter = 1;
   return parts.map((part, idx) => {
+    if (!part) return null;
+    if (listType && !/^<li\b/i.test(part)) return null;
     if (part.startsWith('**') && part.endsWith('**')) {
-      return <strong key={idx}>{part.slice(2, -2)}</strong>;
+      return <strong key={idx}>{renderFormattedText(part.slice(2, -2))}</strong>;
     }
     if (part.startsWith('*') && part.endsWith('*')) {
-      return <em key={idx}>{part.slice(1, -1)}</em>;
-    }
-    if (part.startsWith('<u>') && part.endsWith('</u>')) {
-      return <u key={idx}>{part.slice(3, -4)}</u>;
+      return <em key={idx}>{renderFormattedText(part.slice(1, -1))}</em>;
     }
     if (part.startsWith('`') && part.endsWith('`')) {
       return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{part.slice(1, -1)}</code>;
     }
+    if (/^<strong\b/i.test(part)) {
+      const inner = part.replace(/^<strong\b[^>]*>|<\/strong>$/gi, '');
+      return <strong key={idx}>{renderFormattedText(inner)}</strong>;
+    }
+    if (/^<b\b/i.test(part)) {
+      const inner = part.replace(/^<b\b[^>]*>|<\/b>$/gi, '');
+      return <strong key={idx}>{renderFormattedText(inner)}</strong>;
+    }
+    if (/^<em\b/i.test(part)) {
+      const inner = part.replace(/^<em\b[^>]*>|<\/em>$/gi, '');
+      return <em key={idx}>{renderFormattedText(inner)}</em>;
+    }
+    if (/^<i\b/i.test(part)) {
+      const inner = part.replace(/^<i\b[^>]*>|<\/i>$/gi, '');
+      return <em key={idx}>{renderFormattedText(inner)}</em>;
+    }
+    if (/^<u\b/i.test(part)) {
+      const inner = part.replace(/^<u\b[^>]*>|<\/u>$/gi, '');
+      return <u key={idx}>{renderFormattedText(inner)}</u>;
+    }
+    if (/^<code\b/i.test(part)) {
+      const inner = part.replace(/^<code\b[^>]*>|<\/code>$/gi, '');
+      return <code key={idx} style={{ background: 'var(--bg-hover)', padding: '2px 6px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{inner}</code>;
+    }
+    if (/^<ul\b/i.test(part)) {
+      const inner = part.replace(/^<ul\b[^>]*>|<\/ul>$/gi, '').trim();
+      return <ul key={idx} style={{ margin: '0.4rem 0', paddingLeft: '1.15rem', listStyleType: 'none' }}>{renderFormattedText(inner, 'ul')}</ul>;
+    }
+    if (/^<ol\b/i.test(part)) {
+      const inner = part.replace(/^<ol\b[^>]*>|<\/ol>$/gi, '').trim();
+      return <ol key={idx} style={{ margin: '0.4rem 0', paddingLeft: '1.15rem', listStyleType: 'none' }}>{renderFormattedText(inner, 'ol')}</ol>;
+    }
+    if (/^<li\b/i.test(part)) {
+      const inner = part.replace(/^<li\b[^>]*>|<\/li>$/gi, '').trim();
+      const currentNumber = liCounter++;
+      const marker = listType === 'ol' ? `${currentNumber}.` : '•';
+      return (
+        <li key={idx} style={{ 
+          marginBottom: '0.38rem', 
+          display: 'flex', 
+          alignItems: 'flex-start',
+          gap: '0.6rem',
+          lineHeight: '1.45'
+        }}>
+          <span style={{ color: 'var(--text-muted)', flexShrink: 0, minWidth: listType === 'ol' ? '1.25rem' : 'auto' }}>{marker}</span>
+          <div style={{ flex: 1 }}>{renderFormattedText(inner)}</div>
+        </li>
+      );
+    }
     return part;
-  });
+  }).filter(Boolean) as React.ReactNode[];
+}
+
+function renderParagraphs(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
+  if (!text) return [];
+  const paragraphs = text.split(/\n{2,}/g);
+  return paragraphs.map((para, pIdx) => {
+    if (!para.trim()) return null;
+    const isLast = pIdx === paragraphs.length - 1;
+    return (
+      <div key={pIdx} style={{ marginBottom: isLast ? '0' : '0.75rem' }}>
+        {renderFormattedText(para, listType)}
+      </div>
+    );
+  }).filter(Boolean) as React.ReactNode[];
 }
 
 interface InteractivePostProps {
@@ -987,7 +1052,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           {decodeHTMLEntities(post.title)}
         </h1>
         
-        <p style={{
+        <div style={{
           fontSize: '0.94rem',
           lineHeight: '1.6',
           color: 'var(--text-main)',
@@ -995,8 +1060,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           marginBottom: '1.25rem',
           wordBreak: 'break-word'
         }}>
-          {renderFormattedText(decodeHTMLEntities(post.body))}
-        </p>
+          {renderParagraphs(decodeHTMLEntities(post.body))}
+        </div>
 
         {/* Category and Tags */}
         {(() => {

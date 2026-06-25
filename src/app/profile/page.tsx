@@ -670,7 +670,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                 <div className="upf-name-line">
                   <h1 className="upf-name">{displayName}</h1>
                   {/* Role badge inline with name */}
-                  <div style={{ position: 'relative' }} ref={rolePickerRef}>
+                  <div style={{ position: 'relative' }} ref={rolePickerRef} className="upf-role-badge-container">
                     <button
                       className={`upf-role-badge ${roleClass}`}
                       onClick={() => isOwnProfile && setRolePickerOpen(!rolePickerOpen)}
@@ -688,7 +688,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                     </button>
 
                     {isOwnProfile && rolePickerOpen && (
-                      <div className="profile-role-picker" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 100 }}>
+                      <div className="profile-role-picker" style={{ position: 'absolute', top: '110%', left: 0, zIndex: 9999 }}>
                         {VALID_ROLES.map((r) => (
                           <button
                             key={r}

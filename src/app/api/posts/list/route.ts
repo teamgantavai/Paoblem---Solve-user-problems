@@ -112,7 +112,7 @@ export async function GET(req: NextRequest) {
         query = query.eq('type', type);
       }
       if (category) {
-        query = query.or(`category.eq.${category},metadata->>category.eq.${category}`);
+        query = query.eq('category', category);
       }
       if (type === 'mine') {
         if (!userId) {
@@ -198,7 +198,7 @@ export async function GET(req: NextRequest) {
           fallbackQuery = fallbackQuery.eq('type', type);
         }
         if (category) {
-          fallbackQuery = fallbackQuery.or(`category.eq.${category},metadata->>category.eq.${category}`);
+          fallbackQuery = fallbackQuery.eq('category', category);
         }
         if (type === 'mine') {
           if (userId) {

@@ -27,6 +27,7 @@ import {
 } from 'lucide-react';
 import { useQueryClient } from '@tanstack/react-query';
 import Navbar from '@/components/Navbar';
+import AuthModal from '@/components/AuthModal';
 import ImageUploader from '@/components/ImageUploader';
 import Avatar from '@/components/Avatar';
 import { supabase } from '@/lib/supabase';
@@ -82,16 +83,16 @@ function htmlToPlain(html: string): string {
   text = text.replace(/<\/div>/gi, '');
   text = text.replace(/<p>/gi, '');
   text = text.replace(/<\/p>/gi, '\n');
-  text = text.replace(/<strong>(.*?)<\/strong>/gi, '**$1**');
-  text = text.replace(/<b>(.*?)<\/b>/gi, '**$1**');
-  text = text.replace(/<em>(.*?)<\/em>/gi, '*$1*');
-  text = text.replace(/<i>(.*?)<\/i>/gi, '*$1*');
-  text = text.replace(/<u>(.*?)<\/u>/gi, '<u>$1</u>');
-  text = text.replace(/<code>(.*?)<\/code>/gi, '`$1`');
-  text = text.replace(/<li>(.*?)<\/li>/gi, '- $1\n');
-  text = text.replace(/<ul>/gi, '');
+  text = text.replace(/<strong\b[^>]*>(.*?)<\/strong>/gi, '**$1**');
+  text = text.replace(/<b\b[^>]*>(.*?)<\/b>/gi, '**$1**');
+  text = text.replace(/<em\b[^>]*>(.*?)<\/em>/gi, '*$1*');
+  text = text.replace(/<i\b[^>]*>(.*?)<\/i>/gi, '*$1*');
+  text = text.replace(/<u\b[^>]*>(.*?)<\/u>/gi, '<u>$1</u>');
+  text = text.replace(/<code\b[^>]*>(.*?)<\/code>/gi, '`$1`');
+  text = text.replace(/<li\b[^>]*>(.*?)<\/li>/gi, '- $1\n');
+  text = text.replace(/<ul\b[^>]*>/gi, '');
   text = text.replace(/<\/ul>/gi, '\n');
-  text = text.replace(/<ol>/gi, '');
+  text = text.replace(/<ol\b[^>]*>/gi, '');
   text = text.replace(/<\/ol>/gi, '\n');
   
   // Strip all other unsupported HTML tags (like <font>, <span>, style attrs, etc.)
@@ -787,8 +788,10 @@ function CreatePostForm({ session }: { session: Session }) {
 }
 
 export default function CreatePostPage() {
+  const router = useRouter();
   const [session, setSession] = useState<Session>(null);
   const [loading, setLoading] = useState(true);
+  const [isAuthOpen, setIsAuthOpen] = useState(false);
 
   useEffect(() => {
     supabase.auth.getSession().then(({ data }) => {
@@ -806,6 +809,119 @@ export default function CreatePostPage() {
     return (
       <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '100vh' }}>
         <Loader2 size={24} className="spin" style={{ color: 'var(--text-muted)' }} />
+      </div>
+    );
+  }
+
+  if (!session) {
+    return (
+      <div className="app-container">
+        <Navbar />
+        <main className="create-post-shell" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: 'calc(100vh - 120px)', padding: '1.5rem' }}>
+          <div style={{
+            textAlign: 'center',
+            padding: '3.5rem 2.5rem',
+            backgroundColor: 'var(--bg-card)',
+            border: '1px solid var(--border-strong)',
+            boxShadow: '0 24px 64px rgba(0, 0, 0, 0.5)',
+            position: 'relative',
+            overflow: 'hidden',
+            display: 'flex',
+            flexDirection: 'column',
+            gap: '1.25rem',
+            alignItems: 'center',
+            borderRadius: '20px',
+            maxWidth: '480px',
+            width: '100%',
+          }}>
+            {/* Top accent bar */}
+            <div style={{ position: 'absolute', top: 0, left: 0, right: 0, height: '3px', background: 'linear-gradient(90deg, #6366f1, #3b82f6, #06b6d4)' }} />
+
+            {/* Icon */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              width: '72px',
+              height: '72px',
+              borderRadius: '20px',
+              backgroundColor: 'var(--bg-hover)',
+              border: '1px solid var(--border-strong)',
+              color: '#818cf8',
+              marginBottom: '0.25rem',
+            }}>
+              <Send size={28} />
+            </div>
+
+            {/* Heading */}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'center' }}>
+              <h2 style={{
+                fontSize: '1.45rem',
+                fontWeight: 800,
+                color: 'var(--text-main)',
+                letterSpacing: '-0.025em',
+                lineHeight: 1.2,
+                margin: 0,
+              }}>
+                Sign in to post
+              </h2>
+              <p style={{
+                fontSize: '0.88rem',
+                color: 'var(--text-muted)',
+                lineHeight: '1.6',
+                margin: 0,
+                maxWidth: '340px',
+              }}>
+                Share your problems and startup ideas with our developer community. You must be signed in to create a post.
+              </p>
+            </div>
+
+            {/* Divider */}
+            <div style={{ width: '100%', height: '1px', backgroundColor: 'var(--border-color)', margin: '0.25rem 0' }} />
+
+            {/* Buttons */}
+            <div style={{ display: 'flex', gap: '10px', width: '100%' }}>
+              <button
+                type="button"
+                onClick={() => router.push('/')}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  fontWeight: 600,
+                  fontSize: '0.88rem',
+                  borderRadius: '12px',
+                  border: '1px solid var(--border-strong)',
+                  color: 'var(--text-main)',
+                  backgroundColor: 'var(--bg-hover)',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                }}
+              >
+                ← Back to Feed
+              </button>
+              <button
+                type="button"
+                onClick={() => setIsAuthOpen(true)}
+                style={{
+                  flex: 1,
+                  padding: '0.75rem 1rem',
+                  fontWeight: 700,
+                  fontSize: '0.88rem',
+                  borderRadius: '12px',
+                  border: 'none',
+                  color: '#ffffff',
+                  backgroundColor: '#4f46e5',
+                  cursor: 'pointer',
+                  transition: 'background 0.2s',
+                  boxShadow: '0 4px 14px rgba(79, 70, 229, 0.4)',
+                }}
+              >
+                Sign In / Sign Up
+              </button>
+            </div>
+          </div>
+        </main>
+        <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
       </div>
     );
   }
