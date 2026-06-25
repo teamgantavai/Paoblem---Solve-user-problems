@@ -121,7 +121,6 @@ export async function GET(req: NextRequest) {
 
       const hasMore = ranked.length > PAGE_SIZE;
       const posts = hasMore ? ranked.slice(0, PAGE_SIZE) : ranked;
-      await recordPostImpressions(admin, userId, posts);
 
       const nextCursorSeenIds = [...excludeIds, ...posts.map(p => p.id)].join(',');
 

@@ -1,10 +1,10 @@
-'use client';
+'use client'; // Force hot-module-reload recompile
 
 import React, { useCallback, useEffect, useState, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
 import {
   BarChart2, Loader2, Eye, ThumbsUp, MessageCircle, UserPlus,
-  ArrowLeft, TriangleIcon, Monitor, Globe, Smartphone, TrendingUp,
+  ArrowLeft, TriangleIcon, Monitor, Globe, Smartphone,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import type { AnalyticsGridResponse, PostAnalyticsDetailResponse } from '@/lib/types';
@@ -165,7 +165,6 @@ function AnalyticsDashboardInner() {
 
         <div className="analytics-stats-row">
           <StatBox icon={<Eye size={20} />} label="Views" value={stats.views} />
-          <StatBox icon={<TrendingUp size={20} />} label="Impressions" value={stats.impressions} accent="#8b5cf6" />
           <StatBox icon={<TriangleIcon size={20} />} label="Upvotes" value={stats.upvotes} accent="#10b981" />
           <StatBox icon={<TriangleIcon size={20} style={{ transform: 'rotate(180deg)' }} />} label="Downvotes" value={stats.downvotes} accent="#ef4444" />
           <StatBox icon={<MessageCircle size={20} />} label="Comments" value={stats.comments} accent="#06b6d4" />
