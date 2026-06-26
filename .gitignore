@@ -39,3 +39,13 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# scratch directories and scripts
+/scratch/
+/scratch_debug.js
+/check_schema.js
+/query_schema.js
+/fix.js
+/restore.js
+/test_cascade.js
+/test_db.js

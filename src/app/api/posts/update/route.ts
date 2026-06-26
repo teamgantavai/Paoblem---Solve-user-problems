@@ -26,8 +26,12 @@ const updatePostSchema = z.object({
   }),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
+  category: z.string().nullable().optional(),
+  tags: z.array(z.string()).nullable().optional(),
   metadata: z.any().optional(),
 });
+
+const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
 function sanitize(text: string): string {
   return text
@@ -43,7 +47,7 @@ export async function PUT(req: NextRequest) {
     }
 
     const token = authHeader.replace('Bearer ', '');
-    const supabase = createClient(supabaseUrl, supabaseServiceKey, {
+    const authClient = createClient(supabaseUrl, supabaseServiceKey, {
       global: {
         headers: {
           Authorization: `Bearer ${token}`,
@@ -51,7 +55,7 @@ export async function PUT(req: NextRequest) {
       },
     });
 
-    const { data: { user }, error: authError } = await supabase.auth.getUser(token);
+    const { data: { user }, error: authError } = await authClient.auth.getUser(token);
     if (authError || !user) {
       return NextResponse.json({ error: 'Invalid session' }, { status: 401 });
     }
@@ -62,17 +66,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    const { id, title, body: postBody, type, image_url, external_link, link_name, metadata } = parsed.data;
+    const { id, title, body: postBody, type, image_url, external_link, link_name, category, tags, metadata } = parsed.data;
 
     // Verify ownership
-    const { data: post, error: fetchError } = await supabase
+    const { data: post, error: fetchError } = await supabaseAdmin
       .from('posts')
-      .select('user_id, metadata')
+      .select('user_id')
       .eq('id', id)
       .single();
 
     if (fetchError || !post) {
-      return NextResponse.json({ error: 'Post not found' }, { status: 404 });
+      return NextResponse.json({ error: `Post not found. ID: ${id}. Fetch Error: ${fetchError?.message || 'none'}` }, { status: 404 });
     }
 
     if (post.user_id !== user.id) {
@@ -82,19 +86,12 @@ export async function PUT(req: NextRequest) {
     const sanitizedTitle = sanitize(title);
     const sanitizedBody = sanitize(postBody);
 
-    const existingMetadata = typeof post.metadata === 'object' && post.metadata !== null ? post.metadata : {};
-    const metadataValue = {
-      ...existingMetadata,
-      ...(typeof metadata === 'object' && metadata !== null ? metadata : {}),
-    };
-
     const updatePayload: Record<string, unknown> = {
       title: sanitizedTitle,
       body: sanitizedBody,
       type,
       image_url: image_url || null,
       external_link: external_link || null,
-      metadata: metadataValue,
       updated_at: new Date().toISOString(),
     };
 
@@ -103,7 +100,15 @@ export async function PUT(req: NextRequest) {
       updatePayload.link_name = link_name;
     }
 
-    const { data, error: updateError } = await supabase
+    if (category !== undefined) {
+      updatePayload.category = category;
+    }
+
+    if (tags !== undefined) {
+      updatePayload.tags = tags;
+    }
+
+    const { data, error: updateError } = await supabaseAdmin
       .from('posts')
       .update(updatePayload)
       .eq('id', id)

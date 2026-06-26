@@ -885,7 +885,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             src={authorProfile?.avatar_url}
             name={authorName}
             className="avatar"
-            size={42}
+            size={48}
             onClick={() => {
               router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`);
               trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => { });
@@ -895,7 +895,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                 body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
               }).catch(() => { });
             }}
-            style={{ cursor: 'pointer', flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%' }}
+            style={{ cursor: 'pointer', flexShrink: 0, width: '48px', height: '48px', borderRadius: '50%' }}
           />
           <div className="post-user-info">
             <h4
@@ -1506,6 +1506,11 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           onClose={() => setIsEditPostOpen(false)}
           post={post}
           session={session}
+          onSuccess={(updatedPost) => setPost(prev => ({
+            ...prev,
+            ...updatedPost,
+            profiles: prev.profiles
+          }))}
         />
       )}
 

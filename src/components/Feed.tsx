@@ -137,7 +137,7 @@ const PostCard = React.memo(function PostCard({
           <Avatar
             src={authorAvatar}
             name={authorName}
-            className="avatar" size={42}
+            className="avatar" size={48}
             onClick={() => router.push(post.profiles?.username ? `/user/${post.profiles.username}` : `/profile?userId=${post.user_id}`)}
             style={{ cursor: 'pointer', flexShrink: 0 }}
           />

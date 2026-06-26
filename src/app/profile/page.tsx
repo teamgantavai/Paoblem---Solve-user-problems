@@ -6,13 +6,15 @@ import {
   MapPin, Pencil, ChevronRight,
   Check, Camera, MessageCircle, MessageSquare, Loader2, ExternalLink,
   AlertTriangle, Lightbulb, User, UserPlus, UserMinus, LogOut, Settings,
-  Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar, X
+  Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar, X,
+  ShieldAlert
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
+import { ADMIN_EMAIL } from '@/lib/adminConstants';
 
 /* ── Constants ────────────────────────────────────────── */
 const VALID_ROLES = [
@@ -873,6 +875,15 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
             <Settings size={15} /> <span className="upf-tab-label">Settings</span>
           </button>
         )}
+        {isOwnProfile && session?.user?.email === ADMIN_EMAIL && (
+          <button
+            className="upf-tab-btn"
+            style={{ color: 'var(--accent-blue)', borderBottomColor: 'transparent' }}
+            onClick={() => router.push('/admin')}
+          >
+            <ShieldAlert size={15} /> <span className="upf-tab-label">Admin Panel</span>
+          </button>
+        )}
       </div>
 
       <div className="upf-content">
@@ -1172,6 +1183,7 @@ function CommentsTab({ comments }: { comments: UserComment[] }) {
    Settings Tab Component (Dedicated Settings Section)
    ───────────────────────────────────────────────────────── */
 function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; profile?: Profile & { username?: string | null }; onSaved: () => void; onLogout: () => void }) {
+  const router = useRouter();
   const [fullName, setFullName] = useState(profile?.full_name || session?.user?.user_metadata?.full_name || '');
   const [location, setLocation] = useState(profile?.location || '');
   const [bio, setBio] = useState(profile?.bio || '');
@@ -1488,6 +1500,34 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
           </button>
         </form>
       </div>
+      {/* ── Admin Tools ── */}
+      {session?.user?.email === ADMIN_EMAIL && (
+        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(59, 130, 246, 0.25)' }}>
+          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>
+            Administrative Control Panel
+          </h3>
+          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: '1.5' }}>
+            As a registered administrator, you have access to the system dashboard, user management tools, posts control, categories config, and moderation queue.
+          </p>
+          <button
+            type="button"
+            onClick={() => router.push('/admin')}
+            style={{
+              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
+              padding: '0.5rem 1.25rem', borderRadius: '50px',
+              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
+              background: 'rgba(59, 130, 246, 0.08)',
+              border: '1.5px solid rgba(59, 130, 246, 0.35)',
+              color: 'var(--accent-primary)', transition: 'all 0.15s',
+            }}
+            onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59,130,246,0.15)'; }}
+            onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59,130,246,0.08)'; }}
+          >
+            <ShieldAlert size={15} /> Access Admin Panel
+          </button>
+        </div>
+      )}
+
       {/* ── Danger Zone ── */}
       <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
         <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f87171' }}>

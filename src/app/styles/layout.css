@@ -73,7 +73,8 @@
 @media (max-width: 768px) {
   html,
   body {
-    overflow-y: auto !important;
+    overflow-x: clip !important;
+    overflow-y: visible !important;
     height: auto !important;
     min-height: 100vh;
   }

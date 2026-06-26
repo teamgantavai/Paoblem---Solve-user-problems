@@ -1,9 +1,10 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { X, Sun, Moon, Check, ChevronRight } from 'lucide-react';
+import { X, Sun, Moon, Check, ChevronRight, ShieldAlert } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
+import { ADMIN_EMAIL } from '@/lib/adminConstants';
 
 interface SettingsModalProps {
   isOpen: boolean;
@@ -393,6 +394,41 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
               <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
             </button>
           </div>
+
+          {/* Admin Panel (If user is the administrator) */}
+          {session?.user?.email === ADMIN_EMAIL && (
+            <div style={{ marginTop: '1rem' }}>
+              <button
+                onClick={() => {
+                  onClose();
+                  router.push('/admin');
+                }}
+                style={{
+                  width: '100%',
+                  background: 'rgba(59, 130, 246, 0.08)',
+                  border: '1px solid rgba(59, 130, 246, 0.35)',
+                  borderRadius: '10px',
+                  padding: '0.65rem 1rem',
+                  fontSize: '0.85rem',
+                  fontWeight: 600,
+                  color: 'var(--accent-primary)',
+                  cursor: 'pointer',
+                  textAlign: 'left',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  transition: 'background 0.2s'
+                }}
+                onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59, 130, 246, 0.15)'; }}
+                onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59, 130, 246, 0.08)'; }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                  <ShieldAlert size={15} /> View Admin Panel
+                </span>
+                <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+              </button>
+            </div>
+          )}
 
           {/* Version info */}
           <div style={{ 

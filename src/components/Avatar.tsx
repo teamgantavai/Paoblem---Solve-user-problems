@@ -29,15 +29,12 @@ export default function Avatar({ src, name = 'User', size = 42, className, onCli
         onError={() => setFailed(true)}
         onClick={onClick}
         className={className}
-        style={!className ? {
+        style={{
           width: size,
           height: size,
           borderRadius: '50%',
           objectFit: 'cover',
           display: 'block',
-          cursor: onClick ? 'pointer' : 'default',
-          ...style
-        } : {
           cursor: onClick ? 'pointer' : 'default',
           ...style
         }}
@@ -51,7 +48,7 @@ export default function Avatar({ src, name = 'User', size = 42, className, onCli
       onClick={onClick}
       className={className}
       aria-label={name}
-      style={!className ? {
+      style={{
         width: size,
         height: size,
         borderRadius: '50%',
@@ -63,12 +60,6 @@ export default function Avatar({ src, name = 'User', size = 42, className, onCli
         color: 'var(--text-muted)',
         cursor: onClick ? 'pointer' : 'default',
         flexShrink: 0,
-        ...style
-      } : {
-        display: 'inline-flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        cursor: onClick ? 'pointer' : 'default',
         ...style
       }}
     >

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useState, useEffect, Suspense } from 'react';
+import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Home,
@@ -82,6 +82,8 @@ function NavbarInner() {
   const [session, setSession] = useState<any>(null);
   const [theme, setTheme] = useState('dark');
   const [avatarFailed, setAvatarFailed] = useState(false);
+  const [visible, setVisible] = useState(true);
+  const lastScrollYRef = useRef(0);
 
   // Profile fetched from DB (so role changes propagate immediately)
   const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
@@ -95,6 +97,37 @@ function NavbarInner() {
     setNoticeFeature(feature);
     setIsNoticeOpen(true);
   };
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+
+    const handleScroll = () => {
+      const currentScrollY = window.scrollY;
+      const lastScrollY = lastScrollYRef.current;
+
+      // Always show at the very top of the page
+      if (currentScrollY <= 10) {
+        setVisible(true);
+        lastScrollYRef.current = currentScrollY;
+        return;
+      }
+
+      // Scroll threshold to avoid jittery movements
+      if (Math.abs(currentScrollY - lastScrollY) < 12) return;
+
+      if (currentScrollY > lastScrollY) {
+        // Scrolling down
+        setVisible(false);
+      } else {
+        // Scrolling up
+        setVisible(true);
+      }
+      lastScrollYRef.current = currentScrollY;
+    };
+
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
 
   useEffect(() => {
     if (typeof window !== 'undefined') {
@@ -120,11 +153,18 @@ function NavbarInner() {
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
+      if (typeof window !== 'undefined' && currentSession?.user?.id !== session?.user?.id) {
+        localStorage.removeItem(NAVBAR_NOTIFICATIONS_CACHE_KEY);
+        localStorage.removeItem(NAVBAR_MESSAGES_CACHE_KEY);
+        localStorage.removeItem('mock_admin');
+        queryClient.removeQueries({ queryKey: ['notifications'] });
+        queryClient.removeQueries({ queryKey: ['messages'] });
+      }
       setSession(currentSession);
     });
 
     return () => subscription.unsubscribe();
-  }, []);
+  }, [session?.user?.id, queryClient]);
 
   const fetchNavProfile = () => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
@@ -297,6 +337,11 @@ function NavbarInner() {
         await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
       } catch (err) { }
     }
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem(NAVBAR_NOTIFICATIONS_CACHE_KEY);
+      localStorage.removeItem(NAVBAR_MESSAGES_CACHE_KEY);
+      localStorage.removeItem('mock_admin');
+    }
     await supabase.auth.signOut();
     setIsOpen(false);
     router.push('/');
@@ -311,8 +356,8 @@ function NavbarInner() {
     }
   };
 
-  const unreadNotifCount = notifications.filter(n => !n.read).length;
-  const unreadMsgCount = messages.reduce((sum, m) => sum + (m.unread_count || 0), 0);
+  const unreadNotifCount = session?.access_token ? notifications.filter(n => !n.read).length : 0;
+  const unreadMsgCount = session?.access_token ? messages.reduce((sum, m) => sum + (m.unread_count || 0), 0) : 0;
 
   const isHomeActive = pathname === '/' || pathname === '/home';
   const isSolutionsActive = pathname === '/solutions';
@@ -354,7 +399,7 @@ function NavbarInner() {
 
   return (
     <>
-      <nav className="navbar">
+      <nav className={`navbar ${visible ? '' : 'nav-hidden'}`}>
         <div className="navbar-container">
 
           <div className="nav-brand">
