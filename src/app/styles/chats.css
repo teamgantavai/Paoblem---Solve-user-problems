@@ -771,6 +771,10 @@
 }
 
 @media (max-width: 860px) {
+  .chat-page-root .navbar {
+    display: none !important;
+  }
+
   .chat-layout {
     display: flex;
   }
