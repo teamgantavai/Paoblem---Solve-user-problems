@@ -91,7 +91,7 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
   // Form states
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
-  const [type, setType] = useState<'problem' | 'idea'>('problem');
+  const [type, setType] = useState<'problem' | 'idea' | 'startup'>('problem');
   const [imageUrls, setImageUrls] = useState<string[]>([]);
   const [externalLink, setExternalLink] = useState('');
   const [linkName, setLinkName] = useState('');
@@ -249,6 +249,10 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
       setError('Body must be at least 10 characters.');
       return;
     }
+    if (type === 'startup' && !externalLink.trim()) {
+      setError('Startup website link is required.');
+      return;
+    }
 
     setSaving(true);
     setError(null);
@@ -341,11 +345,12 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
                 <label className="cp-input-label">Post Type</label>
                 <select
                   value={type}
-                  onChange={(e) => setType(e.target.value as 'problem' | 'idea')}
+                  onChange={(e) => setType(e.target.value as 'problem' | 'idea' | 'startup')}
                   className="cp-select-dropdown"
                 >
                   <option value="problem">Problem</option>
                   <option value="idea">Idea</option>
+                  <option value="startup">Startup</option>
                 </select>
               </div>
 
@@ -448,7 +453,7 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
                   ref={bodyRef}
                   contentEditable
                   onInput={(e) => setBody(htmlToPlain(e.currentTarget.innerHTML))}
-                  data-placeholder="Write something..."
+                  data-placeholder={type === 'startup' ? "Share your startup journey..." : "Write something..."}
                   className="cp-editor-textarea cp-editor-contenteditable"
                   style={{
                     minHeight: '180px',
@@ -465,6 +470,35 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
                 </span>
               </div>
             </div>
+
+            {/* STARTUP WEBSITE LINK (Auto-expanded and required for startup type) */}
+            {type === 'startup' && (
+              <div className="cp-field-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                <label className="cp-input-label">
+                  Startup Website Link <span style={{ color: 'var(--accent-danger)' }}>*</span>
+                </label>
+                <div className="cp-clean-grid">
+                  <label className="cp-clean-field">
+                    <span>Website URL</span>
+                    <input 
+                      value={externalLink} 
+                      onChange={(e) => setExternalLink(e.target.value)} 
+                      placeholder="https://yourstartup.com" 
+                      required 
+                    />
+                  </label>
+                  <label className="cp-clean-field">
+                    <span>Display Label (Optional)</span>
+                    <input 
+                      value={linkName} 
+                      onChange={(e) => setLinkName(e.target.value)} 
+                      maxLength={60} 
+                      placeholder="e.g. Website, Dashboard, App Store" 
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* AI Split preview inside modal */}
             {aiPreviewOpen && (
@@ -498,17 +532,19 @@ export default function EditPostModal({ isOpen, onClose, post, session, onSucces
               >
                 <Plus size={14} /> {tagsEnabled ? 'Hide Tags' : 'Add Tags'}
               </button>
-              <button
-                type="button"
-                className="cp-section-toggle"
-                onClick={() => setLinkEnabled(!linkEnabled)}
-              >
-                <Plus size={14} /> {linkEnabled ? 'Hide Link' : 'Add Link'}
-              </button>
+              {type !== 'startup' && (
+                <button
+                  type="button"
+                  className="cp-section-toggle"
+                  onClick={() => setLinkEnabled(!linkEnabled)}
+                >
+                  <Plus size={14} /> {linkEnabled ? 'Hide Link' : 'Add Link'}
+                </button>
+              )}
             </div>
 
             {/* LINK ACCORDION PANEL */}
-            {linkEnabled && (
+            {linkEnabled && type !== 'startup' && (
               <div className="cp-collapsible-block">
                 <div className="cp-input-label">Attach External Link</div>
                 <div className="cp-clean-grid">

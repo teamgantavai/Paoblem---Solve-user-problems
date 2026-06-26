@@ -15,14 +15,15 @@ interface CategoryPageProps {
   searchParams: Promise<{ page?: string }>;
 }
 
-function mapCategoryToType(category: string): 'problem' | 'idea' | null {
+function mapCategoryToType(category: string): 'problem' | 'idea' | 'startup' | null {
   const norm = category.toLowerCase().trim();
   if (norm === 'problems' || norm === 'problem') return 'problem';
   if (norm === 'ideas' || norm === 'idea') return 'idea';
+  if (norm === 'startups' || norm === 'startup') return 'startup';
   return null;
 }
 
-async function getCategoryPosts(type: 'problem' | 'idea', pageNum: number = 1) {
+async function getCategoryPosts(type: 'problem' | 'idea' | 'startup', pageNum: number = 1) {
   const supabase = createClient(supabaseUrl, supabaseAnonKey);
   const pageSize = 10;
   const from = (pageNum - 1) * pageSize;
@@ -49,11 +50,11 @@ export async function generateMetadata({ params }: CategoryPageProps): Promise<M
   }
 
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com';
-  const label = type === 'problem' ? 'Problems' : 'Ideas';
+  const label = type === 'problem' ? 'Problems' : type === 'idea' ? 'Ideas' : 'Startups';
 
   return {
-    title: `Startup ${label} Discussions & Solutions | Paoblem`,
-    description: `Read and join startup ${label.toLowerCase()} discussions and discover code/business solutions on Paoblem.`,
+    title: type === 'startup' ? `Startups Journey Discussions & Solutions | Paoblem` : `Startup ${label} Discussions & Solutions | Paoblem`,
+    description: type === 'startup' ? `Read and join startup journey discussions and discover founder experiences on Paoblem.` : `Read and join startup ${label.toLowerCase()} discussions and discover code/business solutions on Paoblem.`,
     alternates: {
       canonical: `${siteUrl}/category/${category}`,
     },
@@ -75,7 +76,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
   const pageSize = 10;
   const totalPages = Math.ceil(count / pageSize);
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com';
-  const label = type === 'problem' ? 'Problems' : 'Ideas';
+  const label = type === 'problem' ? 'Problems' : type === 'idea' ? 'Ideas' : 'Startups';
 
   const hasNext = page < totalPages;
   const hasPrev = page > 1;
@@ -168,7 +169,7 @@ export default async function CategoryPage({ params, searchParams }: CategoryPag
                       <span>↑ {post.upvotes} upvotes</span>
                       <span>💬 {post.comments_count} comments</span>
                       <span className={`sticker-tag ${post.type}`} style={{ padding: '1px 6px', fontSize: '0.65rem' }}>
-                        {type === 'problem' ? 'Problem' : 'Idea'}
+                        {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Startup'}
                       </span>
                     </div>
                   </article>

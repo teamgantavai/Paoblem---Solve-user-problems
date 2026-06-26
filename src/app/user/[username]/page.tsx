@@ -26,7 +26,7 @@ async function getUserProfile(username: string) {
   // Fetch all posts (problems + ideas)
   const { data: posts } = await supabase
     .from('posts')
-    .select('id, title, body, slug, type, upvotes, comments_count, created_at')
+    .select('id, title, body, slug, type, upvotes, comments_count, created_at, external_link, link_name')
     .eq('user_id', profile.id)
     .order('created_at', { ascending: false });
 

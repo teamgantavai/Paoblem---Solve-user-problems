@@ -7,7 +7,7 @@ import {
   Check, Camera, MessageCircle, MessageSquare, Loader2, ExternalLink,
   AlertTriangle, Lightbulb, User, UserPlus, UserMinus, LogOut, Settings,
   Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar, X,
-  ShieldAlert
+  ShieldAlert, Briefcase
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
@@ -54,10 +54,13 @@ interface UserPost {
   id: string;
   title: string;
   body: string;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'startup';
   upvotes: number;
   comments_count: number;
   created_at: string;
+  slug?: string | null;
+  external_link?: string | null;
+  link_name?: string | null;
 }
 
 interface UserComment {
@@ -174,7 +177,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
   const displayUserId = isOwnProfile ? currentUserId : targetUserId;
 
-  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'settings'>('problems');
+  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'settings' | 'startups'>('problems');
   const [modalView, setModalView] = useState<'followers' | 'following' | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
@@ -381,7 +384,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
     queryFn: async () => {
       const { data, error } = await supabase
         .from('posts')
-        .select('id, title, body, type, upvotes, comments_count, created_at')
+        .select('id, title, body, type, upvotes, comments_count, created_at, slug, external_link, link_name')
         .eq('user_id', displayUserId)
         .order('created_at', { ascending: false });
       if (error) throw error;
@@ -595,9 +598,10 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
   const bioTruncated = bio.length > BIO_PREVIEW_LENGTH && !bioExpanded;
   const displayBio = bioTruncated ? bio.slice(0, BIO_PREVIEW_LENGTH) + '…' : bio;
 
-  // Split posts into problems and ideas
+  // Split posts into problems, ideas, and startups
   const problemsList = userPosts.filter(p => p.type === 'problem');
   const ideasList = userPosts.filter(p => p.type === 'idea');
+  const startupsList = userPosts.filter(p => p.type === 'startup');
 
   const coverSrc = tempCover || profile?.cover_url;
 
@@ -862,6 +866,10 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
           <Lightbulb size={15} /> <span className="upf-tab-label">Ideas</span>
           <span className="upf-tab-count">{ideasList.length}</span>
         </button>
+        <button className={`upf-tab-btn ${activeTab === 'startups' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('startups')}>
+          <Briefcase size={15} /> <span className="upf-tab-label">Startups</span>
+          <span className="upf-tab-count">{startupsList.length}</span>
+        </button>
         <button className={`upf-tab-btn ${activeTab === 'solutions' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('solutions')}>
           <Award size={15} /> <span className="upf-tab-label">Solutions</span>
           <span className="upf-tab-count">{userSolutions.length}</span>
@@ -924,6 +932,35 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                   <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
                   {post.body && (
                     <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  <div className="upf-post-footer">
+                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        )}
+
+        {activeTab === 'startups' && (
+          <div className="upf-list">
+            {startupsList.length === 0
+              ? <EmptyState icon={<Briefcase size={36} />} text={`${displayName} hasn't posted any startups yet.`} />
+              : startupsList.map((post) => (
+                <article key={post.id} className="upf-post-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--startup">Startup</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                  </div>
+                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
+                  {post.body && (
+                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  {post.external_link && (
+                    <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
+                      <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
+                    </a>
                   )}
                   <div className="upf-post-footer">
                     <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
@@ -1114,7 +1151,7 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.4rem' }}>
             <span className={`sticker-tag ${post.type}`} style={{ marginLeft: 0 }}>
-              {post.type === 'problem' ? 'Problem' : 'Idea'}
+              {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Startup'}
             </span>
             <span style={{ fontSize: '0.68rem', color: 'var(--text-muted)' }}>
               {new Date(post.created_at).toLocaleDateString(undefined, { month: 'short', day: 'numeric', year: 'numeric' })}

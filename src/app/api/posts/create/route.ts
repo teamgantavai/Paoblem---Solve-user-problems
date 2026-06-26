@@ -10,7 +10,7 @@ const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 const createPostSchema = z.object({
   title: z.string().min(3, 'Title must be at least 3 characters').max(300, 'Title too long'),
   body: z.string().min(1, 'Body is required').max(10000, 'Body too long'),
-  type: z.enum(['problem', 'idea']),
+  type: z.enum(['problem', 'idea', 'startup']),
   image_url: z.string().nullable().optional().refine((val) => {
     if (!val) return true;
     try {
@@ -153,6 +153,13 @@ export async function POST(req: NextRequest) {
     if (!parsed.success) {
       return NextResponse.json(
         { error: parsed.error.errors[0].message },
+        { status: 400 },
+      );
+    }
+
+    if (parsed.data.type === 'startup' && (!parsed.data.external_link || !parsed.data.external_link.trim())) {
+      return NextResponse.json(
+        { error: 'Startup website link is required' },
         { status: 400 },
       );
     }

@@ -203,7 +203,7 @@ export default function CommentsModal({
               </span>
             </div>
             <span className={`sticker-tag ${post.type}`}>
-              {post.type === 'problem' ? 'Problem' : 'Idea'}
+              {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Startup'}
             </span>
           </div>
         </div>

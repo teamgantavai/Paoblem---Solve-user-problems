@@ -148,7 +148,7 @@ export default async function TagPage({ params, searchParams }: TagPageProps) {
                       <span>↑ {post.upvotes} upvotes</span>
                       <span>💬 {post.comments_count} comments</span>
                       <span className={`sticker-tag ${post.type}`} style={{ padding: '1px 6px', fontSize: '0.65rem' }}>
-                        {post.type === 'problem' ? 'Problem' : 'Idea'}
+                        {post.type === 'problem' ? 'Problem' : post.type === 'idea' ? 'Idea' : 'Startup'}
                       </span>
                     </div>
                   </article>

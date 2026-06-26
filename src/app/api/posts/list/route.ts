@@ -55,7 +55,7 @@ export async function GET(req: NextRequest) {
         query = query.lt('created_at', cursor);
       }
 
-      if (type === 'problem' || type === 'idea') {
+      if (type === 'problem' || type === 'idea' || type === 'startup') {
         query = query.eq('type', type);
       }
       if (category) {
@@ -147,7 +147,7 @@ export async function GET(req: NextRequest) {
           fallbackQuery = fallbackQuery.lt('created_at', cursor);
         }
 
-        if (type === 'problem' || type === 'idea') {
+        if (type === 'problem' || type === 'idea' || type === 'startup') {
           fallbackQuery = fallbackQuery.eq('type', type);
         }
         if (category) {

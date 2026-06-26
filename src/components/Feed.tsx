@@ -305,7 +305,7 @@ const PostCard = React.memo(function PostCard({
                 body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
               }).catch(() => { });
             }}
-            style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
+            style={{ color: 'var(--accent-primary)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
             <ExternalLink size={12} />
             <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
           </a>
@@ -1060,6 +1060,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
             { id: 'all', label: 'All Feed' },
             { id: 'problem', label: 'Problems' },
             { id: 'idea', label: 'Ideas' },
+            { id: 'startup', label: 'Startups' },
           ].map(tab => (
             <button key={tab.id} className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
               style={{ background: filterType === tab.id ? undefined : 'var(--bg-card)', color: 'var(--text-main)', border: filterType === tab.id ? 'none' : '1px solid var(--border-color)', flexShrink: 0 }}
@@ -1211,7 +1212,26 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         />
       )}
       {editingPost && (
-        <EditPostModal isOpen={!!editingPost} onClose={() => setEditingPost(null)} post={editingPost} session={session} />
+        <EditPostModal
+          isOpen={!!editingPost}
+          onClose={() => setEditingPost(null)}
+          post={editingPost}
+          session={session}
+          onSuccess={(updatedPost) => {
+            setNewlyCreatedPosts((prev) =>
+              prev.map((p) => (p.id === updatedPost.id ? { ...p, ...updatedPost } : p))
+            );
+            try {
+              const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+              if (Array.isArray(stored) && stored.length > 0) {
+                const updated = stored.map((p: any) => (p.id === updatedPost.id ? { ...p, ...updatedPost } : p));
+                sessionStorage.setItem('paoblem_newly_created_posts', JSON.stringify(updated));
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
+        />
       )}
       <DeleteConfirmModal
         isOpen={!!deletingPostId}

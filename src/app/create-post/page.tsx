@@ -33,7 +33,7 @@ import Avatar from '@/components/Avatar';
 import { supabase } from '@/lib/supabase';
 
 type Session = Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'];
-type PostType = 'problem' | 'idea' | null;
+type PostType = 'problem' | 'idea' | 'startup' | null;
 type Visibility = 'public' | 'community' | 'private';
 type Profile = { username: string | null; full_name: string | null; avatar_url: string | null; reputation?: number | null };
 
@@ -226,7 +226,8 @@ function CreatePostForm({ session }: { session: Session }) {
   }, [body]);
 
   const bodyCount = body.trim().length;
-  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY);
+  const isLinkValid = postType !== 'startup' || (externalLink.trim().length > 0);
+  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY && isLinkValid);
 
   const addTag = () => {
     const next = normalizeTag(tagInput);
@@ -294,7 +295,10 @@ function CreatePostForm({ session }: { session: Session }) {
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!session) return setError('Please sign in to publish.');
-    if (!postType) return setError('Please select a Post Type (Problem or Idea).');
+    if (!postType) return setError('Please select a Post Type.');
+    if (postType === 'startup' && !externalLink.trim()) {
+      return setError('Startup website link is required.');
+    }
     if (!isValid) return setError('Please make sure your title has at least 3 characters and description has at least 10.');
 
     setSubmitting(true);
@@ -423,6 +427,7 @@ function CreatePostForm({ session }: { session: Session }) {
                   <option value="" disabled>Select post type...</option>
                   <option value="problem">Problem</option>
                   <option value="idea">Idea</option>
+                  <option value="startup">Startup</option>
                 </select>
               </div>
 
@@ -526,7 +531,7 @@ function CreatePostForm({ session }: { session: Session }) {
                   ref={bodyRef}
                   contentEditable
                   onInput={(e) => setBody(htmlToPlain(e.currentTarget.innerHTML))}
-                  data-placeholder="Write something..."
+                  data-placeholder={postType === 'startup' ? "Share your startup journey..." : "Write something..."}
                   className="cp-editor-textarea cp-editor-contenteditable"
                   style={{
                     minHeight: '180px',
@@ -544,7 +549,34 @@ function CreatePostForm({ session }: { session: Session }) {
               </div>
             </div>
 
-
+            {/* STARTUP WEBSITE LINK (Auto-expanded and required for startup type) */}
+            {postType === 'startup' && (
+              <div className="cp-field-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
+                <label className="cp-input-label">
+                  Startup Website Link <span style={{ color: 'var(--accent-danger)' }}>*</span>
+                </label>
+                <div className="cp-clean-grid">
+                  <label className="cp-clean-field">
+                    <span>Website URL</span>
+                    <input 
+                      value={externalLink} 
+                      onChange={(event) => setExternalLink(event.target.value)} 
+                      placeholder="https://yourstartup.com" 
+                      required 
+                    />
+                  </label>
+                  <label className="cp-clean-field">
+                    <span>Display Label (Optional)</span>
+                    <input 
+                      value={linkName} 
+                      onChange={(event) => setLinkName(event.target.value)} 
+                      maxLength={60} 
+                      placeholder="e.g. Website, Dashboard, App Store" 
+                    />
+                  </label>
+                </div>
+              </div>
+            )}
 
             {/* DRAG AND DROP MEDIA UPLOADER */}
             <div className="cp-field-group cp-media-section">
@@ -561,17 +593,19 @@ function CreatePostForm({ session }: { session: Session }) {
               >
                 <Plus size={14} /> {tagsEnabled ? 'Hide Tags' : 'Add Tags'}
               </button>
-              <button
-                type="button"
-                className="cp-section-toggle"
-                onClick={() => setLinkEnabled(!linkEnabled)}
-              >
-                <Plus size={14} /> {linkEnabled ? 'Hide Link' : 'Add Link'}
-              </button>
+              {postType !== 'startup' && (
+                <button
+                  type="button"
+                  className="cp-section-toggle"
+                  onClick={() => setLinkEnabled(!linkEnabled)}
+                >
+                  <Plus size={14} /> {linkEnabled ? 'Hide Link' : 'Add Link'}
+                </button>
+              )}
             </div>
 
             {/* LINK ACCORDION PANEL */}
-            {linkEnabled && (
+            {linkEnabled && postType !== 'startup' && (
               <div className="cp-collapsible-block">
                 <div className="cp-input-label">Attach External Link</div>
                 <div className="cp-clean-grid">

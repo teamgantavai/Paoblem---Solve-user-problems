@@ -5,7 +5,7 @@ export interface Post {
   user_id: string;
   title: string;
   body: string;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'startup';
   image_url: string | null;
   video_url?: string | null;
   metadata?: any;
@@ -72,7 +72,7 @@ export interface Solution {
     title: string;
     slug: string | null;
     body?: string | null;
-    type?: 'problem' | 'idea';
+    type?: 'problem' | 'idea' | 'startup';
   } | null;
 }
 
@@ -115,7 +115,7 @@ export interface View {
 export interface CreatePostPayload {
   title: string;
   body: string;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'startup';
   image_url?: string | null;
   external_link?: string | null;
 }
@@ -372,7 +372,7 @@ export interface PostGridItem {
   id: string;
   title: string;
   slug: string | null;
-  type: 'problem' | 'idea' | 'solution';
+  type: 'problem' | 'idea' | 'solution' | 'startup';
   image_url: string | null;
   created_at: string;
   views: number;
@@ -415,7 +415,7 @@ export interface PostAnalyticsDetailResponse {
     title: string;
     slug: string | null;
     body: string;
-    type: 'problem' | 'idea' | 'solution';
+    type: 'problem' | 'idea' | 'solution' | 'startup';
     image_url: string | null;
     created_at: string;
   };
@@ -440,7 +440,7 @@ export interface SearchResult {
   id: string;
   title: string;
   body_snippet: string;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'startup';
   slug: string | null;
   upvotes: number;
   comments_count: number;

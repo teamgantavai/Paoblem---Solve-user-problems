@@ -94,7 +94,7 @@ export function rankPosts<T extends AnyRow>(
   const pageSize = options.pageSize || DEFAULT_PAGE_SIZE;
   const newUser = options.newUser ?? !hasEnoughInterest(interests);
   const seenIds = options.seenIds || new Set<string>();
-  const filtered = options.type && ['problem', 'idea'].includes(options.type)
+  const filtered = options.type && ['problem', 'idea', 'startup'].includes(options.type)
     ? rows.filter((row) => row.type === options.type)
     : rows;
 

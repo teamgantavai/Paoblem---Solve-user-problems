@@ -1148,7 +1148,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             }}
             className="flex items-center gap-1"
             style={{
-              color: 'var(--accent-blue)',
+              color: 'var(--accent-primary)',
               fontSize: '0.8rem',
               fontWeight: 500,
               marginBottom: '0.6rem',
@@ -1506,11 +1506,22 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           onClose={() => setIsEditPostOpen(false)}
           post={post}
           session={session}
-          onSuccess={(updatedPost) => setPost(prev => ({
-            ...prev,
-            ...updatedPost,
-            profiles: prev.profiles
-          }))}
+          onSuccess={(updatedPost) => {
+            setPost(prev => ({
+              ...prev,
+              ...updatedPost,
+              profiles: prev.profiles
+            }));
+            try {
+              const stored = JSON.parse(sessionStorage.getItem('paoblem_newly_created_posts') || '[]');
+              if (Array.isArray(stored) && stored.length > 0) {
+                const updated = stored.map((p: any) => (p.id === updatedPost.id ? { ...p, ...updatedPost } : p));
+                sessionStorage.setItem('paoblem_newly_created_posts', JSON.stringify(updated));
+              }
+            } catch (e) {
+              console.error(e);
+            }
+          }}
         />
       )}
 

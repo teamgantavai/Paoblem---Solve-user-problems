@@ -168,6 +168,12 @@
   border-color: var(--chip-solution-border);
 }
 
+.post-type-badge.startup {
+  background: var(--chip-startup-bg);
+  color: var(--chip-startup-text);
+  border-color: var(--chip-startup-border);
+}
+
 /* ─── AI Quality Score Badge ─────────────────────────────────────────────── */
 .quality-score-badge {
   display: inline-flex;
@@ -715,6 +721,11 @@
 .sticker-tag.idea {
   background-color: #9BE13A !important;
   color: #000000 !important;
+}
+
+.sticker-tag.startup {
+  background-color: #8B5CF6 !important;
+  color: #FFFFFF !important;
 }
 
 .solution-status-chip {

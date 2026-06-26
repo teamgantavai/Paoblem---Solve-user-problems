@@ -29,10 +29,12 @@ interface PostItem {
   title: string;
   body?: string;
   slug?: string;
-  type: 'problem' | 'idea';
+  type: 'problem' | 'idea' | 'startup';
   upvotes: number;
   comments_count: number;
   created_at: string;
+  external_link?: string | null;
+  link_name?: string | null;
 }
 
 interface SolutionItem {
@@ -64,7 +66,7 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'problems' | 'ideas' | 'solutions' | 'comments';
+type Tab = 'problems' | 'ideas' | 'solutions' | 'comments' | 'startups';
 type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -265,6 +267,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
 
   const problems = posts.filter((p) => p.type === 'problem');
   const ideas = posts.filter((p) => p.type === 'idea');
+  const startups = posts.filter((p) => p.type === 'startup');
 
   const name = profile.full_name || profile.username || 'Unknown';
   const isOwnProfile = currentUserId === profile.id;
@@ -377,6 +380,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const tabs: { key: Tab; label: string; count: number; icon: React.ReactNode }[] = [
     { key: 'problems', label: 'Problems', count: problems.length, icon: <BookOpen size={15} /> },
     { key: 'ideas', label: 'Ideas', count: ideas.length, icon: <Lightbulb size={15} /> },
+    { key: 'startups', label: 'Startups', count: startups.length, icon: <Briefcase size={15} /> },
     { key: 'solutions', label: 'Solutions', count: solutions.length, icon: <Award size={15} /> },
     { key: 'comments', label: 'Comments', count: comments.length, icon: <MessageSquare size={15} /> },
   ];
@@ -547,6 +551,36 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                   <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
                   {post.body && (
                     <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  <div className="upf-post-footer">
+                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                  </div>
+                </article>
+              ))
+            }
+          </div>
+        )}
+
+        {/* Startups Tab */}
+        {activeTab === 'startups' && (
+          <div className="upf-list">
+            {startups.length === 0
+              ? <EmptyState icon={<Briefcase size={36} />} text={`${name} hasn't posted any startups yet.`} />
+              : startups.map((post) => (
+                <article key={post.id} className="upf-post-card">
+                  <div className="upf-post-meta">
+                    <span className="upf-tag upf-tag--startup">Startup</span>
+                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                  </div>
+                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
+                  {post.body && (
+                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                  )}
+                  {post.external_link && (
+                    <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
+                      <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
+                    </a>
                   )}
                   <div className="upf-post-footer">
                     <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>

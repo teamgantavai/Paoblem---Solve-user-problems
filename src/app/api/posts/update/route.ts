@@ -9,7 +9,7 @@ const updatePostSchema = z.object({
   id: z.string().uuid(),
   title: z.string().min(3, 'Title must be at least 3 characters').max(300, 'Title too long'),
   body: z.string().min(10, 'Body must be at least 10 characters').max(10000, 'Body too long'),
-  type: z.enum(['problem', 'idea']),
+  type: z.enum(['problem', 'idea', 'startup']),
   image_url: z.string().nullable().optional().refine((val) => {
     if (!val) return true;
     try {
@@ -64,6 +64,10 @@ export async function PUT(req: NextRequest) {
     const parsed = updatePostSchema.safeParse(body);
     if (!parsed.success) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
+    }
+
+    if (parsed.data.type === 'startup' && (!parsed.data.external_link || !parsed.data.external_link.trim())) {
+      return NextResponse.json({ error: 'Startup website link is required' }, { status: 400 });
     }
 
     const { id, title, body: postBody, type, image_url, external_link, link_name, category, tags, metadata } = parsed.data;
