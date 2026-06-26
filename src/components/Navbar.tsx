@@ -102,6 +102,12 @@ function NavbarInner() {
     if (typeof window === 'undefined') return;
 
     const handleScroll = () => {
+      // Don't hide navbar in desktop mode
+      if (window.innerWidth > 768) {
+        setVisible(true);
+        return;
+      }
+
       const currentScrollY = window.scrollY;
       const lastScrollY = lastScrollYRef.current;
 

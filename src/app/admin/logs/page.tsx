@@ -116,7 +116,7 @@ export default function AuditLogs() {
                       </td>
                       <td>
                         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-                          <Avatar avatarUrl={log.profiles?.avatar_url} username={log.profiles?.username} size={24} />
+                          <Avatar src={log.profiles?.avatar_url} name={log.profiles?.full_name || 'Admin'} size={24} />
                           <span style={{ fontSize: '0.82rem', fontWeight: 600 }}>
                             {log.profiles?.full_name || 'Admin'}
                           </span>
