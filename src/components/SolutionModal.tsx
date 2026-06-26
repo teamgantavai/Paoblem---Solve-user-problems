@@ -40,6 +40,7 @@ export default function SolutionModal({
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [status, setStatus] = useState<'building' | 'launched'>('launched');
   const [activeTab, setActiveTab] = useState<'details' | 'media' | 'links'>('details');
   const panelRef = useRef<HTMLDivElement>(null);
 
@@ -70,6 +71,7 @@ export default function SolutionModal({
       setVideoUrl('');
       setWebsiteUrl('');
       setGithubUrl('');
+      setStatus('launched');
     }
     setError(null);
     setSuccess(false);
@@ -140,6 +142,7 @@ export default function SolutionModal({
         image_url: imageUrls.length > 0 ? JSON.stringify(imageUrls) : null,
         external_link: primaryLink,
         link_name: primaryLinkName,
+        status: status,
       };
 
       if (editingSolution) {
@@ -215,6 +218,37 @@ export default function SolutionModal({
 
           {activeTab === 'details' && (
             <div className="sol-modal-section">
+              {/* Status Selector */}
+              {!editingSolution && (
+                <div className="sol-modal-field" style={{ marginBottom: '1.25rem' }}>
+                  <label className="sol-modal-label">
+                    Your Status
+                  </label>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '1.25rem', marginTop: '0.4rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-main)', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="solution-status"
+                        checked={status === 'building'}
+                        onChange={() => setStatus('building')}
+                        style={{ accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
+                      />
+                      <span>🛠️ I'm actively working on solving this (building)</span>
+                    </label>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.82rem', color: 'var(--text-main)', cursor: 'pointer' }}>
+                      <input
+                        type="radio"
+                        name="solution-status"
+                        checked={status === 'launched'}
+                        onChange={() => setStatus('launched')}
+                        style={{ accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
+                      />
+                      <span>🚀 I built this for you (launched)</span>
+                    </label>
+                  </div>
+                </div>
+              )}
+
               {/* Title field */}
               <div className="sol-modal-field">
                 <label className="sol-modal-label">

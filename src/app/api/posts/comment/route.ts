@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
-import { enqueueNotification } from '@/lib/queue';
+import { enqueueNotification, enqueueReplyEmailNotification } from '@/lib/queue';
 import { updateUserInterestsForContent } from '@/lib/recommendations';
 
 const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
@@ -69,6 +69,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // 1. Notify post owner of the comment
     try {
       const { data: post } = await supabaseAdmin.from('posts').select('user_id').eq('id', post_id).single();
       if (post && post.user_id !== user.id) {
@@ -83,6 +84,43 @@ export async function POST(req: NextRequest) {
       }
     } catch (notifErr) {
       console.error('Failed to enqueue comment notification:', notifErr);
+    }
+
+    // 2. Notify parent comment owner if nested reply
+    if (parent_id) {
+      try {
+        const { data: parentComment } = await supabaseAdmin
+          .from('comments')
+          .select('user_id')
+          .eq('id', parent_id)
+          .single();
+
+        if (parentComment && parentComment.user_id !== user.id) {
+          const { data: post } = await supabaseAdmin.from('posts').select('title').eq('id', post_id).single();
+          const postTitle = post?.title || 'your post';
+
+          const { data: replierProfile } = await supabaseAdmin
+            .from('profiles')
+            .select('username, full_name')
+            .eq('id', user.id)
+            .single();
+          const replierName = replierProfile?.username ? `@${replierProfile.username}` : (replierProfile?.full_name || 'Someone');
+
+          // Insert in-app notification
+          await supabaseAdmin.from('notifications').insert({
+            user_id: parentComment.user_id,
+            type: 'reply',
+            title: 'Comment Reply',
+            body: `💬 ${replierName} replied to your comment on '${postTitle}'`,
+            post_id: post_id,
+          });
+
+          // Enqueue aggregate email alert (1 hour delay)
+          await enqueueReplyEmailNotification(parentComment.user_id, 60 * 60 * 1000);
+        }
+      } catch (replyNotifErr) {
+        console.error('Failed to handle comment reply notification:', replyNotifErr);
+      }
     }
 
     const { data: interestPost } = await supabaseAdmin.from('posts').select('*').eq('id', post_id).maybeSingle();

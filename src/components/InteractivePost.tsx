@@ -17,7 +17,8 @@ import {
   Loader2,
   BarChart2,
   Send,
-  Rocket
+  Rocket,
+  SendHorizontal,
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { Post, Comment, Solution } from '@/lib/types';
@@ -33,6 +34,8 @@ import Avatar from './Avatar';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import { useQueryClient, useQuery, useMutation } from '@tanstack/react-query';
 import QualityScoreBadge from './QualityScoreBadge';
+import ShareModal from './ShareModal';
+import ShareInAppChatsModal from './ShareInAppChatsModal';
 
 function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
   if (!text) return [];
@@ -88,9 +91,9 @@ function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null):
       const currentNumber = liCounter++;
       const marker = listType === 'ol' ? `${currentNumber}.` : '•';
       return (
-        <li key={idx} style={{ 
-          marginBottom: '0.38rem', 
-          display: 'flex', 
+        <li key={idx} style={{
+          marginBottom: '0.38rem',
+          display: 'flex',
           alignItems: 'flex-start',
           gap: '0.6rem',
           lineHeight: '1.45'
@@ -193,7 +196,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [isSubmittingSolution, setIsSubmittingSolution] = useState(false);
   const [isSolutionModalOpen, setIsSolutionModalOpen] = useState(false);
   const [editingSolutionId, setEditingSolutionId] = useState<string | null>(null);
-  
+
   // Modals & Popovers state
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isEditPostOpen, setIsEditPostOpen] = useState(false);
@@ -201,6 +204,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
   const [isDeletingPost, setIsDeletingPost] = useState(false);
   const [activeShareMenu, setActiveShareMenu] = useState(false);
   const [showSubShare, setShowSubShare] = useState(false);
+  const [isShareModalOpen, setIsShareModalOpen] = useState(false);
+  const [isChatShareModalOpen, setIsChatShareModalOpen] = useState(false);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const postRef = useRef<HTMLElement>(null);
   const viewTrackedRef = useRef(false);
@@ -243,6 +248,47 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     return () => subscription.unsubscribe();
   }, []);
 
+  // Sync saves from server
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch('/api/posts/save', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.savedIds) {
+          setSavedIds(data.savedIds);
+          localStorage.setItem('paoblem_saved_posts', JSON.stringify(data.savedIds));
+        }
+      })
+      .catch((err) => console.error('[post-detail] Failed to fetch saved posts', err));
+  }, [session?.access_token]);
+
+  // Realtime updates for post detail metrics
+  useEffect(() => {
+    const channel = supabase.channel(`post-detail-realtime:${post.id}`)
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts', filter: `id=eq.${post.id}` },
+        (payload) => {
+          setPost(prev => ({
+            ...prev,
+            saves: payload.new.saves,
+            upvotes: payload.new.upvotes,
+            downvotes: payload.new.downvotes,
+            comments_count: payload.new.comments_count,
+            quality_score: payload.new.quality_score,
+          }));
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [post.id]);
+
   // Track post open on detail page load
   useEffect(() => {
     trackEvent(post.id, 'POST_OPEN', session?.access_token);
@@ -272,12 +318,12 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     if (!post?.id || hasTrackedLongRead.current) return;
     const timer = setTimeout(() => {
       hasTrackedLongRead.current = true;
-      trackEvent(post.id, 'LONG_READ', session?.access_token).catch(() => {});
+      trackEvent(post.id, 'LONG_READ', session?.access_token).catch(() => { });
       fetch('/api/posts/quality', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ post_id: post.id, counter: 'long_reads', delta: 1 }),
-      }).catch(() => {});
+      }).catch(() => { });
     }, 20000); // 20s
 
     return () => clearTimeout(timer);
@@ -545,19 +591,35 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
     return () => window.removeEventListener('click', handleOutsideClick);
   }, []);
 
-  const handleToggleSave = () => {
-    let nextSaved: string[];
-    if (savedIds.includes(post.id)) {
-      nextSaved = savedIds.filter(id => id !== post.id);
-      showToast('Post removed from Saved');
-    } else {
-      nextSaved = [...savedIds, post.id];
-      showToast('Post saved successfully');
+  const handleToggleSave = async () => {
+    if (!session) {
+      setIsAuthOpen(true);
+      return;
     }
-    setSavedIds(nextSaved);
-    localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
-    if (!savedIds.includes(post.id)) {
-      trackEvent(post.id, 'POST_SAVE', session?.access_token);
+    try {
+      const res = await fetch('/api/posts/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ postId: post.id }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      let nextSaved: string[];
+      if (data.saved) {
+        nextSaved = [...savedIds, post.id];
+        showToast('Post saved successfully');
+      } else {
+        nextSaved = savedIds.filter(id => id !== post.id);
+        showToast('Post removed from Saved');
+      }
+      setSavedIds(nextSaved);
+      localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save post');
     }
   };
 
@@ -826,12 +888,12 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             size={42}
             onClick={() => {
               router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`);
-              trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => {});
+              trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => { });
               fetch('/api/posts/quality', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
-              }).catch(() => {});
+              }).catch(() => { });
             }}
             style={{ cursor: 'pointer', flexShrink: 0, width: '42px', height: '42px', borderRadius: '50%' }}
           />
@@ -841,12 +903,12 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               style={{ fontWeight: 600, cursor: 'pointer', fontSize: '0.92rem' }}
               onClick={() => {
                 router.push(authorUsername ? `/user/${authorUsername}` : `/profile?userId=${post.user_id}`);
-                trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => {});
+                trackEvent(post.id, 'PROFILE_CLICK', session?.access_token).catch(() => { });
                 fetch('/api/posts/quality', {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
-                }).catch(() => {});
+                }).catch(() => { });
               }}
             >
               {authorName}
@@ -932,10 +994,53 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
                 <>
                   <button
                     className="share-menu-item"
-                    onClick={() => setShowSubShare(true)}
+                    onClick={() => { setActiveShareMenu(false); setIsShareModalOpen(true); }}
                   >
                     <Share2 size={13} /> Share Post…
                   </button>
+
+                  {!isOwner && (
+                    <button
+                      className="share-menu-item"
+                      onClick={async () => {
+                        setActiveShareMenu(false);
+                        if (!session) {
+                          setIsAuthOpen(true);
+                          return;
+                        }
+                        window.dispatchEvent(new CustomEvent('top-loader:start'));
+                        try {
+                          const res = await fetch('/api/messages', {
+                            method: 'POST',
+                            headers: {
+                              'Content-Type': 'application/json',
+                              'Authorization': `Bearer ${session.access_token}`
+                            },
+                            body: JSON.stringify({
+                              recipientId: post.user_id,
+                              startOnly: true
+                            })
+                          });
+                          if (!res.ok) throw new Error('Could not start chat');
+                          const data = await res.json();
+                          
+                          const params = new URLSearchParams();
+                          params.set('conversationId', data.conversationId);
+                          params.set('partnerId', post.user_id);
+                          if (authorName) params.set('partnerName', authorName);
+                          if (authorAvatar) params.set('partnerAvatar', authorAvatar);
+                          if (authorUsername) params.set('partnerUsername', authorUsername);
+
+                          router.push(`/chats?${params.toString()}`);
+                        } catch (error) {
+                          showToast('Failed to start chat.');
+                          window.dispatchEvent(new CustomEvent('top-loader:finish'));
+                        }
+                      }}
+                    >
+                      <MessageCircle size={13} /> Chat
+                    </button>
+                  )}
 
                   {isOwner && (
                     <>
@@ -1034,12 +1139,12 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
             target="_blank"
             rel="noopener noreferrer"
             onClick={() => {
-              trackEvent(post.id, 'LINK_CLICK', session?.access_token).catch(() => {});
+              trackEvent(post.id, 'LINK_CLICK', session?.access_token).catch(() => { });
               fetch('/api/posts/quality', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
-              }).catch(() => {});
+              }).catch(() => { });
             }}
             className="flex items-center gap-1"
             style={{
@@ -1067,7 +1172,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         }}>
           {decodeHTMLEntities(post.title)}
         </h1>
-        
+
         <div style={{
           fontSize: '0.94rem',
           lineHeight: '1.6',
@@ -1087,7 +1192,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
           return (
             <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem', marginBottom: '1.25rem' }}>
               {category && (
-                <span 
+                <span
                   className="post-taxonomy-tag category-hashtag"
                   style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
                   onClick={(e) => {
@@ -1111,9 +1216,8 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       {/* Attachments */}
       <ImageGallery imageUrlsString={post.image_url} />
 
-      {/* Post Footer Actions */}
       <div className="post-footer" style={{ borderBottom: '1px solid var(--border-color)', paddingBottom: '1rem', marginBottom: '1.25rem' }}>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2" style={{ width: '100%' }}>
           {/* Upvote Capsule */}
           <div className="vote-container" style={{ borderColor: userVote === 'up' ? '#22c55e' : undefined, background: userVote === 'up' ? 'rgba(34, 197, 94, 0.08)' : undefined }}>
             <button
@@ -1159,6 +1263,47 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
               {post.comments_count}
             </span>
           </div>
+
+          {/* Valuable Count Display */}
+          {Number(post.saves || 0) > 0 && (
+            <div
+              className="post-valuable-badge"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: 'var(--bg-hover)',
+                marginLeft: '0.5rem',
+              }}
+            >
+              <span>🔖 {Number(post.saves || 0)} found valuable</span>
+            </div>
+          )}
+
+          {/* Direct Share Button */}
+          <button
+            type="button"
+            className="post-comment-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              if (!session) {
+                setIsAuthOpen(true);
+              } else {
+                setIsChatShareModalOpen(true);
+              }
+            }}
+            style={{
+              marginLeft: '0.5rem',
+              padding: '0.35rem 0.55rem',
+            }}
+            title="Share in Chat"
+          >
+            <SendHorizontal size={19} />
+          </button>
 
 
 
@@ -1354,7 +1499,7 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
       )}
 
       <AuthModal isOpen={isAuthOpen} onClose={() => setIsAuthOpen(false)} />
-      
+
       {isEditPostOpen && (
         <EditPostModal
           isOpen={isEditPostOpen}
@@ -1370,6 +1515,24 @@ export default function InteractivePost({ initialPost, initialComments }: Intera
         onConfirm={handleDeletePost}
         isPending={isDeletingPost}
       />
+
+      {isShareModalOpen && (
+        <ShareModal
+          isOpen={isShareModalOpen}
+          onClose={() => setIsShareModalOpen(false)}
+          post={post}
+          session={session}
+        />
+      )}
+
+      {isChatShareModalOpen && (
+        <ShareInAppChatsModal
+          isOpen={isChatShareModalOpen}
+          onClose={() => setIsChatShareModalOpen(false)}
+          post={post}
+          session={session}
+        />
+      )}
 
       {toastMessage && (
         <div className="share-toast">
@@ -1590,7 +1753,7 @@ function SolutionCard({
                           onClick={() => handleDeleteComment(comment.id)}
                           style={{ marginLeft: 'auto', background: 'none', border: 'none', color: '#ef4444', cursor: 'pointer', padding: '2px', fontSize: '0.7rem' }}
                           aria-label="Delete comment"
-                         >
+                        >
                           <Trash2 size={12} />
                         </button>
                       )}

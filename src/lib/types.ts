@@ -144,7 +144,7 @@ export interface AIEnhanceResponse {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'upvote' | 'comment' | 'follow' | 'downvote' | 'system' | 'new_post';
+  type: 'upvote' | 'comment' | 'follow' | 'downvote' | 'system' | 'new_post' | 'save' | 'solved' | 'reply';
   title: string;
   body: string;
   read: boolean;

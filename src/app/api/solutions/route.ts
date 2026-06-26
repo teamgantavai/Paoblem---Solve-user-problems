@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
 import { z } from 'zod';
+import { enqueueNotification } from '@/lib/queue';
 import {
   getPageSize,
   getSeenPostIds,
@@ -23,6 +24,7 @@ const solutionSchema = z.object({
   image_url: z.string().nullable().optional(),
   external_link: z.string().url().nullable().optional(),
   link_name: z.string().max(60).nullable().optional(),
+  status: z.enum(['building', 'launched']).default('launched'),
 });
 
 const updateSolutionSchema = solutionSchema.omit({ problem_id: true }).partial().extend({
@@ -248,7 +250,7 @@ export async function POST(req: NextRequest) {
 
     const { data: problem, error: problemError } = await supabase
       .from('posts')
-      .select('id, type')
+      .select('id, type, user_id, title')
       .eq('id', parsed.data.problem_id)
       .maybeSingle();
 
@@ -265,12 +267,32 @@ export async function POST(req: NextRequest) {
         image_url: parsed.data.image_url || null,
         external_link: parsed.data.external_link || null,
         link_name: parsed.data.link_name || null,
+        status: parsed.data.status,
       })
       .select('*, problem:problem_id(id, title, slug, body, type)')
       .single();
 
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     const [solution] = await attachProfiles(supabase, data ? [data] : []);
+
+    // Enqueue solved / building notification
+    if (problem.user_id !== user.id) {
+      try {
+        await enqueueNotification('solved', {
+          user_id: problem.user_id,
+          actor_id: user.id,
+          type: 'system',
+          title: parsed.data.status === 'building' ? 'Solution in Progress' : 'Solution Completed',
+          bodyTemplate: parsed.data.status === 'building'
+            ? `{name} is working on solving your problem!`
+            : `{name} built a solution for your problem!`,
+          post_id: problem.id,
+        });
+      } catch (notifErr) {
+        console.error('[solutions] Failed to enqueue solved notification:', notifErr);
+      }
+    }
+
     await updateUserInterestsForContent(supabase, user.id, solution?.problem || data, 'CHALLENGE_ACCEPT');
     return NextResponse.json({ solution }, { status: 201 });
   } catch (err) {

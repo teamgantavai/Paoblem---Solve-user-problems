@@ -20,7 +20,7 @@ import {
   Share2,
   Copy,
   Flag,
-  UserX,
+  SendHorizontal,
 } from 'lucide-react';
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -36,6 +36,8 @@ import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import CommentsModal from './CommentsModal';
 import Avatar from './Avatar';
 import QualityScoreBadge from './QualityScoreBadge';
+import ShareModal from './ShareModal';
+import ShareInAppChatsModal from './ShareInAppChatsModal';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -82,6 +84,8 @@ interface PostCardProps {
   setDeletingPostId: (id: string | null) => void;
   trackPostEvent: (postId: string, eventType: string, metadata?: any) => void;
   showToast: (message: string) => void;
+  onShare: (post: Post) => void;
+  onChatShare: (post: Post) => void;
 }
 
 const PostCard = React.memo(function PostCard({
@@ -102,6 +106,8 @@ const PostCard = React.memo(function PostCard({
   setDeletingPostId,
   trackPostEvent,
   showToast,
+  onShare,
+  onChatShare,
 }: PostCardProps) {
   const router = useRouter();
   const { animateCardHover, animateCardHoverOut, animateUpvote } = useMicroAnimations();
@@ -145,7 +151,7 @@ const PostCard = React.memo(function PostCard({
                     method: 'POST',
                     headers: { 'Content-Type': 'application/json' },
                     body: JSON.stringify({ post_id: post.id, counter: 'profile_clicks', delta: 1 }),
-                  }).catch(() => {});
+                  }).catch(() => { });
                 }}>
                 {authorName}
               </span>
@@ -209,7 +215,7 @@ const PostCard = React.memo(function PostCard({
 
           {activeShareMenuPostId === post.id && (
             <div className="post-overflow-menu" role="menu" onClick={e => e.stopPropagation()}>
-              <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const url = `${window.location.origin}/post/${post.slug || post.id}`; if (navigator.share) navigator.share({ title: post.title, url }).catch(() => undefined); else navigator.clipboard.writeText(url); trackPostEvent(post.id, 'POST_SHARE', { destination: 'native' }); showToast('Share link ready.'); }}>
+              <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); onShare(post); }}>
                 <Share2 size={15} /> Share
               </button>
               <button role="menuitem" onClick={() => { setActiveShareMenuPostId(null); const shareUrl = `${window.location.origin}/post/${post.slug || post.id}`; navigator.clipboard.writeText(shareUrl); trackPostEvent(post.id, 'POST_SHARE', { destination: 'copy_link' }); showToast('Link copied.'); }}>
@@ -237,22 +243,47 @@ const PostCard = React.memo(function PostCard({
                       method: 'POST',
                       headers: { 'Content-Type': 'application/json' },
                       body: JSON.stringify({ post_id: post.id, counter: 'reports', delta: 1 }),
-                    }).catch(() => {});
+                    }).catch(() => { });
                     showToast('Report received for review.');
                   }}>
                     <Flag size={15} /> Report
                   </button>
-                  <button role="menuitem" className="danger" onClick={() => {
+                  <button role="menuitem" onClick={async () => {
                     setActiveShareMenuPostId(null);
-                    trackPostEvent(post.id, 'HIDE_POST');
-                    fetch('/api/posts/quality', {
-                      method: 'POST',
-                      headers: { 'Content-Type': 'application/json' },
-                      body: JSON.stringify({ post_id: post.id, counter: 'hidden_count', delta: 1 }),
-                    }).catch(() => {});
-                    showToast('User blocked locally.');
+                    if (!session) {
+                      showToast('Please sign in to chat.');
+                      return;
+                    }
+                    window.dispatchEvent(new CustomEvent('top-loader:start'));
+                    try {
+                      const res = await fetch('/api/messages', {
+                        method: 'POST',
+                        headers: {
+                          'Content-Type': 'application/json',
+                          'Authorization': `Bearer ${session.access_token}`
+                        },
+                        body: JSON.stringify({
+                          recipientId: post.user_id,
+                          startOnly: true
+                        })
+                      });
+                      if (!res.ok) throw new Error('Could not start chat');
+                      const data = await res.json();
+                      
+                      const params = new URLSearchParams();
+                      params.set('conversationId', data.conversationId);
+                      params.set('partnerId', post.user_id);
+                      if (authorName) params.set('partnerName', authorName);
+                      if (authorAvatar) params.set('partnerAvatar', authorAvatar);
+                      if (authorUsername) params.set('partnerUsername', authorUsername);
+
+                      router.push(`/chats?${params.toString()}`);
+                    } catch (error) {
+                      showToast('Failed to start chat.');
+                      window.dispatchEvent(new CustomEvent('top-loader:finish'));
+                    }
                   }}>
-                    <UserX size={15} /> Block User
+                    <MessageCircle size={15} /> Chat
                   </button>
                 </>
               )}
@@ -265,16 +296,16 @@ const PostCard = React.memo(function PostCard({
       <div className="post-content">
         {post.external_link && (
           <a href={post.external_link} target="_blank" rel="noopener noreferrer"
-             className="flex items-center gap-1"
-             onClick={() => {
-               trackPostEvent(post.id, 'LINK_CLICK');
-               fetch('/api/posts/quality', {
-                 method: 'POST',
-                 headers: { 'Content-Type': 'application/json' },
-                 body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
-               }).catch(() => {});
-             }}
-             style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
+            className="flex items-center gap-1"
+            onClick={() => {
+              trackPostEvent(post.id, 'LINK_CLICK');
+              fetch('/api/posts/quality', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ post_id: post.id, counter: 'link_clicks', delta: 1 }),
+              }).catch(() => { });
+            }}
+            style={{ color: 'var(--accent-blue)', fontSize: '0.8rem', fontWeight: 500, marginBottom: '0.5rem', textDecoration: 'none', display: 'inline-flex' }}>
             <ExternalLink size={12} />
             <span>{post.link_name || post.metadata?.link_name || post.external_link}</span>
           </a>
@@ -289,7 +320,7 @@ const PostCard = React.memo(function PostCard({
         {(getPostCategory(post) || getPostTags(post).length > 0) && (
           <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.5rem', marginTop: '0.65rem' }}>
             {getPostCategory(post) && (
-              <span 
+              <span
                 className="post-taxonomy-tag category-hashtag"
                 style={{ color: 'var(--accent-primary)', cursor: 'pointer', fontWeight: 600, fontSize: '0.85rem' }}
                 onClick={(e) => {
@@ -314,7 +345,7 @@ const PostCard = React.memo(function PostCard({
 
       {/* Footer — votes, comments, type badge */}
       <div className="post-footer">
-        <div className="flex items-center gap-2 post-footer-actions">
+        <div className="flex items-center gap-2 post-footer-actions" style={{ width: '100%' }}>
           <div className="vote-container" style={{ borderColor: hasUpvoted ? '#22c55e' : undefined, background: hasUpvoted ? 'rgba(34,197,94,0.08)' : undefined }}>
             <button className="vote-btn" onClick={e => { animateUpvote(e.currentTarget); handleVote(post.id, 'up'); }} style={{ color: hasUpvoted ? '#22c55e' : undefined }} aria-label="Upvote">
               <TriangleIcon size={16} fill={hasUpvoted ? 'currentColor' : 'none'} />
@@ -334,6 +365,43 @@ const PostCard = React.memo(function PostCard({
             <span className="post-comment-count">{post.comments_count}</span>
           </button>
 
+          {/* Valuable Count Display */}
+          {Number(post.saves || 0) > 0 && (
+            <div
+              className="post-valuable-badge"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.3rem',
+                fontSize: '0.82rem',
+                color: 'var(--text-muted)',
+                padding: '4px 8px',
+                borderRadius: '6px',
+                background: 'var(--bg-hover)',
+                marginLeft: '0.2rem',
+              }}
+            >
+              <span>🔖 {Number(post.saves || 0)} found valuable</span>
+            </div>
+          )}
+
+          {/* Direct Share Button */}
+          <button
+            type="button"
+            className="post-comment-btn"
+            onClick={(e) => {
+              e.stopPropagation();
+              onChatShare(post);
+            }}
+            style={{
+              marginLeft: '0.2rem',
+              padding: '0.35rem 0.55rem',
+            }}
+            title="Share in Chat"
+          >
+            <SendHorizontal size={18} />
+          </button>
+
           {post.type === 'problem' && (
             <button
               type="button"
@@ -344,7 +412,7 @@ const PostCard = React.memo(function PostCard({
                 router.push(`/problems/${post.id}/solutions`);
               }}
               style={{
-                marginLeft: '0.4rem',
+                marginLeft: 'auto',
               }}
             >
               Solve It
@@ -376,6 +444,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   const [deletingPostId, setDeletingPostId] = useState<string | null>(null);
   const [savedIds, setSavedIds] = useState<string[]>([]);
   const [activeShareMenuPostId, setActiveShareMenuPostId] = useState<string | null>(null);
+  const [selectedSharePost, setSelectedSharePost] = useState<Post | null>(null);
   const [toastMessage, setToastMessage] = useState<string | null>(null);
   const [votingPostIds, setVotingPostIds] = useState<Record<string, boolean>>({});
   const dwellStartRef = useRef<Record<string, number>>({});
@@ -414,20 +483,38 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     } catch (err) { console.warn('[feed] Failed to track event', err); }
   }, [session?.access_token]);
 
-  const handleToggleSave = useCallback((postId: string) => {
-    let nextSaved: string[];
-    if (savedIds.includes(postId)) {
-      nextSaved = savedIds.filter(id => id !== postId);
-      showToast('Post removed from Saved Problems');
-    } else {
-      nextSaved = [...savedIds, postId];
-      showToast('Post added to Saved Problems');
+  const handleToggleSave = useCallback(async (postId: string) => {
+    if (!session) {
+      setIsAuthOpen(true);
+      return;
     }
-    setSavedIds(nextSaved);
-    localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
-    if (!savedIds.includes(postId)) trackPostEvent(postId, 'POST_SAVE');
-    if (filterType === 'saved') queryClient.invalidateQueries({ queryKey: ['posts', 'saved'] });
-  }, [savedIds, filterType, trackPostEvent, queryClient, showToast]);
+    try {
+      const res = await fetch('/api/posts/save', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ postId }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to save');
+
+      let nextSaved: string[];
+      if (data.saved) {
+        nextSaved = [...savedIds, postId];
+        showToast('Post added to Saved Problems');
+      } else {
+        nextSaved = savedIds.filter(id => id !== postId);
+        showToast('Post removed from Saved Problems');
+      }
+      setSavedIds(nextSaved);
+      localStorage.setItem('paoblem_saved_posts', JSON.stringify(nextSaved));
+      queryClient.invalidateQueries({ queryKey: ['posts'] });
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save post');
+    }
+  }, [session, savedIds, queryClient, showToast]);
 
   useEffect(() => {
     const handleOutsideClick = (event: MouseEvent) => {
@@ -470,6 +557,40 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
   useEffect(() => {
     fetchUserProfile();
   }, [session?.user?.id]);
+
+  // Fetch saved post IDs from server for synchronization
+  useEffect(() => {
+    if (!session?.access_token) return;
+    fetch('/api/posts/save', {
+      headers: {
+        Authorization: `Bearer ${session.access_token}`,
+      },
+    })
+      .then((res) => res.json())
+      .then((data) => {
+        if (data.savedIds) {
+          setSavedIds(data.savedIds);
+          localStorage.setItem('paoblem_saved_posts', JSON.stringify(data.savedIds));
+        }
+      })
+      .catch((err) => console.error('[feed] Failed to fetch saved posts', err));
+  }, [session?.access_token]);
+
+  // Realtime updates for post metrics
+  useEffect(() => {
+    const channel = supabase.channel('feed-posts-realtime')
+      .on(
+        'postgres_changes',
+        { event: 'UPDATE', schema: 'public', table: 'posts' },
+        () => {
+          queryClient.invalidateQueries({ queryKey: ['posts'] });
+        }
+      )
+      .subscribe();
+    return () => {
+      supabase.removeChannel(channel);
+    };
+  }, [queryClient]);
 
   useEffect(() => {
     window.addEventListener('profile-updated', fetchUserProfile);
@@ -517,7 +638,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     enabled: !!session?.user?.id,
   });
 
-  const { data: followings = [] } = useQuery<string[]>( {
+  const { data: followings = [] } = useQuery<string[]>({
     queryKey: ['my-followings', session?.user?.id],
     queryFn: async () => {
       if (!session?.user?.id) return [];
@@ -767,6 +888,16 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     });
   }, [session, votingPostIds, voteMutation]);
 
+  const [selectedChatSharePost, setSelectedChatSharePost] = useState<Post | null>(null);
+
+  const handleChatShare = useCallback((post: Post) => {
+    if (!session) {
+      setIsAuthOpen(true);
+      return;
+    }
+    setSelectedChatSharePost(post);
+  }, [session]);
+
   const openCommentsModal = useCallback((postId: string) => {
     trackPostEvent(postId, 'POST_OPEN');
     setCommentsModalPostId(postId);
@@ -833,7 +964,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ post_id: postId, counter: 'unique_viewers', delta: 1 }),
-            }).catch(() => {});
+            }).catch(() => { });
           }
         } else if (dwellStartRef.current[postId]) {
           const dwellSeconds = Math.round((Date.now() - dwellStartRef.current[postId]) / 1000);
@@ -861,7 +992,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
                   };
                 });
               }
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       });
@@ -880,7 +1011,7 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ post_id: postId, counter: 'long_reads', delta: 1 }),
-            }).catch(() => {});
+            }).catch(() => { });
           }
         }
       });
@@ -947,12 +1078,12 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       {/* Category Filter Chips */}
       {!singlePostId && (
         <div className="flex gap-2" style={{ margin: '0.25rem 0 0.75rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none', gap: '0.35rem' }}>
-          <button 
+          <button
             className={`btn btn-xs ${!categoryParam ? 'btn-primary' : ''}`}
-            style={{ 
-              background: !categoryParam ? undefined : 'var(--bg-card)', 
-              color: 'var(--text-main)', 
-              border: !categoryParam ? 'none' : '1px solid var(--border-color)', 
+            style={{
+              background: !categoryParam ? undefined : 'var(--bg-card)',
+              color: 'var(--text-main)',
+              border: !categoryParam ? 'none' : '1px solid var(--border-color)',
               flexShrink: 0,
               fontSize: '0.75rem',
               padding: '0.25rem 0.6rem',
@@ -970,13 +1101,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           {['AI', 'SaaS', 'Education', 'Healthcare', 'Fintech', 'Developer Tools', 'Design', 'Marketing', 'Product', 'Sales', 'Operations', 'Funding'].map(cat => {
             const isActive = categoryParam === cat;
             return (
-              <button 
-                key={cat} 
+              <button
+                key={cat}
                 className={`btn btn-xs ${isActive ? 'btn-primary' : ''}`}
-                style={{ 
-                  background: isActive ? undefined : 'var(--bg-card)', 
-                  color: 'var(--text-main)', 
-                  border: isActive ? 'none' : '1px solid var(--border-color)', 
+                style={{
+                  background: isActive ? undefined : 'var(--bg-card)',
+                  color: 'var(--text-main)',
+                  border: isActive ? 'none' : '1px solid var(--border-color)',
                   flexShrink: 0,
                   fontSize: '0.75rem',
                   padding: '0.25rem 0.6rem',
@@ -996,10 +1127,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       )}
 
       {/* Posts list */}
-      <div 
+      <div
         key={`${filterType}-${categoryParam || ''}`}
-        ref={feedListRef} 
-        className="feed-list-container" 
+        ref={feedListRef}
+        className="feed-list-container"
         style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}
       >
         {isLoading && (<><PostSkeleton /><PostSkeleton /></>)}
@@ -1036,6 +1167,8 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
               setDeletingPostId={setDeletingPostId}
               trackPostEvent={trackPostEvent}
               showToast={showToast}
+              onShare={setSelectedSharePost}
+              onChatShare={handleChatShare}
             />
           </ErrorBoundary>
         ))}
@@ -1086,6 +1219,22 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
         onConfirm={() => { if (deletingPostId) { deletePostMutation.mutate(deletingPostId); setDeletingPostId(null); } }}
         isPending={deletePostMutation.isPending}
       />
+      {selectedSharePost && (
+        <ShareModal
+          isOpen={!!selectedSharePost}
+          onClose={() => setSelectedSharePost(null)}
+          post={selectedSharePost}
+          session={session}
+        />
+      )}
+      {selectedChatSharePost && (
+        <ShareInAppChatsModal
+          isOpen={!!selectedChatSharePost}
+          onClose={() => setSelectedChatSharePost(null)}
+          post={selectedChatSharePost}
+          session={session}
+        />
+      )}
       {toastMessage && <div className="share-toast">{toastMessage}</div>}
     </main>
   );
@@ -1171,9 +1320,9 @@ function renderFormattedText(text: string, listType: 'ul' | 'ol' | null = null):
       const currentNumber = liCounter++;
       const marker = listType === 'ol' ? `${currentNumber}.` : '•';
       return (
-        <li key={idx} style={{ 
-          marginBottom: '0.38rem', 
-          display: 'flex', 
+        <li key={idx} style={{
+          marginBottom: '0.38rem',
+          display: 'flex',
           alignItems: 'flex-start',
           gap: '0.6rem',
           lineHeight: '1.45'
@@ -1241,7 +1390,7 @@ function RenderSegments({ segments }: { segments: Segment[] }) {
 
 function closeUnclosedTags(text: string, suffix: string = ''): string {
   let result = text.trimEnd();
-  
+
   // Handle HTML tag cut-offs: if we cut inside a tag like "<st" or "<li st", truncate before the opening "<"
   const openBracketIndex = result.lastIndexOf('<');
   const closeBracketIndex = result.lastIndexOf('>');
@@ -1281,19 +1430,19 @@ function closeUnclosedTags(text: string, suffix: string = ''): string {
   if (doubleStars % 2 !== 0) {
     result += '**';
   }
-  
+
   const temp = result.replace(/\*\*/g, '@@');
   const singleStars = (temp.match(/\*/g) || []).length;
   if (singleStars % 2 !== 0) {
     result += '*';
   }
-  
+
   const openU = (result.match(/<u>/gi) || []).length;
   const closeU = (result.match(/<\/u>/gi) || []).length;
   if (openU > closeU) {
     result += '</u>';
   }
-  
+
   return result;
 }
 
@@ -1329,12 +1478,12 @@ function ExpandableBody({ body, postId }: { body: string; postId?: string }) {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ post_id: postId, event_type: 'SEE_MORE' }),
-          }).catch(() => {});
+          }).catch(() => { });
           fetch('/api/posts/quality', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ post_id: postId, counter: 'see_more_clicks', delta: 1 }),
-          }).catch(() => {});
+          }).catch(() => { });
         }
         setIsExpanded(!isExpanded);
       }}

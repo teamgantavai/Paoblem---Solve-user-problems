@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     // Fetch profile
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url');
+      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url, pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies');
 
     if (userId) {
       query = query.eq('id', userId);
@@ -111,7 +111,10 @@ export async function PUT(req: NextRequest) {
     }
 
     const body = await req.json();
-    const { full_name, role, bio, location, avatar_url, username, cover_url } = body;
+    const { 
+      full_name, role, bio, location, avatar_url, username, cover_url,
+      pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies 
+    } = body;
 
     // Validate role
     const VALID_ROLES = ['Innovator', 'Founder', 'Builder', 'Developer', 'Designer', 'Investor', 'Maker', 'Researcher'];
@@ -119,13 +122,17 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
-    const updates: Record<string, string | null | undefined> = {};
+    const updates: Record<string, any> = {};
     if (full_name !== undefined) updates.full_name = full_name?.trim() || null;
     if (role !== undefined) updates.role = role;
     if (bio !== undefined) updates.bio = bio?.trim() || null;
     if (location !== undefined) updates.location = location?.trim() || null;
     if (avatar_url !== undefined) updates.avatar_url = avatar_url;
     if (cover_url !== undefined) updates.cover_url = cover_url;
+    if (pref_receive_saves !== undefined) updates.pref_receive_saves = !!pref_receive_saves;
+    if (pref_receive_analytics !== undefined) updates.pref_receive_analytics = !!pref_receive_analytics;
+    if (pref_receive_solutions !== undefined) updates.pref_receive_solutions = !!pref_receive_solutions;
+    if (pref_receive_replies !== undefined) updates.pref_receive_replies = !!pref_receive_replies;
     if (username !== undefined) {
       const cleanUsername = username?.trim().toLowerCase();
       if (!cleanUsername) {

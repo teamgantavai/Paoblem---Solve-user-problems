@@ -1,7 +1,8 @@
 "use client";
 
 import React, { useEffect, useState } from 'react';
-import { X, Sun, Moon, Check } from 'lucide-react';
+import { X, Sun, Moon, Check, ChevronRight } from 'lucide-react';
+import { useRouter } from 'next/navigation';
 import { supabase } from '@/lib/supabase';
 
 interface SettingsModalProps {
@@ -10,6 +11,7 @@ interface SettingsModalProps {
 }
 
 export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
+  const router = useRouter();
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
   const [session, setSession] = useState<any>(null);
   const [username, setUsername] = useState('');
@@ -359,6 +361,37 @@ export default function SettingsModal({ isOpen, onClose }: SettingsModalProps) {
                 </button>
               )}
             </div>
+          </div>
+
+          {/* Notification Preferences */}
+          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+            <button
+              onClick={() => {
+                onClose();
+                router.push('/settings/notifications');
+              }}
+              style={{
+                width: '100%',
+                background: 'var(--search-bg)',
+                border: '1px solid var(--border-color)',
+                borderRadius: '10px',
+                padding: '0.65rem 1rem',
+                fontSize: '0.85rem',
+                fontWeight: 600,
+                color: 'var(--text-main)',
+                cursor: 'pointer',
+                textAlign: 'left',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                transition: 'background 0.2s'
+              }}
+              onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--bg-hover)'; }}
+              onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'var(--search-bg)'; }}
+            >
+              <span>🔔 Notification Preferences</span>
+              <ChevronRight size={14} style={{ color: 'var(--text-muted)' }} />
+            </button>
           </div>
 
           {/* Version info */}

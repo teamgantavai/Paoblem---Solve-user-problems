@@ -33,6 +33,10 @@ interface Profile {
   username: string | null;
   cover_url?: string | null;
   created_at: string;
+  pref_receive_saves?: boolean;
+  pref_receive_analytics?: boolean;
+  pref_receive_solutions?: boolean;
+  pref_receive_replies?: boolean;
 }
 
 interface ProfileStats {
@@ -529,9 +533,36 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
     window.location.reload();
   };
 
-  const handleMessageUser = () => {
-    // Navigate to chats page and open chat with this user
-    router.push(`/chats?userId=${displayUserId}`);
+  const handleMessageUser = async () => {
+    if (!profile) return;
+    window.dispatchEvent(new CustomEvent('top-loader:start'));
+    try {
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          recipientId: displayUserId,
+          startOnly: true
+        })
+      });
+      if (!res.ok) throw new Error('Could not start chat');
+      const data = await res.json();
+      
+      const params = new URLSearchParams();
+      params.set('conversationId', data.conversationId);
+      params.set('partnerId', displayUserId || '');
+      if (profile.full_name) params.set('partnerName', profile.full_name);
+      if (profile.avatar_url) params.set('partnerAvatar', profile.avatar_url);
+      if (profile.username) params.set('partnerUsername', profile.username);
+      
+      router.push(`/chats?${params.toString()}`);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('top-loader:finish'));
+      router.push(`/chats?userId=${displayUserId}`);
+    }
   };
 
   const profile = profileData?.profile;
@@ -1149,6 +1180,21 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
   const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
 
+  const [prefReceiveSaves, setPrefReceiveSaves] = useState(profile?.pref_receive_saves ?? true);
+  const [prefReceiveAnalytics, setPrefReceiveAnalytics] = useState(profile?.pref_receive_analytics ?? true);
+  const [prefReceiveSolutions, setPrefReceiveSolutions] = useState(profile?.pref_receive_solutions ?? true);
+  const [prefReceiveReplies, setPrefReceiveReplies] = useState(profile?.pref_receive_replies ?? true);
+
+  // Sync state if profile updates
+  useEffect(() => {
+    if (profile) {
+      setPrefReceiveSaves(profile.pref_receive_saves ?? true);
+      setPrefReceiveAnalytics(profile.pref_receive_analytics ?? true);
+      setPrefReceiveSolutions(profile.pref_receive_solutions ?? true);
+      setPrefReceiveReplies(profile.pref_receive_replies ?? true);
+    }
+  }, [profile]);
+
   // Load saved theme on mount
   React.useEffect(() => {
     const saved = localStorage.getItem('theme');
@@ -1176,7 +1222,16 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ full_name: fullName, bio, location, username }),
+        body: JSON.stringify({ 
+          full_name: fullName, 
+          bio, 
+          location, 
+          username,
+          pref_receive_saves: prefReceiveSaves,
+          pref_receive_analytics: prefReceiveAnalytics,
+          pref_receive_solutions: prefReceiveSolutions,
+          pref_receive_replies: prefReceiveReplies
+        }),
       });
       if (!res.ok) {
         const data = await res.json();
@@ -1346,6 +1401,82 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
             <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', display: 'block' }}>
               {bio.length}/500
             </span>
+          </div>
+
+          {/* Notification Preferences */}
+          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+            <h4 style={{ 
+              fontSize: '0.82rem', 
+              textTransform: 'uppercase', 
+              letterSpacing: '0.05em', 
+              color: 'var(--text-muted)',
+              fontWeight: 700,
+              marginBottom: '0.85rem'
+            }}>
+              Notification Settings
+            </h4>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                <input
+                  type="checkbox"
+                  checked={prefReceiveSaves}
+                  onChange={(e) => setPrefReceiveSaves(e.target.checked)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    accentColor: 'var(--accent-blue)',
+                    cursor: 'pointer'
+                  }}
+                />
+                Someone saves my post
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                <input
+                  type="checkbox"
+                  checked={prefReceiveAnalytics}
+                  onChange={(e) => setPrefReceiveAnalytics(e.target.checked)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    accentColor: 'var(--accent-blue)',
+                    cursor: 'pointer'
+                  }}
+                />
+                Post analytics digest
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                <input
+                  type="checkbox"
+                  checked={prefReceiveSolutions}
+                  onChange={(e) => setPrefReceiveSolutions(e.target.checked)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    accentColor: 'var(--accent-blue)',
+                    cursor: 'pointer'
+                  }}
+                />
+                Someone is solving my problem
+              </label>
+              <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
+                <input
+                  type="checkbox"
+                  checked={prefReceiveReplies}
+                  onChange={(e) => setPrefReceiveReplies(e.target.checked)}
+                  style={{
+                    width: '16px',
+                    height: '16px',
+                    borderRadius: '4px',
+                    accentColor: 'var(--accent-blue)',
+                    cursor: 'pointer'
+                  }}
+                />
+                Replies to my comments
+              </label>
+            </div>
           </div>
 
           {error && (

@@ -2,7 +2,7 @@
 
 import React from 'react';
 import { useRouter } from 'next/navigation';
-import { TriangleIcon, MessageCircle, User, Bell, BookOpen } from 'lucide-react';
+import { TriangleIcon, MessageCircle, User, Bell, BookOpen, Star, Rocket } from 'lucide-react';
 import { Notification } from '@/lib/types';
 
 interface NotificationItemProps {
@@ -14,10 +14,11 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
   const router = useRouter();
 
   const getIcon = () => {
-    switch (notification.type) {
+    switch (notification.type as string) {
       case 'upvote':
         return <TriangleIcon size={16} className="notif-icon-vote" />;
       case 'comment':
+      case 'reply':
         return <MessageCircle size={16} className="notif-icon-comment" />;
       case 'follow':
         return <User size={16} className="notif-icon-follow" />;
@@ -25,6 +26,10 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
         return <TriangleIcon size={16} className="notif-icon-downvote" style={{ transform: 'rotate(180deg)' }} />;
       case 'new_post':
         return <BookOpen size={16} className="notif-icon-system" />;
+      case 'save':
+        return <Star size={16} style={{ fill: '#eab308', stroke: '#eab308' }} />;
+      case 'solved':
+        return <Rocket size={16} style={{ color: '#ec4899' }} />;
       default:
         return <Bell size={16} className="notif-icon-system" />;
     }
@@ -50,11 +55,17 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
       onMarkAsRead(notification.id);
     }
 
-    if (notification.type === 'upvote' || notification.type === 'downvote') {
+    if (
+      notification.type === 'upvote' || 
+      notification.type === 'downvote' || 
+      notification.type === 'save' || 
+      notification.type === 'solved' || 
+      notification.type === 'new_post'
+    ) {
       if (notification.post_id) {
         router.push(`/post/${notification.post_id}`);
       }
-    } else if (notification.type === 'comment') {
+    } else if (notification.type === 'comment' || notification.type === 'reply') {
       if (notification.post_id) {
         const match = notification.body.match(/^@([a-zA-Z0-9_]+)/);
         const username = match ? match[1] : '';
@@ -69,10 +80,6 @@ export default function NotificationItem({ notification, onMarkAsRead }: Notific
       const username = match ? match[1] : '';
       if (username) {
         router.push(`/user/${username}`);
-      }
-    } else if (notification.type === 'new_post') {
-      if (notification.post_id) {
-        router.push(`/post/${notification.post_id}`);
       }
     }
   };

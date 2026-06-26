@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useRef, useState } from 'react';
+import { Star } from 'lucide-react';
 
 interface QualityScoreBadgeProps {
   qualityScore?: number | null;
@@ -58,7 +59,7 @@ export default function QualityScoreBadge({
         <span className="quality-score-badge__new">New</span>
       ) : (
         <>
-          <span className="quality-score-badge__star" aria-hidden="true">⭐</span>
+          <Star size={11} className="quality-score-badge__star-icon" fill="currentColor" aria-hidden="true" />
           <span className="quality-score-badge__value">
             {qualityScore != null ? qualityScore.toFixed(1) : '—'}
           </span>

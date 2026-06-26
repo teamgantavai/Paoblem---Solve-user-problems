@@ -29,6 +29,8 @@ import {
 import toast from 'react-hot-toast';
 import Navbar from '@/components/Navbar';
 import { supabase } from '@/lib/supabase';
+import { parseLinksInText } from '@/app/lib/linkParser';
+import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 
 type Session = Awaited<ReturnType<typeof supabase.auth.getSession>>['data']['session'];
 
@@ -166,6 +168,35 @@ function ChatsPageContent() {
   const [sessionLoading, setSessionLoading] = useState(true);
   const [enlargedAvatarUrl, setEnlargedAvatarUrl] = useState<string | null>(null);
   const [activeConversationId, setActiveConversationId] = useState<string | null>(searchParams.get('conversationId'));
+  const [tempActiveConversation, setTempActiveConversation] = useState<Conversation | null>(() => {
+    const conversationId = searchParams?.get('conversationId');
+    const partnerId = searchParams?.get('partnerId');
+    const partnerName = searchParams?.get('partnerName');
+    const partnerAvatar = searchParams?.get('partnerAvatar');
+    const partnerUsername = searchParams?.get('partnerUsername');
+
+    if (conversationId && partnerId) {
+      return {
+        id: conversationId,
+        partner: {
+          id: partnerId,
+          username: partnerUsername || null,
+          full_name: partnerName || null,
+          avatar_url: partnerAvatar || null,
+          is_online: false,
+          last_seen_at: null,
+        },
+        last_message: null,
+        unread_count: 0,
+        pinned: false,
+        archived: false,
+        muted: false,
+        blocked: false,
+        updated_at: new Date().toISOString(),
+      };
+    }
+    return null;
+  });
   const [draft, setDraft] = useState('');
   const [attachments, setAttachments] = useState<Attachment[]>([]);
   const [replyTo, setReplyTo] = useState<ChatMessage | null>(null);
@@ -237,7 +268,7 @@ function ChatsPageContent() {
     staleTime: 10_000,
   });
 
-  const activeConversation = conversationsQuery.data?.find((item) => item.id === activeConversationId) || null;
+  const activeConversation = conversationsQuery.data?.find((item) => item.id === activeConversationId) || (activeConversationId && tempActiveConversation && tempActiveConversation.id === activeConversationId ? tempActiveConversation : null);
   const messages = messagesQuery.data?.messages || [];
   const activeTyping = activeConversationId ? typingUsers[activeConversationId] : false;
   const conversationSearchTerm = userSearch.trim().toLowerCase();
@@ -456,6 +487,13 @@ function ChatsPageContent() {
   useEffect(() => {
     if (!urlUserId || !session?.access_token) return;
  
+    // Check if we already have it in conversations data
+    const existing = conversationsQuery.data?.find((c) => c.partner?.id === urlUserId);
+    if (existing) {
+      openConversation(existing.id);
+      return;
+    }
+
     const handleAutoStartChat = async () => {
       startTopLoader();
       try {
@@ -469,6 +507,35 @@ function ChatsPageContent() {
         });
         if (!res.ok) throw new Error((await res.json()).error || 'Could not start conversation');
         const data = await res.json();
+        
+        // Fetch recipient profile for fallback temp conversation state
+        const { data: partner } = await supabase
+          .from('profiles')
+          .select('id, username, full_name, avatar_url')
+          .eq('id', urlUserId)
+          .single();
+
+        if (partner) {
+          setTempActiveConversation({
+            id: data.conversationId,
+            partner: {
+              id: partner.id,
+              username: partner.username,
+              full_name: partner.full_name,
+              avatar_url: partner.avatar_url,
+              is_online: false,
+              last_seen_at: null,
+            },
+            last_message: null,
+            unread_count: 0,
+            pinned: false,
+            archived: false,
+            muted: false,
+            blocked: false,
+            updated_at: new Date().toISOString(),
+          });
+        }
+
         openConversation(data.conversationId);
         queryClient.invalidateQueries({ queryKey: ['messaging', 'conversations'] });
       } catch (error: any) {
@@ -479,7 +546,7 @@ function ChatsPageContent() {
     };
  
     handleAutoStartChat();
-  }, [urlUserId, session?.access_token, queryClient]);
+  }, [urlUserId, session?.access_token, conversationsQuery.data, queryClient]);
 
   const startTopLoader = () => window.dispatchEvent(new Event('top-loader:start'));
   const finishTopLoader = () => window.dispatchEvent(new Event('top-loader:finish'));
@@ -991,7 +1058,7 @@ function ChatsPageContent() {
                             ))}
                           </div>
                         )}
-                        {message.content && <p>{message.content}</p>}
+                        {message.content && renderFormattedMessage(message.content, mine)}
                         <footer className="message-meta">
                           <time>{new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}</time>
                           {message.edited_at && <span>Edited</span>}
@@ -1152,4 +1219,121 @@ export default function ChatsPage() {
       <ChatsPageContent />
     </Suspense>
   );
+}
+
+// Formatting and link parsing helpers for chat messages
+function renderFormattedMessage(content: string, mine: boolean) {
+  if (!content) return null;
+
+  const decoded = decodeHTMLEntities(content);
+  const segments = parseLinksInText(decoded);
+
+  return (
+    <p>
+      {segments.map((seg, i) => {
+        if (seg.type === 'link') {
+          return (
+            <a
+              key={i}
+              href={seg.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={(e) => e.stopPropagation()}
+              style={{
+                color: mine ? '#93c5fd' : '#3b82f6',
+                textDecoration: 'underline',
+                fontWeight: 600,
+                wordBreak: 'break-all',
+                cursor: 'pointer',
+              }}
+            >
+              {seg.display}
+            </a>
+          );
+        }
+        return <React.Fragment key={i}>{renderChatParagraphs(seg.content)}</React.Fragment>;
+      })}
+    </p>
+  );
+}
+
+function renderChatParagraphs(text: string): React.ReactNode[] {
+  if (!text) return [];
+  const lines = text.split(/\n/g);
+  return lines.flatMap((line, idx) => {
+    return [
+      ...renderFormattedTextChat(line),
+      ...(idx < lines.length - 1 ? [<br key={`br-${idx}`} />] : [])
+    ];
+  });
+}
+
+function renderFormattedTextChat(text: string, listType: 'ul' | 'ol' | null = null): React.ReactNode[] {
+  if (!text) return [];
+  const regex = /(<strong\b[^>]*>[\s\S]*?<\/strong>|<b\b[^>]*>[\s\S]*?<\/b>|<em\b[^>]*>[\s\S]*?<\/em>|<i\b[^>]*>[\s\S]*?<\/i>|<u\b[^>]*>[\s\S]*?<\/u>|<code\b[^>]*>[\s\S]*?<\/code>|<ul\b[^>]*>[\s\S]*?<\/ul>|<ol\b[^>]*>[\s\S]*?<\/ol>|<li\b[^>]*>[\s\S]*?<\/li>|\*\*[^*]+\*\*|\*[^*]+\*|<u>[^<]+<\/u>|`[^`]+`)/gi;
+  const parts = text.split(regex);
+  let liCounter = 1;
+  return parts.map((part, idx) => {
+    if (!part) return null;
+    if (listType && !/^<li\b/i.test(part)) return null;
+    if (part.startsWith('**') && part.endsWith('**')) {
+      return <strong key={idx}>{renderFormattedTextChat(part.slice(2, -2))}</strong>;
+    }
+    if (part.startsWith('*') && part.endsWith('*')) {
+      return <em key={idx}>{renderFormattedTextChat(part.slice(1, -1))}</em>;
+    }
+    if (part.startsWith('`') && part.endsWith('`')) {
+      return <code key={idx} style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 4px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{part.slice(1, -1)}</code>;
+    }
+    if (/^<strong\b/i.test(part)) {
+      const inner = part.replace(/^<strong\b[^>]*>|<\/strong>$/gi, '');
+      return <strong key={idx}>{renderFormattedTextChat(inner)}</strong>;
+    }
+    if (/^<b\b/i.test(part)) {
+      const inner = part.replace(/^<b\b[^>]*>|<\/b>$/gi, '');
+      return <strong key={idx}>{renderFormattedTextChat(inner)}</strong>;
+    }
+    if (/^<em\b/i.test(part)) {
+      const inner = part.replace(/^<em\b[^>]*>|<\/em>$/gi, '');
+      return <em key={idx}>{renderFormattedTextChat(inner)}</em>;
+    }
+    if (/^<i\b/i.test(part)) {
+      const inner = part.replace(/^<i\b[^>]*>|<\/i>$/gi, '');
+      return <em key={idx}>{renderFormattedTextChat(inner)}</em>;
+    }
+    if (/^<u\b/i.test(part)) {
+      const inner = part.replace(/^<u\b[^>]*>|<\/u>$/gi, '');
+      return <u key={idx}>{renderFormattedTextChat(inner)}</u>;
+    }
+    if (/^<code\b/i.test(part)) {
+      const inner = part.replace(/^<code\b[^>]*>|<\/code>$/gi, '');
+      return <code key={idx} style={{ background: 'rgba(255,255,255,0.15)', padding: '2px 4px', borderRadius: '4px', fontFamily: 'monospace', fontSize: '0.85em' }}>{inner}</code>;
+    }
+    if (/^<ul\b/i.test(part)) {
+      const inner = part.replace(/^<ul\b[^>]*>|<\/ul>$/gi, '').trim();
+      return <ul key={idx} style={{ margin: '0.2rem 0', paddingLeft: '1rem', listStyleType: 'disc' }}>{renderFormattedTextChat(inner, 'ul')}</ul>;
+    }
+    if (/^<ol\b/i.test(part)) {
+      const inner = part.replace(/^<ol\b[^>]*>|<\/ol>$/gi, '').trim();
+      return <ol key={idx} style={{ margin: '0.2rem 0', paddingLeft: '1rem', listStyleType: 'decimal' }}>{renderFormattedTextChat(inner, 'ol')}</ol>;
+    }
+    if (/^<li\b/i.test(part)) {
+      const inner = part.replace(/^<li\b[^>]*>|<\/li>$/gi, '').trim();
+      const currentNumber = liCounter++;
+      const marker = listType === 'ol' ? `${currentNumber}.` : '•';
+      return (
+        <li key={idx} style={{ 
+          marginBottom: '0.2rem', 
+          display: 'flex', 
+          alignItems: 'flex-start',
+          gap: '0.4rem',
+          lineHeight: '1.4'
+        }}>
+          <span style={{ opacity: 0.7, flexShrink: 0, minWidth: listType === 'ol' ? '1rem' : 'auto' }}>{marker}</span>
+          <div style={{ flex: 1 }}>{renderFormattedTextChat(inner)}</div>
+        </li>
+      );
+    }
+    return part;
+  }).filter(Boolean) as React.ReactNode[];
 }

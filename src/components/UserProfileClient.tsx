@@ -341,7 +341,38 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     }
   };
 
-  const handleMessage = () => router.push(`/chats?userId=${profile.id}`);
+  const handleMessage = async () => {
+    window.dispatchEvent(new CustomEvent('top-loader:start'));
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) throw new Error('No session');
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          recipientId: profile.id,
+          startOnly: true
+        })
+      });
+      if (!res.ok) throw new Error('Could not start chat');
+      const data = await res.json();
+      
+      const params = new URLSearchParams();
+      params.set('conversationId', data.conversationId);
+      params.set('partnerId', profile.id);
+      if (profile.full_name) params.set('partnerName', profile.full_name);
+      if (profile.avatar_url) params.set('partnerAvatar', profile.avatar_url);
+      if (profile.username) params.set('partnerUsername', profile.username);
+      
+      router.push(`/chats?${params.toString()}`);
+    } catch (error) {
+      window.dispatchEvent(new CustomEvent('top-loader:finish'));
+      router.push(`/chats?userId=${profile.id}`);
+    }
+  };
 
   const tabs: { key: Tab; label: string; count: number; icon: React.ReactNode }[] = [
     { key: 'problems', label: 'Problems', count: problems.length, icon: <BookOpen size={15} /> },
