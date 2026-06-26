@@ -6,7 +6,7 @@ const db = getAdminClient();
 /* Columns that are guaranteed to exist in the notifications table.
    Using explicit names avoids fetching large/unknown columns and prevents
    crashes if optional columns (post_image, grouped_actors, etc.) don't exist. */
-const SAFE_COLUMNS = 'id,user_id,type,title,body,read,created_at,post_id,metadata';
+const SAFE_COLUMNS = 'id,user_id,type,title,body,read,created_at,post_id';
 
 function parseActorUsername(body: string): string | null {
   const m = (body || '').match(/^@([a-zA-Z0-9_]+)/);
