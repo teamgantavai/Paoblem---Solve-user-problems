@@ -246,7 +246,7 @@ export default function AdminDashboard() {
             <h3 className="admin-card-title">Top Post Categories</h3>
           </div>
           {categoriesChartData.length > 0 ? (
-            <BarChart data={categoriesChartData} height={220} />
+            <BarChart data={categoriesChartData} />
           ) : (
             <div style={{ height: '220px', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)' }}>
               No category data available.
