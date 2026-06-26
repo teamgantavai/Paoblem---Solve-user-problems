@@ -208,29 +208,28 @@ function NavbarInner() {
     setAvatarFailed(false);
   }, [profile?.avatar_url, session?.user?.user_metadata?.avatar_url]);
 
-  // Fetch notifications counts
-  const { data: notifications = [] } = useQuery<AppNotification[]>({
-    queryKey: ['notifications', session?.access_token],
+
+  // Fetch unread count only (lightweight COUNT query, no rows transferred)
+  const { data: notifCountData } = useQuery<{ count: number }>({
+    queryKey: ['notifications-count', session?.access_token],
     queryFn: async () => {
-      if (!session?.access_token) return [];
-      const res = await fetch('/api/notifications', {
-        headers: {
-          'Authorization': `Bearer ${session.access_token}`
-        }
+      if (!session?.access_token) return { count: 0 };
+      const res = await fetch('/api/notifications/count', {
+        headers: { 'Authorization': `Bearer ${session.access_token}` }
       });
-      if (!res.ok) return [];
-      const data = await res.json();
-      const nextNotifications = data.notifications || [];
-      writeCachedNavbarData(NAVBAR_NOTIFICATIONS_CACHE_KEY, nextNotifications);
-      return nextNotifications;
+      if (!res.ok) return { count: 0 };
+      return res.json();
     },
     enabled: !!session?.access_token,
-    initialData: () => readCachedNavbarData<AppNotification[]>(NAVBAR_NOTIFICATIONS_CACHE_KEY) || undefined,
     staleTime: NAVBAR_CACHE_TTL_MS,
     refetchOnMount: false,
     refetchOnWindowFocus: false,
-    refetchInterval: 120000
+    refetchInterval: 60000,
   });
+  const notifications = Array.from(
+    { length: notifCountData?.count ?? 0 },
+    (_, i) => ({ id: `n${i}`, read: false } as AppNotification)
+  );
 
   // Fetch messages counts
   const { data: messages = [] } = useQuery<NavbarConversationSummary[]>({

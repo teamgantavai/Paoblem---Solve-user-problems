@@ -144,12 +144,41 @@ export interface AIEnhanceResponse {
 export interface Notification {
   id: string;
   user_id: string;
-  type: 'upvote' | 'comment' | 'follow' | 'downvote' | 'system' | 'new_post' | 'save' | 'solved' | 'reply';
+  type:
+    | 'upvote'
+    | 'comment'
+    | 'follow'
+    | 'downvote'
+    | 'system'
+    | 'new_post'
+    | 'save'
+    | 'solved'
+    | 'reply'
+    | 'like'
+    | 'mention'
+    | 'achievement'
+    | 'xp'
+    | 'milestone'
+    | 'trending'
+    | 'admin'
+    | 'discovery';
   title: string;
   body: string;
   read: boolean;
   created_at: string;
   post_id?: string | null;
+  // Rich display fields (populated by API or injected client-side)
+  actor_name?: string | null;
+  actor_username?: string | null;
+  actor_avatar?: string | null;
+  grouped_actors?: { name: string; username?: string; avatar?: string | null }[];
+  grouped_count?: number;
+  post_preview?: string | null;
+  post_image?: string | null;
+  comment_preview?: string | null;
+  is_discovery?: boolean;
+  discovery_badge?: 'Suggested' | 'For You' | 'Trending';
+  metadata?: Record<string, any>;
 }
 
 export interface Message {

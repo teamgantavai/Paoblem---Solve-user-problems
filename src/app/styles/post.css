@@ -329,7 +329,7 @@
 
 /* Post body paragraph — high contrast, readable */
 .post-content p,
-\n.post-body-text {
+.post-body-text {
   font-size: 0.925rem;
   font-weight: 400;
   line-height: 1.65;
@@ -384,13 +384,14 @@
   font-size: 0.8rem;
   font-weight: 700;
   line-height: 1 !important;
+  color: var(--text-muted);
 }
 
-.vote-label.up {
+.vote-label.up.active {
   color: #22c55e;
 }
 
-.vote-label.down {
+.vote-label.down.active {
   color: #ef4444;
 }
 
@@ -756,10 +757,10 @@
 }
 
 .solutions-section-header,
-\n.solution-card-header,
-\n.solution-card-footer,
-\n.solutions-filter-row,
-\n.solutions-tags-row {
+.solution-card-header,
+.solution-card-footer,
+.solutions-filter-row,
+.solutions-tags-row {
   display: flex;
   align-items: center;
 }
@@ -792,7 +793,7 @@
 }
 
 .solutions-section h2,
-\n.solutions-hero h1 {
+.solutions-hero h1 {
   color: var(--text-main);
   margin: 0;
   font-weight: 650;
@@ -805,7 +806,7 @@
 }
 
 .solutions-empty,
-\n.solutions-loading {
+.solutions-loading {
   display: flex;
   gap: 0.75rem;
   align-items: flex-start;
@@ -862,7 +863,7 @@
 }
 
 .solution-card-header p,
-\n.solution-card-body {
+.solution-card-body {
   margin: 0;
   color: var(--text-muted);
   font-size: 0.8rem;
@@ -944,8 +945,8 @@
 }
 
 .solution-link,
-\n.solution-problem-link,
-\n.solution-open-problem {
+.solution-problem-link,
+.solution-open-problem {
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
@@ -957,7 +958,7 @@
 }
 
 .solution-problem-link,
-\n.solution-open-problem {
+.solution-open-problem {
   background: transparent;
   border: none;
   border-radius: 0;
@@ -1020,8 +1021,8 @@
 }
 
 .solution-input,
-\n.solution-textarea,
-\n.solutions-search input {
+.solution-textarea,
+.solutions-search input {
   width: 100%;
   border: 1px solid var(--border-color);
   background: var(--bg-card);
@@ -1100,7 +1101,7 @@
 }
 
 .solution-modal-header,
-\n.solution-modal-actions {
+.solution-modal-actions {
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -1181,7 +1182,8 @@
   border: 1px solid var(--border-color);
   border-radius: 16px;
   background:
-    linear-gradient(135deg, rgba(0, 132, 255, 0.08), transparent 34%), \n var(--bg-card);
+    linear-gradient(135deg, rgba(0, 132, 255, 0.08), transparent 34%),
+    var(--bg-card);
   padding: 1.35rem;
   box-shadow: 0 16px 38px rgba(0, 0, 0, 0.1);
 }
@@ -1552,7 +1554,7 @@
   }
 
   .solutions-section-header,
-  \n .solutions-hero {
+  .solutions-hero {
     flex-direction: column;
   }
 
@@ -1602,7 +1604,9 @@
   }
 }
 
-/* =========================================\n   COMMENT THREAD TREE\n   ========================================= */
+/* =========================================
+   COMMENT THREAD TREE
+   ========================================= */
 
 .post-comments-section {
   margin-top: 1.5rem;
@@ -1867,7 +1871,7 @@
 }
 
 .comment-tree-edit-save,
-\n.comment-tree-edit-cancel {
+.comment-tree-edit-cancel {
   padding: 0.35rem 0.7rem;
   border-radius: 8px;
   font-size: 0.72rem;
