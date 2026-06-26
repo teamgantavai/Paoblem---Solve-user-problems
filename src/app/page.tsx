@@ -7,6 +7,8 @@ import SidebarRight from '@/components/SidebarRight';
 export const metadata: Metadata = {
   title: "Paoblem - Startup Problems, Ideas & Solutions Network",
   description: "Share real startup problems, validate startup ideas, collaborate on solutions, and discover next-generation business opportunities on Paoblem (Problem) - the social platform for founders.",
+  creator: "Dilkhush Jha",
+  authors: [{ name: "Dilkhush Jha", url: "https://paoblem.com" }],
   alternates: {
     canonical: 'https://paoblem.com',
   },
@@ -29,7 +31,12 @@ export default function Home() {
     "name": "Paoblem",
     "url": siteUrl,
     "logo": `${siteUrl}/favicon.ico`,
-    "description": "A social network for startup founders to share problems, validate ideas, and collaborate on solutions."
+    "description": "A social network for startup founders to share problems, validate ideas, and collaborate on solutions.",
+    "founder": {
+      "@type": "Person",
+      "name": "Dilkhush Jha",
+      "jobTitle": "Founder"
+    }
   };
 
   const websiteSchema = {

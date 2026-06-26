@@ -14,6 +14,8 @@ export const metadata: Metadata = {
   },
   description: "Share real startup problems, validate startup ideas, collaborate on solutions, and discover next-generation business opportunities on Paoblem (Problem) - the social platform for founders.",
   keywords: ["paoblem", "problem", "startup problems", "business ideas", "founder network", "startup solutions", "validate ideas", "entrepreneur community"],
+  creator: "Dilkhush Jha",
+  authors: [{ name: "Dilkhush Jha" }],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com'),
 };
 
