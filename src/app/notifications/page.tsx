@@ -260,6 +260,47 @@ export default function NotificationsPage() {
         body: JSON.stringify({ id, read: true }),
       });
     },
+    onMutate: async (id: string) => {
+      if (!userId) return;
+      await queryClient.cancelQueries({ queryKey: ['nf', userId] });
+      const previousData = queryClient.getQueryData(['nf', userId]);
+
+      // Update TanStack Query cache
+      queryClient.setQueryData(['nf', userId], (old: any) => {
+        if (!old?.pages?.length) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            notifications: page.notifications.map((n: Notification) =>
+              n.id === id ? { ...n, read: true } : n
+            ),
+          })),
+        };
+      });
+
+      // Update localStorage cache
+      const cached = LS.read(userId);
+      if (cached) {
+        const updatedPage = {
+          ...cached.page,
+          notifications: cached.page.notifications.map((n: Notification) =>
+            n.id === id ? { ...n, read: true } : n
+          ),
+        };
+        LS.write(userId, updatedPage);
+      }
+
+      // Invalidate the unread count in Navbar
+      queryClient.invalidateQueries({ queryKey: ['notifications-count'] });
+
+      return { previousData };
+    },
+    onError: (err, id, context: any) => {
+      if (userId && context?.previousData) {
+        queryClient.setQueryData(['nf', userId], context.previousData);
+      }
+    },
   });
 
   const markAllRead = useMutation({
@@ -270,7 +311,43 @@ export default function NotificationsPage() {
         headers: { Authorization: `Bearer ${accessToken}` },
       });
     },
-    onSuccess: () => { if (userId) LS.drop(userId); },
+    onMutate: async () => {
+      if (!userId) return;
+      await queryClient.cancelQueries({ queryKey: ['nf', userId] });
+      const previousData = queryClient.getQueryData(['nf', userId]);
+
+      // Update TanStack Query cache
+      queryClient.setQueryData(['nf', userId], (old: any) => {
+        if (!old?.pages?.length) return old;
+        return {
+          ...old,
+          pages: old.pages.map((page: any) => ({
+            ...page,
+            notifications: page.notifications.map((n: Notification) => ({ ...n, read: true })),
+          })),
+        };
+      });
+
+      // Update localStorage cache
+      const cached = LS.read(userId);
+      if (cached) {
+        const updatedPage = {
+          ...cached.page,
+          notifications: cached.page.notifications.map((n: Notification) => ({ ...n, read: true })),
+        };
+        LS.write(userId, updatedPage);
+      }
+
+      // Invalidate the unread count in Navbar
+      queryClient.invalidateQueries({ queryKey: ['notifications-count'] });
+
+      return { previousData };
+    },
+    onError: (err, variables, context: any) => {
+      if (userId && context?.previousData) {
+        queryClient.setQueryData(['nf', userId], context.previousData);
+      }
+    },
   });
 
   const deleteOne = useMutation({

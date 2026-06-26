@@ -49,11 +49,11 @@ export async function GET(req: NextRequest) {
       page.map((n: any) => parseActorUsername(n.body)).filter(Boolean)
     )] as string[];
 
-    let profileMap: Record<string, { full_name: string | null; avatar_url: string | null }> = {};
+    let profileMap: Record<string, { id: string; username: string | null; full_name: string | null; avatar_url: string | null }> = {};
     if (usernames.length > 0) {
       const { data: profiles } = await db
         .from('profiles')
-        .select('username,full_name,avatar_url')
+        .select('id,username,full_name,avatar_url')
         .in('username', usernames);
       profiles?.forEach((p: any) => {
         if (p.username) profileMap[p.username] = p;
@@ -76,6 +76,7 @@ export async function GET(req: NextRequest) {
 
       return {
         ...n,
+        actor_id:        profile?.id ?? null,
         actor_username:  username,
         actor_name:      profile?.full_name || username,
         actor_avatar:    profile?.avatar_url ?? null,

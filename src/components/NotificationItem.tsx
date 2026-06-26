@@ -4,6 +4,7 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { MoreHorizontal, CheckCheck, EyeOff, BellOff, UserX, Flag, UserCircle } from 'lucide-react';
 import { Notification } from '@/lib/types';
+import { supabase } from '@/lib/supabase';
 
 // ─── Colored initials helper ────────────────────────────────────────────────
 const AVATAR_COLORS = [
@@ -125,6 +126,58 @@ export default function NotificationItem({
   const router = useRouter();
   const [menuOpen, setMenuOpen] = useState(false);
   const [following, setFollowing] = useState(false);
+  const [isFollowLoading, setIsFollowLoading] = useState(false);
+
+  useEffect(() => {
+    if (n.type !== 'follow' || !n.actor_id) return;
+    
+    let active = true;
+    const checkFollowStatus = async () => {
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        if (!session || !active) return;
+        const res = await fetch(`/api/follows?userId=${n.actor_id}`, {
+          headers: { Authorization: `Bearer ${session.access_token}` },
+        });
+        if (res.ok && active) {
+          const data = await res.json();
+          setFollowing(data.isFollowing);
+        }
+      } catch (err) {
+        console.error('Error checking follow status:', err);
+      }
+    };
+    
+    checkFollowStatus();
+    return () => { active = false; };
+  }, [n.type, n.actor_id]);
+
+  const handleFollowToggle = async () => {
+    if (isFollowLoading || !n.actor_id) return;
+    setIsFollowLoading(true);
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) return;
+      
+      const res = await fetch('/api/follows', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${session.access_token}`,
+        },
+        body: JSON.stringify({ targetUserId: n.actor_id }),
+      });
+      
+      if (res.ok) {
+        const data = await res.json();
+        setFollowing(data.isFollowing);
+      }
+    } catch (err) {
+      console.error('Error toggling follow status:', err);
+    } finally {
+      setIsFollowLoading(false);
+    }
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -261,7 +314,8 @@ export default function NotificationItem({
         {n.type === 'follow' && (
           <button
             className={`nf-follow-btn ${following ? 'following' : ''}`}
-            onClick={(e) => { e.stopPropagation(); setFollowing(f => !f); }}
+            disabled={isFollowLoading}
+            onClick={(e) => { e.stopPropagation(); handleFollowToggle(); }}
           >
             {following ? 'Following' : 'Follow'}
           </button>

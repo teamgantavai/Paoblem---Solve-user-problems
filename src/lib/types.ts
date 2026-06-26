@@ -168,6 +168,7 @@ export interface Notification {
   created_at: string;
   post_id?: string | null;
   // Rich display fields (populated by API or injected client-side)
+  actor_id?: string | null;
   actor_name?: string | null;
   actor_username?: string | null;
   actor_avatar?: string | null;
