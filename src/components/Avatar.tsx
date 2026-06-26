@@ -8,7 +8,7 @@ interface AvatarProps {
   name?: string;
   size?: number;
   className?: string;
-  onClick?: () => void;
+  onClick?: (e: React.MouseEvent<HTMLImageElement | HTMLDivElement>) => void;
   style?: React.CSSProperties;
 }
 

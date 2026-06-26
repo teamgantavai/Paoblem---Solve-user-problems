@@ -74,7 +74,7 @@ function actionSuffix(n: Notification): string {
 function Av({
   src, name, size = 40, onClick,
 }: {
-  src?: string | null; name?: string | null; size?: number; onClick?: () => void;
+  src?: string | null; name?: string | null; size?: number; onClick?: (e: React.MouseEvent<HTMLElement>) => void;
 }) {
   const [err, setErr] = useState(false);
   useEffect(() => { setErr(false); }, [src]);
