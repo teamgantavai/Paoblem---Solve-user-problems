@@ -5,13 +5,17 @@ import "./globals.css";
 import Providers from "./providers";
 import { Analytics } from "@vercel/analytics/next"
 import TopLoader from "@/components/TopLoader";
+import GSAPAnimations from '@/components/GSAPAnimations';
 
 export const metadata: Metadata = {
-  title: "Paoblem - Social network for founders",
-  description: "Share your problems and find solutions",
+  title: {
+    default: "Paoblem - Startup Problems, Ideas & Solutions Network",
+    template: "%s | Paoblem"
+  },
+  description: "Share real startup problems, validate startup ideas, collaborate on solutions, and discover next-generation business opportunities on Paoblem (Problem) - the social platform for founders.",
+  keywords: ["paoblem", "problem", "startup problems", "business ideas", "founder network", "startup solutions", "validate ideas", "entrepreneur community"],
+  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com'),
 };
-
-import GSAPAnimations from '@/components/GSAPAnimations';
 
 export default function RootLayout({
   children,
@@ -55,4 +59,3 @@ export default function RootLayout({
     </html>
   );
 }
-

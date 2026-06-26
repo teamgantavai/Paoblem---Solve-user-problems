@@ -9,6 +9,9 @@ export async function GET() {
     <loc>${siteUrl}/sitemap-posts.xml</loc>
   </sitemap>
   <sitemap>
+    <loc>${siteUrl}/sitemap-solutions.xml</loc>
+  </sitemap>
+  <sitemap>
     <loc>${siteUrl}/sitemap-users.xml</loc>
   </sitemap>
 </sitemapindex>`;

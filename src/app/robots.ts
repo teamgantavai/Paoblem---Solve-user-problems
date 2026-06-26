@@ -11,7 +11,8 @@ export default function robots(): MetadataRoute.Robots {
         '/user/*',
         '/tag/*',
         '/category/*',
-        '/solutions'
+        '/solutions',
+        '/solutions/*'
       ],
       disallow: [
         '/api/*',
