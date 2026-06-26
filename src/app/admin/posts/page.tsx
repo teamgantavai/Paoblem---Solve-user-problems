@@ -6,7 +6,7 @@ import {
   Search, Eye, Edit2, Trash2, ShieldAlert, Award, Star,
   Bookmark, Lock, Unlock, TrendingUp, RefreshCw, X,
   AlertTriangle, ChevronLeft, ChevronRight, MoreVertical,
-  Flame, Pin, CheckCircle2, AlertOctagon
+  Flame, Pin, CheckCircle2, AlertOctagon, Loader2
 } from 'lucide-react';
 import Link from 'next/link';
 

@@ -1,6 +1,7 @@
 'use client';
 
 import React, { useEffect, useState, useCallback } from 'react';
+import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import {
   Search, ShieldCheck, ShieldAlert, MoreVertical, Edit2,
@@ -285,7 +286,7 @@ export default function UserManagement() {
                   <tr key={u.id}>
                     <td>
                       <div className="admin-table-profile">
-                        <Avatar avatarUrl={u.avatar_url} username={u.username} size={36} />
+                        <Avatar src={u.avatar_url} name={u.full_name || u.username || 'User'} size={36} />
                         <div>
                           <div className="admin-table-p-name">{u.full_name}</div>
                           <div className="admin-table-p-sub">@{u.username} • {u.role}</div>
