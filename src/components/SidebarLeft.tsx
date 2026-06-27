@@ -373,14 +373,6 @@ function SidebarLeftInner() {
                 <span>Total</span>
               </div>
             </div>
-            <div className="sidebar-solution-status">
-              <TrendingUp size={18} strokeWidth={1.5} />
-              <span>{pulseStats.totalProblems} problems posted by the community</span>
-            </div>
-            <div className="sidebar-solution-status sidebar-solution-status--open">
-              <Lightbulb size={18} strokeWidth={1.5} />
-              <span>{pulseStats.totalIdeas} ideas shared for builders</span>
-            </div>
           </>
         )}
       </div>

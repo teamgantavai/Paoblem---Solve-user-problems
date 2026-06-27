@@ -11,7 +11,7 @@ CREATE TABLE IF NOT EXISTS public.follows (
 ALTER TABLE public.follows ENABLE ROW LEVEL SECURITY;
 
 -- Add RLS Policies for follows if not already present
-DO $$
+DO $$ 
 BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE tablename = 'follows' AND policyname = 'Allow public read on follows'
