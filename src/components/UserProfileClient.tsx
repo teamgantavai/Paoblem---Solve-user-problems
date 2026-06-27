@@ -6,9 +6,12 @@ import { useRouter } from 'next/navigation';
 import {
   UserCheck, UserPlus, MessageCircle, MapPin, Briefcase,
   ArrowUp, MessageSquare, Lightbulb, BookOpen, Users, Heart,
-  ExternalLink, ChevronRight, Calendar, Award, User, X
+  ExternalLink, ChevronRight, Calendar, Award, User, X, Trophy
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import BadgeArtwork from '@/components/badges/BadgeArtwork';
+import { BADGE_DEFINITIONS, RARITY_CONFIG } from '@/lib/badgeDefinitions';
+import type { BadgeRarity, BadgeCategory } from '@/lib/badgeDefinitions';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -22,6 +25,7 @@ interface Profile {
   role?: string | null;
   location?: string | null;
   website?: string | null;
+  reputation?: number | null;
 }
 
 interface PostItem {
@@ -66,7 +70,7 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'problems' | 'ideas' | 'solutions' | 'comments' | 'startups';
+type Tab = 'posts' | 'solutions' | 'comments' | 'achievements';
 type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -254,7 +258,8 @@ function FollowModal({
 export default function UserProfileClient({ profile, posts, solutions, comments, stats }: UserProfileClientProps) {
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<Tab>('problems');
+  const [activeTab, setActiveTab] = useState<Tab>('posts');
+  const [postSubFilter, setPostSubFilter] = useState<'all' | 'problems' | 'ideas' | 'startups'>('all');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
@@ -265,9 +270,23 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const [listsLoaded, setListsLoaded] = useState(false);
   const [modalView, setModalView] = useState<ModalView>(null);
 
+  // Badge state
+  const [userBadges, setUserBadges] = useState<Record<string, { earned_at: string; is_featured: boolean }>>({});
+  const [badgesLoaded, setBadgesLoaded] = useState(false);
+  const [showLockedBadges, setShowLockedBadges] = useState(true);
+
   const problems = posts.filter((p) => p.type === 'problem');
   const ideas = posts.filter((p) => p.type === 'idea');
   const startups = posts.filter((p) => p.type === 'startup');
+
+  const trustScore = React.useMemo(() => {
+    return BADGE_DEFINITIONS.reduce((total, b) => {
+      if (userBadges[b.slug]) {
+        return total + (b.rep_reward || 0);
+      }
+      return total;
+    }, 0);
+  }, [userBadges]);
 
   const name = profile.full_name || profile.username || 'Unknown';
   const isOwnProfile = currentUserId === profile.id;
@@ -291,6 +310,25 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     });
     return () => subscription.unsubscribe();
   }, [profile.id]);
+
+  // Load profile badges
+  useEffect(() => {
+    if (badgesLoaded) return;
+    setBadgesLoaded(true);
+    fetch(`/api/badges/user/${profile.id}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(data => {
+        if (!data) return;
+        const map: Record<string, { earned_at: string; is_featured: boolean }> = {};
+        (data.badges || []).forEach((ub: any) => {
+          if (ub.badge_definitions) {
+            map[ub.badge_definitions.slug] = { earned_at: ub.earned_at, is_featured: ub.is_featured };
+          }
+        });
+        setUserBadges(map);
+      })
+      .catch(() => { });
+  }, [profile.id, badgesLoaded]);
 
   // Load follow lists
   const loadLists = useCallback(async () => {
@@ -362,14 +400,14 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
       });
       if (!res.ok) throw new Error('Could not start chat');
       const data = await res.json();
-      
+
       const params = new URLSearchParams();
       params.set('conversationId', data.conversationId);
       params.set('partnerId', profile.id);
       if (profile.full_name) params.set('partnerName', profile.full_name);
       if (profile.avatar_url) params.set('partnerAvatar', profile.avatar_url);
       if (profile.username) params.set('partnerUsername', profile.username);
-      
+
       router.push(`/chats?${params.toString()}`);
     } catch (error) {
       window.dispatchEvent(new CustomEvent('top-loader:finish'));
@@ -378,10 +416,9 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   };
 
   const tabs: { key: Tab; label: string; count: number; icon: React.ReactNode }[] = [
-    { key: 'problems', label: 'Problems', count: problems.length, icon: <BookOpen size={15} /> },
-    { key: 'ideas', label: 'Ideas', count: ideas.length, icon: <Lightbulb size={15} /> },
-    { key: 'startups', label: 'Startups', count: startups.length, icon: <Briefcase size={15} /> },
+    { key: 'posts', label: 'Posts', count: posts.length, icon: <BookOpen size={15} /> },
     { key: 'solutions', label: 'Solutions', count: solutions.length, icon: <Award size={15} /> },
+    { key: 'achievements', label: 'Achievements', count: Object.keys(userBadges).length, icon: <Trophy size={15} /> },
     { key: 'comments', label: 'Comments', count: comments.length, icon: <MessageSquare size={15} /> },
   ];
 
@@ -416,6 +453,10 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                       <Briefcase size={11} /> {profile.role}
                     </span>
                   )}
+                  {/* Trust Score badge */}
+                  <span className="profile-trust-badge" title="Trust Score">
+                    <Award size={11} /> {trustScore} Trust
+                  </span>
                 </div>
                 <p className="upf-username">@{profile.username}</p>
               </div>
@@ -459,28 +500,24 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
             <div className="upf-stats-bar">
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats.postCount}</span>
-                <span className="upf-stat-label">Posts</span>
+                <span className="upf-stat-label">{stats.postCount === 1 ? 'Post' : 'Posts'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats.solutionCount}</span>
-                <span className="upf-stat-label">Solutions</span>
+                <span className="upf-stat-label">{stats.solutionCount === 1 ? 'Solution' : 'Solutions'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats.totalUpvotes}</span>
-                <span className="upf-stat-label">Upvotes</span>
+                <span className="upf-stat-label">{stats.totalUpvotes === 1 ? 'Upvote' : 'Upvotes'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <button
                 className="upf-stat upf-stat--clickable"
                 onClick={() => openModal('followers')}
                 title="View followers"
               >
                 <span className="upf-stat-num">{followersCount}</span>
-                <span className="upf-stat-label">Followers</span>
+                <span className="upf-stat-label">{followersCount === 1 ? 'Follower' : 'Followers'}</span>
               </button>
-              <div className="upf-stat-divider" />
               <button
                 className="upf-stat upf-stat--clickable"
                 onClick={() => openModal('following')}
@@ -493,6 +530,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           </div>
         </div>
       </div>
+
 
       {/* ── Tab Navigation ───────────────────────────────────────── */}
       <div className="upf-tabs">
@@ -512,83 +550,84 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
       {/* ── Tab Content ──────────────────────────────────────────── */}
       <div className="upf-content">
 
-        {/* Problems Tab */}
-        {activeTab === 'problems' && (
-          <div className="upf-list">
-            {problems.length === 0
-              ? <EmptyState icon={<BookOpen size={36} />} text={`${name} hasn't posted any problems yet.`} />
-              : problems.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--problem">Problem</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
-          </div>
-        )}
+        {/* Posts Tab */}
+        {activeTab === 'posts' && (
+          <div>
+            {/* Sleek Sub-Filter Pills */}
+            <div className="profile-sub-filters">
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('all')}
+              >
+                All Posts ({posts.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'problems' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('problems')}
+              >
+                Problems ({problems.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'ideas' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('ideas')}
+              >
+                Ideas ({ideas.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'startups' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('startups')}
+              >
+                Startups ({startups.length})
+              </button>
+            </div>
 
-        {/* Ideas Tab */}
-        {activeTab === 'ideas' && (
-          <div className="upf-list">
-            {ideas.length === 0
-              ? <EmptyState icon={<Lightbulb size={36} />} text={`${name} hasn't shared any ideas yet.`} />
-              : ideas.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--idea">Idea</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
-          </div>
-        )}
+            {/* List */}
+            <div className="upf-list">
+              {(() => {
+                const filtered = posts.filter(p => {
+                  if (postSubFilter === 'problems') return p.type === 'problem';
+                  if (postSubFilter === 'ideas') return p.type === 'idea';
+                  if (postSubFilter === 'startups') return p.type === 'startup';
+                  return true;
+                });
 
-        {/* Startups Tab */}
-        {activeTab === 'startups' && (
-          <div className="upf-list">
-            {startups.length === 0
-              ? <EmptyState icon={<Briefcase size={36} />} text={`${name} hasn't posted any startups yet.`} />
-              : startups.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--startup">Startup</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  {post.external_link && (
-                    <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
-                      <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
-                    </a>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
+                if (filtered.length === 0) {
+                  const icon = postSubFilter === 'problems' ? <BookOpen size={36} /> :
+                    postSubFilter === 'ideas' ? <Lightbulb size={36} /> :
+                      postSubFilter === 'startups' ? <Briefcase size={36} /> : <BookOpen size={36} />;
+                  return (
+                    <EmptyState
+                      icon={icon}
+                      text={`${name} hasn't posted any ${postSubFilter === 'all' ? 'posts' : postSubFilter} yet.`}
+                    />
+                  );
+                }
+
+                return filtered.map((post) => (
+                  <article key={post.id} className="upf-post-card">
+                    <div className="upf-post-meta">
+                      <span className={`upf-tag upf-tag--${post.type}`}>
+                        {post.type}
+                      </span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                    </div>
+                    <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
+                    {post.body && (
+                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                    )}
+                    {post.external_link && (
+                      <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
+                        <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
+                      </a>
+                    )}
+                    <div className="upf-post-footer">
+                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                    </div>
+                  </article>
+                ));
+              })()}
+            </div>
           </div>
         )}
 
@@ -649,6 +688,68 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
             }
           </div>
         )}
+
+        {/* Achievements Tab */}
+        {activeTab === 'achievements' && (() => {
+          const earnedSlugs = Object.keys(userBadges);
+          const earnedBadges = BADGE_DEFINITIONS.filter(b => earnedSlugs.includes(b.slug));
+          return (
+            <div className="profile-achievements-tab">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+                <h3 className="profile-achievements-title" style={{ margin: 0 }}>
+                  Badges ({earnedBadges.length})
+                </h3>
+                <button
+                  type="button"
+                  onClick={() => router.push('/achievements')}
+                  className="profile-sub-filter-pill active"
+                  style={{
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: '4px',
+                    cursor: 'pointer',
+                    border: '1.5px solid var(--border-color)',
+                  }}
+                >
+                  View All Badges <ChevronRight size={14} />
+                </button>
+              </div>
+
+              {earnedBadges.length === 0 ? (
+                <EmptyState icon={<Award size={36} />} text={`${name} hasn't unlocked any badges yet.`} />
+              ) : (
+                <div className="profile-badges-grid">
+                  {earnedBadges.map((badge) => {
+                    const rConf = RARITY_CONFIG[badge.rarity] || { color: '#ffffff', glow: 'rgba(255,255,255,0.1)' };
+                    return (
+                      <div
+                        key={badge.slug}
+                        className="profile-badge-card"
+                        style={{ '--rarity-color': rConf.color } as React.CSSProperties}
+                        title={badge.description}
+                      >
+                        <div className="profile-badge-icon-wrapper">
+                          <BadgeArtwork
+                            slug={badge.slug}
+                            rarity={badge.rarity}
+                            category={badge.category as BadgeCategory}
+                            size={70}
+                            locked={false}
+                            animated={true}
+                          />
+                        </div>
+                        <span className="profile-badge-name">{badge.name}</span>
+                        <span className="profile-badge-rarity" style={{ color: rConf.color, fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                          {badge.rarity}
+                        </span>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })()}
       </div>
 
       {/* ── Followers / Following Modal ────────────────────────── */}

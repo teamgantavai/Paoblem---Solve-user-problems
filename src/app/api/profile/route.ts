@@ -18,7 +18,7 @@ export async function GET(req: NextRequest) {
     // Fetch profile
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url, pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies');
+      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url, reputation, pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies');
 
     if (userId) {
       query = query.eq('id', userId);
@@ -41,7 +41,8 @@ export async function GET(req: NextRequest) {
             full_name: user.user_metadata?.full_name || user.email?.split('@')[0] || 'Member',
             avatar_url: user.user_metadata?.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${userId}`,
             role: user.user_metadata?.role || 'Innovator',
-            username: fallbackUsername
+            username: fallbackUsername,
+            reputation: 0
           })
           .select()
           .single();
@@ -122,6 +123,20 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
+    // Fetch current profile to get current username
+    const { data: currentProfile, error: getProfileError } = await supabaseAdmin
+      .from('profiles')
+      .select('username')
+      .eq('id', user.id)
+      .single();
+
+    if (getProfileError || !currentProfile) {
+      return NextResponse.json({ error: 'Failed to retrieve profile' }, { status: 500 });
+    }
+
+    const currentUsername = currentProfile.username;
+    let usernameChangedThisTime = false;
+
     const updates: Record<string, any> = {};
     if (full_name !== undefined) updates.full_name = full_name?.trim() || null;
     if (role !== undefined) updates.role = role;
@@ -145,22 +160,30 @@ export async function PUT(req: NextRequest) {
         return NextResponse.json({ error: 'Username can only contain lowercase letters, numbers, and underscores' }, { status: 400 });
       }
 
-      // Check if username is already taken by another user
-      const { data: existing, error: checkError } = await supabaseAdmin
-        .from('profiles')
-        .select('id')
-        .eq('username', cleanUsername)
-        .neq('id', user.id)
-        .maybeSingle();
+      if (cleanUsername !== currentUsername) {
+        const usernameChanged = !!user.user_metadata?.username_changed;
+        if (usernameChanged) {
+          return NextResponse.json({ error: 'Username can only be changed once' }, { status: 400 });
+        }
 
-      if (checkError) {
-        return NextResponse.json({ error: 'Failed to validate username' }, { status: 500 });
-      }
-      if (existing) {
-        return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
-      }
+        // Check if username is already taken by another user
+        const { data: existing, error: checkError } = await supabaseAdmin
+          .from('profiles')
+          .select('id')
+          .eq('username', cleanUsername)
+          .neq('id', user.id)
+          .maybeSingle();
 
-      updates.username = cleanUsername;
+        if (checkError) {
+          return NextResponse.json({ error: 'Failed to validate username' }, { status: 500 });
+        }
+        if (existing) {
+          return NextResponse.json({ error: 'Username is already taken' }, { status: 400 });
+        }
+
+        updates.username = cleanUsername;
+        usernameChangedThisTime = true;
+      }
     }
 
     if (Object.keys(updates).length === 0) {
@@ -189,6 +212,7 @@ export async function PUT(req: NextRequest) {
           ...(avatar_url !== undefined ? { avatar_url } : {}),
           ...(cover_url !== undefined ? { cover_url } : {}),
           ...(username !== undefined ? { username: updates.username } : {}),
+          ...(usernameChangedThisTime ? { username_changed: true } : {}),
         }
       });
     }

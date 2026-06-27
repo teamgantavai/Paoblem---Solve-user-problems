@@ -7,11 +7,13 @@ import {
   Check, Camera, MessageCircle, MessageSquare, Loader2, ExternalLink,
   AlertTriangle, Lightbulb, User, UserPlus, UserMinus, LogOut, Settings,
   Sun, Moon, BarChart2, BookOpen, Award, Users, Heart, ArrowUp, Calendar, X,
-  ShieldAlert, Briefcase
+  ShieldAlert, Briefcase, Trophy
 } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
+import BadgeArtwork from '@/components/badges/BadgeArtwork';
+import { RARITY_CONFIG, BADGE_DEFINITIONS } from '@/lib/badgeDefinitions';
 import PhotoEditorModal from '@/components/PhotoEditorModal';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import { ADMIN_EMAIL } from '@/lib/adminConstants';
@@ -35,6 +37,7 @@ interface Profile {
   username: string | null;
   cover_url?: string | null;
   created_at: string;
+  reputation?: number | null;
   pref_receive_saves?: boolean;
   pref_receive_analytics?: boolean;
   pref_receive_solutions?: boolean;
@@ -177,7 +180,10 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
   const isOwnProfile = !targetUserId || targetUserId === currentUserId;
   const displayUserId = isOwnProfile ? currentUserId : targetUserId;
 
-  const [activeTab, setActiveTab] = useState<'problems' | 'ideas' | 'solutions' | 'comments' | 'settings' | 'startups'>('problems');
+  const [activeTab, setActiveTab] = useState<'posts' | 'solutions' | 'comments' | 'achievements'>('posts');
+  const [editModalOpen, setEditModalOpen] = useState(false);
+  const [showLockedBadges, setShowLockedBadges] = useState(true);
+  const [postSubFilter, setPostSubFilter] = useState<'all' | 'problems' | 'ideas' | 'startups'>('all');
   const [modalView, setModalView] = useState<'followers' | 'following' | null>(null);
   const [bioExpanded, setBioExpanded] = useState(false);
   const [rolePickerOpen, setRolePickerOpen] = useState(false);
@@ -321,7 +327,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
         try {
           const { data: { session: updatedSession } } = await supabase.auth.getSession();
           setSession(updatedSession);
-        } catch (e) {}
+        } catch (e) { }
       }
       // Fire event to notify SidebarLeft and Navbar
       window.dispatchEvent(new Event('profile-updated'));
@@ -430,6 +436,32 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
     },
     enabled: !!displayUserId,
   });
+
+  // Fetch user's earned badges
+  const { data: userBadges = [] } = useQuery<any[]>({
+    queryKey: ['profile-badges', displayUserId],
+    queryFn: async () => {
+      const res = await fetch(`/api/badges/user/${displayUserId}`);
+      if (!res.ok) throw new Error('Failed to load user badges');
+      const d = await res.json();
+      return d.badges || [];
+    },
+    enabled: !!displayUserId,
+  });
+
+  const trustScore = React.useMemo(() => {
+    return userBadges.reduce((total: number, ub: any) => {
+      const badge = ub.badge_definitions;
+      if (badge) {
+        return total + (badge.rep_reward || 0);
+      }
+      return total;
+    }, 0);
+  }, [userBadges]);
+
+  const earnedSlugs = React.useMemo(() => {
+    return new Set((userBadges || []).map((ub: any) => ub.badge_definitions?.slug).filter(Boolean));
+  }, [userBadges]);
 
   // Fetch user's saved post IDs from localstorage
   const [savedIds, setSavedIds] = useState<string[]>([]);
@@ -555,14 +587,14 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
       });
       if (!res.ok) throw new Error('Could not start chat');
       const data = await res.json();
-      
+
       const params = new URLSearchParams();
       params.set('conversationId', data.conversationId);
       params.set('partnerId', displayUserId || '');
       if (profile.full_name) params.set('partnerName', profile.full_name);
       if (profile.avatar_url) params.set('partnerAvatar', profile.avatar_url);
       if (profile.username) params.set('partnerUsername', profile.username);
-      
+
       router.push(`/chats?${params.toString()}`);
     } catch (error) {
       window.dispatchEvent(new CustomEvent('top-loader:finish'));
@@ -740,6 +772,10 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                       </div>
                     )}
                   </div>
+                  {/* Trust Score badge */}
+                  <span className="profile-trust-badge" title="Trust Score">
+                    <Award size={11} /> {trustScore} Trust
+                  </span>
                 </div>
                 <p className="upf-username">@{profile?.username || 'member'}</p>
               </div>
@@ -747,7 +783,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
               {/* Own profile: Edit + Analytics + Logout */}
               {isOwnProfile && (
                 <div className="upf-actions">
-                  <button onClick={() => setActiveTab('settings')} className="upf-btn-follow">
+                  <button onClick={() => setEditModalOpen(true)} className="upf-btn-follow">
                     <Settings size={15} /> Edit Profile
                   </button>
                   <button onClick={() => router.push('/analytics')} className="upf-btn-message">
@@ -809,7 +845,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                   No bio yet.{' '}
                   <button
                     style={{ background: 'none', border: 'none', color: 'white', cursor: 'pointer', fontSize: '0.9rem', padding: 0, fontStyle: 'normal' }}
-                    onClick={() => setActiveTab('settings')}
+                    onClick={() => setEditModalOpen(true)}
                   >
                     Add one
                   </button>
@@ -820,28 +856,24 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
             <div className="upf-stats-bar">
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats?.postCount || 0}</span>
-                <span className="upf-stat-label">Posts</span>
+                <span className="upf-stat-label">{stats?.postCount === 1 ? 'Post' : 'Posts'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats?.solutionCount || 0}</span>
-                <span className="upf-stat-label">Solutions</span>
+                <span className="upf-stat-label">{stats?.solutionCount === 1 ? 'Solution' : 'Solutions'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <div className="upf-stat">
                 <span className="upf-stat-num">{stats?.totalUpvotes || 0}</span>
-                <span className="upf-stat-label">Upvotes</span>
+                <span className="upf-stat-label">{stats?.totalUpvotes === 1 ? 'Upvote' : 'Upvotes'}</span>
               </div>
-              <div className="upf-stat-divider" />
               <button
                 className="upf-stat upf-stat--clickable"
                 onClick={() => openModal('followers')}
                 title="View followers"
               >
                 <span className="upf-stat-num">{followData?.followersCount || 0}</span>
-                <span className="upf-stat-label">Followers</span>
+                <span className="upf-stat-label">{followData?.followersCount === 1 ? 'Follower' : 'Followers'}</span>
               </button>
-              <div className="upf-stat-divider" />
               <button
                 className="upf-stat upf-stat--clickable"
                 onClick={() => openModal('following')}
@@ -858,31 +890,23 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
 
       {/* ── Tab Navigation ── */}
       <div className="upf-tabs">
-        <button className={`upf-tab-btn ${activeTab === 'problems' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('problems')}>
-          <BookOpen size={15} /> <span className="upf-tab-label">Problems</span>
-          <span className="upf-tab-count">{problemsList.length}</span>
-        </button>
-        <button className={`upf-tab-btn ${activeTab === 'ideas' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('ideas')}>
-          <Lightbulb size={15} /> <span className="upf-tab-label">Ideas</span>
-          <span className="upf-tab-count">{ideasList.length}</span>
-        </button>
-        <button className={`upf-tab-btn ${activeTab === 'startups' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('startups')}>
-          <Briefcase size={15} /> <span className="upf-tab-label">Startups</span>
-          <span className="upf-tab-count">{startupsList.length}</span>
+        <button className={`upf-tab-btn ${activeTab === 'posts' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('posts')}>
+          <BookOpen size={15} /> <span className="upf-tab-label">Posts</span>
+          <span className="upf-tab-count">{userPosts.length}</span>
         </button>
         <button className={`upf-tab-btn ${activeTab === 'solutions' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('solutions')}>
           <Award size={15} /> <span className="upf-tab-label">Solutions</span>
           <span className="upf-tab-count">{userSolutions.length}</span>
         </button>
+        <button className={`upf-tab-btn ${activeTab === 'achievements' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('achievements')}>
+          <Trophy size={15} /> <span className="upf-tab-label">Achievements</span>
+          <span className="upf-tab-count">{userBadges.length}</span>
+        </button>
         <button className={`upf-tab-btn ${activeTab === 'comments' ? 'upf-tab-btn--active' : ''}`} onClick={() => setActiveTab('comments')}>
           <MessageSquare size={15} /> <span className="upf-tab-label">Comments</span>
           <span className="upf-tab-count">{userComments.length}</span>
         </button>
-        {isOwnProfile && (
-          <button className={`upf-tab-btn ${activeTab === 'settings' ? 'upf-tab-btn--active' : ''} upf-tab-btn--settings`} onClick={() => setActiveTab('settings')}>
-            <Settings size={15} /> <span className="upf-tab-label">Settings</span>
-          </button>
-        )}
+
         {isOwnProfile && session?.user?.email === ADMIN_EMAIL && (
           <button
             className="upf-tab-btn"
@@ -895,80 +919,83 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
       </div>
 
       <div className="upf-content">
-        {activeTab === 'problems' && (
-          <div className="upf-list">
-            {problemsList.length === 0
-              ? <EmptyState icon={<BookOpen size={36} />} text={`${displayName} hasn't posted any problems yet.`} />
-              : problemsList.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--problem">Problem</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
-          </div>
-        )}
+        {activeTab === 'posts' && (
+          <div>
+            {/* Sleek Sub-Filter Pills */}
+            <div className="profile-sub-filters">
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'all' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('all')}
+              >
+                All Posts ({userPosts.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'problems' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('problems')}
+              >
+                Problems ({problemsList.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'ideas' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('ideas')}
+              >
+                Ideas ({ideasList.length})
+              </button>
+              <button
+                className={`profile-sub-filter-pill ${postSubFilter === 'startups' ? 'active' : ''}`}
+                onClick={() => setPostSubFilter('startups')}
+              >
+                Startups ({startupsList.length})
+              </button>
+            </div>
 
-        {activeTab === 'ideas' && (
-          <div className="upf-list">
-            {ideasList.length === 0
-              ? <EmptyState icon={<Lightbulb size={36} />} text={`${displayName} hasn't shared any ideas yet.`} />
-              : ideasList.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--idea">Idea</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
-          </div>
-        )}
+            {/* List */}
+            <div className="upf-list">
+              {(() => {
+                const filtered = userPosts.filter(p => {
+                  if (postSubFilter === 'problems') return p.type === 'problem';
+                  if (postSubFilter === 'ideas') return p.type === 'idea';
+                  if (postSubFilter === 'startups') return p.type === 'startup';
+                  return true;
+                });
 
-        {activeTab === 'startups' && (
-          <div className="upf-list">
-            {startupsList.length === 0
-              ? <EmptyState icon={<Briefcase size={36} />} text={`${displayName} hasn't posted any startups yet.`} />
-              : startupsList.map((post) => (
-                <article key={post.id} className="upf-post-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--startup">Startup</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
-                  </div>
-                  <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
-                  {post.body && (
-                    <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
-                  )}
-                  {post.external_link && (
-                    <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
-                      <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
-                    </a>
-                  )}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
-                  </div>
-                </article>
-              ))
-            }
+                if (filtered.length === 0) {
+                  const icon = postSubFilter === 'problems' ? <BookOpen size={36} /> :
+                    postSubFilter === 'ideas' ? <Lightbulb size={36} /> :
+                      postSubFilter === 'startups' ? <Briefcase size={36} /> : <BookOpen size={36} />;
+                  return (
+                    <EmptyState
+                      icon={icon}
+                      text={`${displayName} hasn't posted any ${postSubFilter === 'all' ? 'posts' : postSubFilter} yet.`}
+                    />
+                  );
+                }
+
+                return filtered.map((post) => (
+                  <article key={post.id} className="upf-post-card">
+                    <div className="upf-post-meta">
+                      <span className={`upf-tag upf-tag--${post.type}`}>
+                        {post.type}
+                      </span>
+                      <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
+                    </div>
+                    <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
+                    {post.body && (
+                      <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
+                    )}
+                    {post.external_link && (
+                      <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
+                        <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
+                      </a>
+                    )}
+                    <div className="upf-post-footer">
+                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
+                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                    </div>
+                  </article>
+                ));
+              })()}
+            </div>
           </div>
         )}
 
@@ -1028,8 +1055,73 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
           </div>
         )}
 
-        {activeTab === 'settings' && isOwnProfile && (
-          <SettingsTab session={session} profile={profile} onSaved={() => { refetch(); setActiveTab('problems'); }} onLogout={handleLogout} />
+        {activeTab === 'achievements' && (
+          <div className="profile-achievements-tab">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h3 className="profile-achievements-title" style={{ margin: 0 }}>
+                Badges ({userBadges.length})
+              </h3>
+              <button
+                type="button"
+                onClick={() => router.push('/achievements')}
+                className="profile-sub-filter-pill active"
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '4px',
+                  cursor: 'pointer',
+                  border: '1.5px solid var(--border-color)',
+                }}
+              >
+                View All Badges <ChevronRight size={14} />
+              </button>
+            </div>
+
+            {userBadges.length === 0 ? (
+              <EmptyState icon={<Award size={36} />} text={`${displayName} hasn't unlocked any badges yet.`} />
+            ) : (
+              <div className="profile-badges-grid">
+                {userBadges.map((ub) => {
+                  const badge = ub.badge_definitions;
+                  if (!badge) return null;
+                  const rConf = RARITY_CONFIG[badge.rarity as keyof typeof RARITY_CONFIG] || { color: '#ffffff', glow: 'rgba(255,255,255,0.1)' };
+                  return (
+                    <div
+                      key={badge.slug}
+                      className="profile-badge-card"
+                      style={{ '--rarity-color': rConf.color } as React.CSSProperties}
+                      title={badge.description}
+                    >
+                      <div className="profile-badge-icon-wrapper">
+                        <BadgeArtwork
+                          slug={badge.slug}
+                          rarity={badge.rarity}
+                          category={badge.category}
+                          size={70}
+                          locked={false}
+                          animated={true}
+                        />
+                      </div>
+                      <span className="profile-badge-name">{badge.name}</span>
+                      <span className="profile-badge-rarity" style={{ color: rConf.color, fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                        {badge.rarity}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
+          </div>
+        )}
+
+        {isOwnProfile && (
+          <EditProfileModal
+            isOpen={editModalOpen}
+            onClose={() => setEditModalOpen(false)}
+            session={session}
+            profile={profile}
+            onSaved={() => refetch()}
+          />
         )}
       </div>
 
@@ -1174,9 +1266,6 @@ function ProblemsTab({ posts, isSavedTab = false }: { posts: UserPost[]; isSaved
   );
 }
 
-/* ────────────────────────────────────────────────────────
-   Comments Sub-component
-   ───────────────────────────────────────────────────────── */
 function CommentsTab({ comments }: { comments: UserComment[] }) {
   const { animateListEntrance } = useMicroAnimations();
   const listRef = useRef<HTMLDivElement>(null);
@@ -1216,15 +1305,24 @@ function CommentsTab({ comments }: { comments: UserComment[] }) {
   );
 }
 
-/* ────────────────────────────────────────────────────────
-   Settings Tab Component (Dedicated Settings Section)
-   ───────────────────────────────────────────────────────── */
-function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; profile?: Profile & { username?: string | null }; onSaved: () => void; onLogout: () => void }) {
-  const router = useRouter();
+function EditProfileModal({
+  isOpen,
+  onClose,
+  session,
+  profile,
+  onSaved,
+}: {
+  isOpen: boolean;
+  onClose: () => void;
+  session: any;
+  profile?: Profile & { username?: string | null };
+  onSaved: () => void;
+}) {
   const [fullName, setFullName] = useState(profile?.full_name || session?.user?.user_metadata?.full_name || '');
   const [location, setLocation] = useState(profile?.location || '');
   const [bio, setBio] = useState(profile?.bio || '');
   const [username, setUsername] = useState(profile?.username || session?.user?.user_metadata?.username || '');
+  const [role, setRole] = useState(profile?.role || 'Innovator');
   const [error, setError] = useState('');
   const [saving, setSaving] = useState(false);
   const [theme, setTheme] = useState<'dark' | 'light'>('dark');
@@ -1237,6 +1335,11 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
   // Sync state if profile updates
   useEffect(() => {
     if (profile) {
+      setFullName(profile.full_name || '');
+      setLocation(profile.location || '');
+      setBio(profile.bio || '');
+      setUsername(profile.username || '');
+      setRole(profile.role || 'Innovator');
       setPrefReceiveSaves(profile.pref_receive_saves ?? true);
       setPrefReceiveAnalytics(profile.pref_receive_analytics ?? true);
       setPrefReceiveSolutions(profile.pref_receive_solutions ?? true);
@@ -1245,7 +1348,7 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
   }, [profile]);
 
   // Load saved theme on mount
-  React.useEffect(() => {
+  useEffect(() => {
     const saved = localStorage.getItem('theme');
     setTheme(saved === 'light' ? 'light' : 'dark');
   }, []);
@@ -1271,11 +1374,12 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
           'Content-Type': 'application/json',
           Authorization: `Bearer ${session.access_token}`,
         },
-        body: JSON.stringify({ 
-          full_name: fullName, 
-          bio, 
-          location, 
+        body: JSON.stringify({
+          full_name: fullName,
+          bio,
+          location,
           username,
+          role,
           pref_receive_saves: prefReceiveSaves,
           pref_receive_analytics: prefReceiveAnalytics,
           pref_receive_solutions: prefReceiveSolutions,
@@ -1288,9 +1392,10 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
       }
       try {
         await supabase.auth.refreshSession();
-      } catch (err) {}
+      } catch (err) { }
       window.dispatchEvent(new Event('profile-updated'));
       onSaved();
+      onClose();
     } catch (err: any) {
       setError(err.message);
     } finally {
@@ -1298,171 +1403,159 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
     }
   };
 
+  if (!isOpen) return null;
+
+  const usernameChanged = !!session?.user?.user_metadata?.username_changed;
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+    <div className="admin-modal-overlay" onClick={onClose} style={{ zIndex: 9999 }}>
+      <div className="admin-modal" onClick={e => e.stopPropagation()} style={{ maxWidth: '580px', width: '90%', maxHeight: '90vh', display: 'flex', flexDirection: 'column' }}>
 
-      {/* ── Appearance ── */}
-      <div className="card" style={{ padding: '1.5rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1rem', color: 'var(--text-main)' }}>
-          Appearance
-        </h3>
-        <p style={{ fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: '0.85rem' }}>
-          Theme
-        </p>
-        <div style={{ display: 'flex', gap: '0.75rem' }}>
-          {/* Dark Mode */}
-          <button
-            type="button"
-            onClick={() => applyTheme('dark')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '1rem 0.75rem',
-              borderRadius: '14px',
-              border: theme === 'dark' ? '2px solid var(--accent-blue)' : '1.5px solid var(--border-color)',
-              background: theme === 'dark' ? 'rgba(0, 132, 255, 0.06)' : 'var(--bg-hover)',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              position: 'relative',
-            }}
-          >
-            {theme === 'dark' && (
-              <span style={{
-                position: 'absolute', top: '8px', right: '8px',
-                width: '18px', height: '18px', borderRadius: '50%',
-                background: 'var(--accent-blue)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Check size={10} color="white" strokeWidth={3} />
-              </span>
-            )}
-            {/* Dark preview */}
-            <div style={{ width: '100%', height: '52px', borderRadius: '8px', background: '#0a0a0c', border: '1px solid #2a2a2e', overflow: 'hidden' }}>
-              <div style={{ height: '10px', background: '#111113', borderBottom: '1px solid #1e1e21' }} />
-              <div style={{ padding: '5px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ height: '5px', width: '60%', background: '#2a2a2e', borderRadius: '3px' }} />
-                <div style={{ height: '4px', width: '80%', background: '#1e1e21', borderRadius: '3px' }} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Moon size={13} style={{ color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-muted)' }} />
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                Dark
-              </span>
-            </div>
-          </button>
-
-          {/* Light Mode */}
-          <button
-            type="button"
-            onClick={() => applyTheme('light')}
-            style={{
-              flex: 1,
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              gap: '0.6rem',
-              padding: '1rem 0.75rem',
-              borderRadius: '14px',
-              border: theme === 'light' ? '2px solid var(--accent-blue)' : '1.5px solid var(--border-color)',
-              background: theme === 'light' ? 'rgba(0, 132, 255, 0.06)' : 'var(--bg-hover)',
-              cursor: 'pointer',
-              transition: 'all 0.2s ease',
-              position: 'relative',
-            }}
-          >
-            {theme === 'light' && (
-              <span style={{
-                position: 'absolute', top: '8px', right: '8px',
-                width: '18px', height: '18px', borderRadius: '50%',
-                background: 'var(--accent-blue)',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-              }}>
-                <Check size={10} color="white" strokeWidth={3} />
-              </span>
-            )}
-            {/* Light preview */}
-            <div style={{ width: '100%', height: '52px', borderRadius: '8px', background: '#f8f9fa', border: '1px solid #e5e7eb', overflow: 'hidden' }}>
-              <div style={{ height: '10px', background: '#ffffff', borderBottom: '1px solid #e5e7eb' }} />
-              <div style={{ padding: '5px 8px', display: 'flex', flexDirection: 'column', gap: '3px' }}>
-                <div style={{ height: '5px', width: '60%', background: '#d1d5db', borderRadius: '3px' }} />
-                <div style={{ height: '4px', width: '80%', background: '#e5e7eb', borderRadius: '3px' }} />
-              </div>
-            </div>
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.4rem' }}>
-              <Sun size={13} style={{ color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-muted)' }} />
-              <span style={{ fontSize: '0.78rem', fontWeight: 600, color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-muted)' }}>
-                Light
-              </span>
-            </div>
+        {/* Header */}
+        <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem', borderBottom: '1px solid var(--border-color)', paddingBottom: '0.75rem' }}>
+          <h3 className="admin-modal-title" style={{ display: 'flex', alignItems: 'center', gap: '8px', fontSize: '1.1rem', fontWeight: 700 }}>
+            <Settings size={18} /> Edit Profile
+          </h3>
+          <button onClick={onClose} className="btn-admin" style={{ padding: '4px' }}>
+            <X size={18} />
           </button>
         </div>
-      </div>
 
-      {/* ── Profile Info Form ── */}
-      <div className="card" style={{ padding: '1.5rem' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '1.25rem', color: 'var(--text-main)' }}>Profile Settings</h3>
-        <form onSubmit={handleSave} style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
-          <div className="profile-edit-field">
-            <label className="profile-edit-label">Username</label>
-            <input
-              className="profile-edit-input"
-              value={username}
-              onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
-              placeholder="username"
-              maxLength={30}
-              required
-            />
-          </div>
-          <div className="profile-edit-field">
-            <label className="profile-edit-label">Display Name</label>
-            <input
-              className="profile-edit-input"
-              value={fullName}
-              onChange={(e) => setFullName(e.target.value)}
-              placeholder="Your Name"
-              maxLength={80}
-              required
-            />
-          </div>
-          <div className="profile-edit-field">
-            <label className="profile-edit-label">Location</label>
-            <input
-              className="profile-edit-input"
-              value={location}
-              onChange={(e) => setLocation(e.target.value)}
-              placeholder="City, Country"
-              maxLength={80}
-            />
-          </div>
-          <div className="profile-edit-field">
-            <label className="profile-edit-label">Bio</label>
-            <textarea
-              className="profile-edit-textarea"
-              value={bio}
-              onChange={(e) => setBio(e.target.value)}
-              placeholder="Introduce yourself to the community..."
-              maxLength={500}
-            />
-            <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', display: 'block' }}>
-              {bio.length}/500
-            </span>
+        {/* Form Container (Scrollable) */}
+        <form onSubmit={handleSave} style={{ overflowY: 'auto', flex: 1, paddingRight: '4px', display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
+          {error && (
+            <div style={{ padding: '0.75rem', borderRadius: '8px', background: 'rgba(239, 68, 68, 0.08)', border: '1px solid rgba(239, 68, 68, 0.2)', color: 'var(--accent-danger)', fontSize: '0.85rem' }}>
+              {error}
+            </div>
+          )}
+
+          {/* Section: Profile Info */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '0.95rem' }}>
+            <div className="profile-edit-field">
+              <label className="profile-edit-label">Username</label>
+              <input
+                className="profile-edit-input"
+                value={username}
+                onChange={(e) => setUsername(e.target.value.toLowerCase().replace(/[^a-z0-9_]/g, ''))}
+                placeholder="username"
+                maxLength={30}
+                required
+                disabled={usernameChanged}
+                style={usernameChanged ? { opacity: 0.6, cursor: 'not-allowed', background: 'rgba(255,255,255,0.02)' } : undefined}
+              />
+              <span style={{ fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: '2px', display: 'block' }}>
+                {usernameChanged ? "🔒 Username has already been changed once and is locked." : "ℹ️ Username can only be changed once."}
+              </span>
+            </div>
+
+            <div className="profile-edit-field">
+              <label className="profile-edit-label">Display Name</label>
+              <input
+                className="profile-edit-input"
+                value={fullName}
+                onChange={(e) => setFullName(e.target.value)}
+                placeholder="Your Name"
+                maxLength={80}
+                required
+              />
+            </div>
+
+            <div className="profile-edit-field">
+              <label className="profile-edit-label">Role</label>
+              <select
+                value={role}
+                onChange={(e) => setRole(e.target.value)}
+                className="profile-edit-input"
+                style={{ width: '100%', background: 'var(--search-bg)', color: 'var(--text-main)', border: '1px solid var(--border-color)', outline: 'none' }}
+              >
+                {VALID_ROLES.map(r => (
+                  <option key={r} value={r} style={{ background: 'var(--bg-card)', color: 'var(--text-main)' }}>{r}</option>
+                ))}
+              </select>
+            </div>
+
+            <div className="profile-edit-field">
+              <label className="profile-edit-label">Location</label>
+              <input
+                className="profile-edit-input"
+                value={location}
+                onChange={(e) => setLocation(e.target.value)}
+                placeholder="City, Country"
+                maxLength={80}
+              />
+            </div>
+
+            <div className="profile-edit-field">
+              <label className="profile-edit-label">Bio</label>
+              <textarea
+                className="profile-edit-textarea"
+                value={bio}
+                onChange={(e) => setBio(e.target.value)}
+                placeholder="Introduce yourself..."
+                maxLength={500}
+                style={{ minHeight: '80px' }}
+              />
+              <span style={{ fontSize: '0.7rem', color: 'var(--text-muted)', textAlign: 'right', display: 'block' }}>
+                {bio.length}/500
+              </span>
+            </div>
           </div>
 
-          {/* Notification Preferences */}
-          <div style={{ marginTop: '1.25rem', paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
-            <h4 style={{ 
-              fontSize: '0.82rem', 
-              textTransform: 'uppercase', 
-              letterSpacing: '0.05em', 
-              color: 'var(--text-muted)',
-              fontWeight: 700,
-              marginBottom: '0.85rem'
-            }}>
-              Notification Settings
+          {/* Section: Appearance */}
+          <div style={{ paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)' }}>
+            <h4 style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.85rem' }}>
+              Appearance Theme
+            </h4>
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                type="button"
+                onClick={() => applyTheme('dark')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem',
+                  borderRadius: '10px',
+                  border: theme === 'dark' ? '2px solid var(--accent-blue)' : '1.5px solid var(--border-color)',
+                  background: theme === 'dark' ? 'rgba(0, 132, 255, 0.06)' : 'var(--bg-hover)',
+                  cursor: 'pointer',
+                  color: theme === 'dark' ? 'var(--accent-blue)' : 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem'
+                }}
+              >
+                <Moon size={14} /> Dark Theme
+              </button>
+              <button
+                type="button"
+                onClick={() => applyTheme('light')}
+                style={{
+                  flex: 1,
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '0.5rem',
+                  padding: '0.75rem',
+                  borderRadius: '10px',
+                  border: theme === 'light' ? '2px solid var(--accent-blue)' : '1.5px solid var(--border-color)',
+                  background: theme === 'light' ? 'rgba(0, 132, 255, 0.06)' : 'var(--bg-hover)',
+                  cursor: 'pointer',
+                  color: theme === 'light' ? 'var(--accent-blue)' : 'var(--text-main)',
+                  fontWeight: 600,
+                  fontSize: '0.85rem'
+                }}
+              >
+                <Sun size={14} /> Light Theme
+              </button>
+            </div>
+          </div>
+
+          {/* Section: Notifications */}
+          <div style={{ paddingTop: '1.25rem', borderTop: '1px solid var(--border-color)', marginBottom: '0.5rem' }}>
+            <h4 style={{ fontSize: '0.82rem', textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', fontWeight: 700, marginBottom: '0.85rem' }}>
+              Notifications
             </h4>
             <div style={{ display: 'flex', flexDirection: 'column', gap: '0.85rem' }}>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
@@ -1470,13 +1563,7 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
                   type="checkbox"
                   checked={prefReceiveSaves}
                   onChange={(e) => setPrefReceiveSaves(e.target.checked)}
-                  style={{
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '4px',
-                    accentColor: 'var(--accent-blue)',
-                    cursor: 'pointer'
-                  }}
+                  style={{ width: '16px', height: '16px', borderRadius: '4px', accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
                 />
                 Someone saves my post
               </label>
@@ -1485,142 +1572,43 @@ function SettingsTab({ session, profile, onSaved, onLogout }: { session: any; pr
                   type="checkbox"
                   checked={prefReceiveAnalytics}
                   onChange={(e) => setPrefReceiveAnalytics(e.target.checked)}
-                  style={{
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '4px',
-                    accentColor: 'var(--accent-blue)',
-                    cursor: 'pointer'
-                  }}
+                  style={{ width: '16px', height: '16px', borderRadius: '4px', accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
                 />
-                Post analytics digest
+                Weekly analytics summary
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
                 <input
                   type="checkbox"
                   checked={prefReceiveSolutions}
                   onChange={(e) => setPrefReceiveSolutions(e.target.checked)}
-                  style={{
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '4px',
-                    accentColor: 'var(--accent-blue)',
-                    cursor: 'pointer'
-                  }}
+                  style={{ width: '16px', height: '16px', borderRadius: '4px', accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
                 />
-                Someone is solving my problem
+                Someone submits a solution to my problem
               </label>
               <label style={{ display: 'flex', alignItems: 'center', gap: '0.65rem', fontSize: '0.85rem', cursor: 'pointer', color: 'var(--text-main)' }}>
                 <input
                   type="checkbox"
                   checked={prefReceiveReplies}
                   onChange={(e) => setPrefReceiveReplies(e.target.checked)}
-                  style={{
-                    width: '16px',
-                    height: '16px',
-                    borderRadius: '4px',
-                    accentColor: 'var(--accent-blue)',
-                    cursor: 'pointer'
-                  }}
+                  style={{ width: '16px', height: '16px', borderRadius: '4px', accentColor: 'var(--accent-blue)', cursor: 'pointer' }}
                 />
-                Replies to my comments
+                Someone replies to my comment
               </label>
             </div>
           </div>
-
-          {error && (
-            <p style={{ color: '#ef4444', fontSize: '0.8rem' }}>{error}</p>
-          )}
-
-          <button type="submit" className="profile-save-btn" style={{ marginTop: '0.5rem' }} disabled={saving}>
-            {saving ? <Loader2 size={16} className="spin" style={{ margin: '0 auto' }} /> : 'Save Profile Details'}
-          </button>
         </form>
-      </div>
-      {/* ── Admin Tools ── */}
-      {session?.user?.email === ADMIN_EMAIL && (
-        <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(59, 130, 246, 0.25)' }}>
-          <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: 'var(--accent-primary)' }}>
-            Administrative Control Panel
-          </h3>
-          <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: '1.5' }}>
-            As a registered administrator, you have access to the system dashboard, user management tools, posts control, categories config, and moderation queue.
-          </p>
-          <button
-            type="button"
-            onClick={() => router.push('/admin')}
-            style={{
-              display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-              padding: '0.5rem 1.25rem', borderRadius: '50px',
-              fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-              background: 'rgba(59, 130, 246, 0.08)',
-              border: '1.5px solid rgba(59, 130, 246, 0.35)',
-              color: 'var(--accent-primary)', transition: 'all 0.15s',
-            }}
-            onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59,130,246,0.15)'; }}
-            onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(59,130,246,0.08)'; }}
-          >
-            <ShieldAlert size={15} /> Access Admin Panel
+
+        {/* Footer Actions */}
+        <div style={{ display: 'flex', gap: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem', marginTop: '0.5rem', justifyContent: 'flex-end' }}>
+          <button type="button" onClick={onClose} className="upf-btn-message" style={{ border: '1px solid var(--border-color)', background: 'transparent' }} disabled={saving}>
+            Cancel
+          </button>
+          <button type="button" onClick={handleSave} className="upf-btn-follow" disabled={saving} style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}>
+            {saving ? <Loader2 size={14} className="spin" /> : <Check size={14} />}
+            {saving ? 'Saving...' : 'Save Changes'}
           </button>
         </div>
-      )}
 
-      {/* ── Danger Zone ── */}
-      <div className="card" style={{ padding: '1.5rem', border: '1px solid rgba(239, 68, 68, 0.2)' }}>
-        <h3 style={{ fontSize: '1rem', fontWeight: 700, marginBottom: '0.5rem', color: '#f87171' }}>
-          Danger Zone
-        </h3>
-        <p style={{ fontSize: '0.82rem', color: 'var(--text-muted)', marginBottom: '1rem', lineHeight: '1.5' }}>
-          Sign out of your current session. You will need to sign back in to create posts, write comments, or receive updates.
-        </p>
-        <button
-          type="button"
-          onClick={onLogout}
-          style={{
-            display: 'inline-flex', alignItems: 'center', gap: '0.5rem',
-            padding: '0.5rem 1.25rem', borderRadius: '50px',
-            fontSize: '0.82rem', fontWeight: 700, cursor: 'pointer',
-            background: 'rgba(239, 68, 68, 0.08)',
-            border: '1.5px solid rgba(239, 68, 68, 0.35)',
-            color: '#f87171', transition: 'all 0.15s',
-          }}
-          onMouseOver={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.15)'; }}
-          onMouseOut={(e) => { (e.currentTarget as HTMLButtonElement).style.background = 'rgba(239,68,68,0.08)'; }}
-        >
-          <LogOut size={15} /> Sign Out
-        </button>
-      </div>
-    </div>
-  );
-}
-
-/* ────────────────────────────────────────────────────────
-   Sign Out Tab Component (Dedicated Sign Out Section)
-   ───────────────────────────────────────────────────────── */
-function SignOutTab({ onLogout }: { onLogout: () => void }) {
-  const router = useRouter();
-  return (
-    <div className="card" style={{ padding: '2rem', textAlign: 'center', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1rem' }}>
-      <LogOut size={40} style={{ color: '#ef4444' }} />
-      <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--text-main)' }}>Confirm Sign Out</h3>
-      <p style={{ color: 'var(--text-muted)', fontSize: '0.875rem', maxWidth: 360, lineHeight: '1.5' }}>
-        Are you sure you want to sign out of your Paoblem session? You will need to sign back in to create posts, write comments, or receive updates.
-      </p>
-      <div style={{ display: 'flex', gap: '1rem', width: '100%', maxWidth: '320px', marginTop: '0.5rem' }}>
-        <button
-          className="profile-action-btn"
-          style={{ flex: 1 }}
-          onClick={() => router.push('/')}
-        >
-          Cancel
-        </button>
-        <button
-          className="profile-action-btn primary"
-          style={{ flex: 1, backgroundColor: '#ef4444', borderColor: '#ef4444' }}
-          onClick={onLogout}
-        >
-          Sign Out
-        </button>
       </div>
     </div>
   );

@@ -6,6 +6,7 @@ import Providers from "./providers";
 import { Analytics } from "@vercel/analytics/next"
 import TopLoader from "@/components/TopLoader";
 import GSAPAnimations from '@/components/GSAPAnimations';
+import GlobalBadgeManager from '@/components/badges/GlobalBadgeManager';
 import { SpeedInsights } from "@vercel/speed-insights/next";
 
 export const metadata: Metadata = {
@@ -55,6 +56,7 @@ export default function RootLayout({
             <TopLoader />
           </Suspense>
           <GSAPAnimations />
+          <GlobalBadgeManager />
           {children}
         </Providers>
         <Analytics />

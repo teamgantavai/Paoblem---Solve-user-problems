@@ -270,57 +270,95 @@
 .upf-stats-bar {
   display: flex;
   align-items: center;
+  justify-content: space-between;
   flex-wrap: nowrap;
-  margin-top: 0.85rem;
-  padding-top: 0.85rem;
+  width: 100%;
+  margin-top: 1.25rem;
+  padding: 0.75rem 0;
   border-top: 1px solid var(--border-color);
+  border-bottom: 1px solid var(--border-color);
   gap: 0;
 }
 
-.upf-stat {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  flex: 1;
-  padding: 0.25rem 0.5rem;
-  cursor: default;
-  border-radius: 10px;
-  transition: background 0.15s;
+.upf-stat,
+button.upf-stat {
+  display: flex !important;
+  flex-direction: column !important;
+  align-items: center !important;
+  justify-content: center !important;
+  flex: 1 !important;
+  min-width: 0 !important;
+  padding: 0.25rem 0 !important;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  outline: none !important;
+  cursor: default !important;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1) !important;
+}
+
+.upf-stat:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+}
+
+.light-theme .upf-stat:not(:last-child) {
+  border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
+}
+
+button.upf-stat {
+  cursor: pointer !important;
 }
 
 .upf-stat--clickable {
   cursor: pointer;
 }
 
-.upf-stat--clickable:hover {
-  background: var(--bg-hover);
-}
-
 .upf-stat--clickable:hover .upf-stat-num {
-  color: #a78bfa;
+  color: var(--accent-blue, #0084ff) !important;
 }
 
 .upf-stat-num {
-  font-size: 1.3rem;
+  font-size: 1.15rem;
   font-weight: 800;
   color: var(--text-main);
   line-height: 1.2;
-  transition: color 0.15s;
 }
 
 .upf-stat-label {
   font-size: 0.65rem;
+  font-weight: 700;
   color: var(--text-muted);
   text-transform: uppercase;
   letter-spacing: 0.06em;
-  margin-top: 2px;
+  margin-top: 4px;
 }
 
 .upf-stat-divider {
-  width: 1px;
-  height: 28px;
-  background: var(--border-color);
-  flex-shrink: 0;
+  display: none !important;
+}
+
+/* ── Trust Badge ── */
+.profile-trust-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border-radius: 6px;
+  background: rgba(245, 158, 11, 0.08) !important;
+  border: 1px solid rgba(245, 158, 11, 0.25) !important;
+  color: #fbbf24 !important;
+  box-shadow: none !important;
+  white-space: nowrap;
+  vertical-align: middle;
+  margin-left: 0.25rem;
+}
+
+.light-theme .profile-trust-badge {
+  background: rgba(217, 119, 6, 0.06) !important;
+  border-color: rgba(217, 119, 6, 0.2) !important;
+  color: #b45309 !important;
 }
 
 /* ── Followers/Following Modal Overlay ───────────────────────────────────── */
@@ -478,12 +516,12 @@
 
 .upf-tab-btn--active {
   color: var(--text-main);
-  border-bottom-color: #a78bfa;
+  border-bottom-color: var(--accent-blue, #0084ff);
   background: transparent;
 }
 
 .upf-tab-btn--active svg {
-  color: #a78bfa;
+  color: var(--accent-blue, #0084ff);
 }
 
 .upf-tab-label {
@@ -505,8 +543,65 @@
 }
 
 .upf-tab-btn--active .upf-tab-count {
-  background: rgba(167, 139, 250, 0.15);
-  color: #a78bfa;
+  background: rgba(0, 132, 255, 0.15);
+  color: var(--accent-blue, #0084ff);
+}
+
+/* ── Sub-Filter Pills for Posts ── */
+.profile-sub-filters {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 1.25rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+  padding-bottom: 2px;
+}
+.profile-sub-filters::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-sub-filter-pill {
+  padding: 0.45rem 1rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  border-radius: 50px;
+  background: var(--bg-hover, rgba(255, 255, 255, 0.02));
+  color: var(--text-muted);
+  border: 1px solid var(--border-color, rgba(255, 255, 255, 0.06));
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  white-space: nowrap;
+}
+
+.profile-sub-filter-pill:hover {
+  background: var(--bg-card);
+  color: var(--text-main);
+  border-color: var(--text-muted);
+}
+
+.profile-sub-filter-pill.active {
+  background: var(--accent-blue, #ffffff) !important;
+  color: var(--bg-dark, #070708) !important;
+  border-color: var(--accent-blue, #ffffff) !important;
+}
+
+.light-theme .profile-sub-filter-pill {
+  background: rgba(15, 23, 42, 0.03) !important;
+  border-color: rgba(15, 23, 42, 0.06) !important;
+  color: rgba(15, 23, 42, 0.6) !important;
+}
+
+.light-theme .profile-sub-filter-pill:hover {
+  background: #ffffff !important;
+  color: rgba(15, 23, 42, 0.9) !important;
+  border-color: rgba(15, 23, 42, 0.2) !important;
+}
+
+.light-theme .profile-sub-filter-pill.active {
+  background: var(--accent-blue, #111827) !important;
+  color: #ffffff !important;
+  border-color: var(--accent-blue, #111827) !important;
 }
 
 /* Settings / Logout tabs at the end */
@@ -1036,39 +1131,52 @@
     white-space: nowrap !important;
   }
 
-  /* Stats bar: equal-width cells that never overflow */
+  /* Stats bar: clean single-row columns on mobile */
   .upf-stats-bar {
     order: 6 !important;
     margin-top: 0.75rem !important;
-    padding-top: 0.75rem !important;
+    padding: 0.65rem 0 !important;
     display: flex !important;
+    flex-wrap: nowrap !important;
     justify-content: space-between !important;
-    gap: 0 !important;
-    overflow: visible !important;
     width: 100% !important;
     border-top: 1px solid var(--border-color) !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    gap: 0 !important;
   }
 
   .upf-stat,
   button.upf-stat {
-    flex: 1;
-    min-width: 0;
-    padding: 0 2px;
+    flex: 1 !important;
+    min-width: 0 !important;
+    padding: 0.15rem 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  .upf-stat:not(:last-child) {
+    border-right: 1px solid rgba(255, 255, 255, 0.08) !important;
+  }
+
+  .light-theme .upf-stat:not(:last-child) {
+    border-right: 1px solid rgba(0, 0, 0, 0.08) !important;
   }
 
   .upf-stat-num {
-    font-size: 0.95rem;
+    font-size: 0.95rem !important;
   }
 
   .upf-stat-label {
-    font-size: 0.54rem;
-    letter-spacing: 0.02em;
+    font-size: 0.56rem !important;
+    text-transform: uppercase !important;
+    letter-spacing: 0.02em !important;
+    margin-top: 2px !important;
   }
 
   .upf-stat-divider {
-    height: 18px;
-    flex-shrink: 0;
-    width: 1px;
+    display: none !important;
   }
 
   .upf-tabs {

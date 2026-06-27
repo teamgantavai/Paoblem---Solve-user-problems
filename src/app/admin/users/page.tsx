@@ -232,7 +232,7 @@ export default function UserManagement() {
             <option value="active">Last Active</option>
             <option value="posts">Total Posts</option>
             <option value="comments">Total Comments</option>
-            <option value="reputation">Reputation</option>
+            <option value="reputation">Trust Score</option>
           </select>
 
           <select className="admin-select" value={sortOrder} onChange={(e) => { setSortOrder(e.target.value); setPage(1); }}>
@@ -253,7 +253,7 @@ export default function UserManagement() {
                 <th>Joined</th>
                 <th>Last Active</th>
                 <th>Posts / Comments</th>
-                <th>Reputation</th>
+                <th>Trust Score</th>
                 <th>Status</th>
                 <th style={{ textAlign: 'right' }}>Actions</th>
               </tr>
@@ -328,7 +328,7 @@ export default function UserManagement() {
                             <UserCheck size={14} /> {u.is_verified ? 'Unverify user' : 'Verify user'}
                           </button>
                           <button onClick={() => openActionModal(u, 'reset_reputation')} className="admin-menu-item" style={{ fontSize: '0.8rem', padding: '8px 12px' }}>
-                            <Award size={14} /> Reset Reputation
+                            <Award size={14} /> Reset Trust Score
                           </button>
                           <button onClick={() => openActionModal(u, 'suspend')} className="admin-menu-item" style={{ fontSize: '0.8rem', padding: '8px 12px' }}>
                             <Clock size={14} /> Suspend user
@@ -387,7 +387,7 @@ export default function UserManagement() {
                 {modalAction === 'ban' && 'Ban User Account'}
                 {modalAction === 'unban' && 'Unban User Account'}
                 {modalAction === 'suspend' && 'Suspend User Temporarily'}
-                {modalAction === 'reset_reputation' && 'Reset Reputation'}
+                {modalAction === 'reset_reputation' && 'Reset Trust Score'}
                 {modalAction === 'delete' && 'Delete User Account'}
               </h3>
               <button onClick={closeModal} className="btn-admin" style={{ padding: '4px' }}>
@@ -468,7 +468,7 @@ export default function UserManagement() {
 
               {modalAction === 'reset_reputation' && (
                 <p className="admin-modal-desc">
-                  Are you sure you want to reset **@{selectedUser.username}**'s reputation score to **0**? This cannot be undone.
+                  Are you sure you want to reset **@{selectedUser.username}**'s Trust Score to **0**? This cannot be undone.
                 </p>
               )}
 

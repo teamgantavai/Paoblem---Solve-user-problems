@@ -6,7 +6,7 @@ import Link from 'next/link';
 import {
   LayoutDashboard, Users, FileText, MessageSquare, ShieldAlert,
   FolderHeart, Bell, Settings, Activity, ClipboardList,
-  Sun, Moon, Home, LogOut, Loader2, ArrowLeftRight
+  Sun, Moon, Home, LogOut, Loader2, ArrowLeftRight, Award
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { ADMIN_EMAIL } from '@/lib/adminConstants';
@@ -113,6 +113,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
           case 'm': router.push('/admin/moderation'); break;
           case 't': router.push('/admin/categories'); break;
           case 'n': router.push('/admin/notifications'); break;
+          case 'b': router.push('/admin/badges'); break;
           case 's': router.push('/admin/settings'); break;
           case 'h': router.push('/admin/performance'); break;
           case 'l': router.push('/admin/logs'); break;
@@ -139,6 +140,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { label: 'Comments', path: '/admin/comments', icon: MessageSquare },
     { label: 'Moderation Queue', path: '/admin/moderation', icon: ShieldAlert },
     { label: 'Categories', path: '/admin/categories', icon: FolderHeart },
+    { label: 'Badges', path: '/admin/badges', icon: Award },
     { label: 'Notifications', path: '/admin/notifications', icon: Bell },
     { label: 'Settings', path: '/admin/settings', icon: Settings },
     { label: 'Performance & Health', path: '/admin/performance', icon: Activity },
