@@ -9,6 +9,8 @@ const isVercel = !!(process.env.VERCEL === '1' || process.env.NEXT_PUBLIC_VERCEL
 const connection = isVercel ? null : new IORedis(process.env.REDIS_URL || 'redis://localhost:6379', {
   maxRetriesPerRequest: null,
   showFriendlyErrorStack: false,
+  enableOfflineQueue: false, // Prevents commands from queueing and hanging indefinitely when Redis is down
+  connectTimeout: 500,       // Connection establishment timeout
 });
 
 if (connection) {
@@ -86,17 +88,21 @@ async function insertNotificationDirectly(data: NotificationJobData) {
 }
 
 export async function enqueueNotification(jobName: string, data: NotificationJobData) {
-  if (isVercel || !notificationQueue) {
-    console.log('[Vercel Mode] Bypassing Redis queue and saving notification directly.');
+  if (isVercel || !notificationQueue || !connection || connection.status !== 'ready') {
+    console.log('[Fallback Mode] Bypassing Redis queue and saving notification directly.');
     await insertNotificationDirectly(data);
-  } else {
-    try {
-      // Local Docker mode: Use the Redis queue
-      await notificationQueue.add(jobName, data);
-    } catch (err) {
-      console.warn('Redis queue is unavailable, falling back to direct database insert:', err);
-      await insertNotificationDirectly(data);
-    }
+    return;
+  }
+
+  try {
+    // Run with a 1-second timeout constraint to prevent any possibility of hanging the request
+    await Promise.race([
+      notificationQueue.add(jobName, data),
+      new Promise((_, reject) => setTimeout(() => reject(new Error('Queue timeout')), 1000))
+    ]);
+  } catch (err) {
+    console.warn('Redis queue is unavailable or timed out, falling back to direct database insert:', err);
+    await insertNotificationDirectly(data);
   }
 }
 
