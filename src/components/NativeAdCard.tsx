@@ -1,31 +1,39 @@
 'use client';
 
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect } from 'react';
+
+declare global {
+  interface Window {
+    ezstandalone?: any;
+  }
+}
 
 export default function NativeAdCard() {
-  const containerRef = useRef<HTMLDivElement>(null);
-  const scriptLoaded = useRef(false);
-
   useEffect(() => {
-    if (scriptLoaded.current) return;
-    
-    // Create script element
-    const script = document.createElement('script');
-    script.src = '//pl30089361.effectivecpmnetwork.com/a6cc06079231ab3343c3f0d768d87cff/invoke.js';
-    script.async = true;
-    script.setAttribute('data-cfasync', 'false');
-    
-    // Append script to document body or container
-    document.body.appendChild(script);
-    scriptLoaded.current = true;
+    if (typeof window !== 'undefined') {
+      window.ezstandalone = window.ezstandalone || {};
+      window.ezstandalone.cmd = window.ezstandalone.cmd || [];
+      window.ezstandalone.cmd.push(function () {
+        if (typeof window.ezstandalone.showAds === 'function') {
+          window.ezstandalone.showAds(101);
+        }
+      });
+    }
 
+    // Cleanup placeholder when component unmounts to prevent unpredictable ad behavior
     return () => {
-      // Avoid clean up that breaks script loading
+      if (typeof window !== 'undefined' && window.ezstandalone) {
+        window.ezstandalone.cmd.push(function () {
+          if (typeof window.ezstandalone.destroyPlaceholders === 'function') {
+            window.ezstandalone.destroyPlaceholders(101);
+          }
+        });
+      }
     };
   }, []);
 
   return (
-    <div className="card native-ad-card" style={{ padding: '1.25rem', overflow: 'hidden', position: 'relative' }}>
+    <div className="card native-ad-card" style={{ padding: '1.25rem', overflow: 'hidden' }}>
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1rem' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
           <div style={{
@@ -51,23 +59,9 @@ export default function NativeAdCard() {
           </div>
         </div>
       </div>
-      
-      {/* Container for the Ad banner */}
-      <div 
-        ref={containerRef} 
-        id="container-a6cc06079231ab3343c3f0d768d87cff" 
-        style={{ 
-          minHeight: '250px', 
-          width: '100%', 
-          display: 'flex', 
-          justifyContent: 'center', 
-          alignItems: 'center',
-          background: 'var(--bg-hover, rgba(255,255,255,0.03))',
-          borderRadius: '12px',
-          overflow: 'hidden',
-          border: '1px dashed var(--border-color, rgba(255,255,255,0.1))'
-        }}
-      />
+
+      {/* Ezoic placeholder element */}
+      <div id="ezoic-pub-ad-placeholder-101"></div>
     </div>
   );
 }
