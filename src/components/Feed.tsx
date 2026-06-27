@@ -38,6 +38,7 @@ import Avatar from './Avatar';
 import QualityScoreBadge from './QualityScoreBadge';
 import ShareModal from './ShareModal';
 import ShareInAppChatsModal from './ShareInAppChatsModal';
+import NativeAdCard from './NativeAdCard';
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -1148,30 +1149,37 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
           </div>
         )}
 
-        {displayedPosts.map((post: Post) => (
-          <ErrorBoundary key={post.id}>
-            <PostCard
-              post={post}
-              session={session}
-              profile={profile}
-              hasUpvoted={userVotes?.[post.id] === 'up'}
-              hasDownvoted={userVotes?.[post.id] === 'down'}
-              followings={followings}
-              savedIds={savedIds}
-              activeShareMenuPostId={activeShareMenuPostId}
-              setActiveShareMenuPostId={setActiveShareMenuPostId}
-              handleToggleSave={handleToggleSave}
-              handleVote={handleVote}
-              openCommentsModal={openCommentsModal}
-              followMutation={followMutation}
-              setEditingPost={setEditingPost}
-              setDeletingPostId={setDeletingPostId}
-              trackPostEvent={trackPostEvent}
-              showToast={showToast}
-              onShare={setSelectedSharePost}
-              onChatShare={handleChatShare}
-            />
-          </ErrorBoundary>
+        {displayedPosts.map((post: Post, index: number) => (
+          <React.Fragment key={post.id}>
+            <ErrorBoundary>
+              <PostCard
+                post={post}
+                session={session}
+                profile={profile}
+                hasUpvoted={userVotes?.[post.id] === 'up'}
+                hasDownvoted={userVotes?.[post.id] === 'down'}
+                followings={followings}
+                savedIds={savedIds}
+                activeShareMenuPostId={activeShareMenuPostId}
+                setActiveShareMenuPostId={setActiveShareMenuPostId}
+                handleToggleSave={handleToggleSave}
+                handleVote={handleVote}
+                openCommentsModal={openCommentsModal}
+                followMutation={followMutation}
+                setEditingPost={setEditingPost}
+                setDeletingPostId={setDeletingPostId}
+                trackPostEvent={trackPostEvent}
+                showToast={showToast}
+                onShare={setSelectedSharePost}
+                onChatShare={handleChatShare}
+              />
+            </ErrorBoundary>
+            {(index === 1 || (displayedPosts.length === 1 && index === 0)) && (
+              <ErrorBoundary>
+                <NativeAdCard />
+              </ErrorBoundary>
+            )}
+          </React.Fragment>
         ))}
       </div>
 
