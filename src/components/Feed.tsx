@@ -25,20 +25,22 @@ import {
 import { useInfiniteQuery, useMutation, useQueryClient, useQuery } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import { Post } from '@/lib/types';
-import AuthModal from './AuthModal';
-import EditPostModal from './EditPostModal';
-import DeleteConfirmModal from './DeleteConfirmModal';
 import { parseLinksInText, Segment } from '@/app/lib/linkParser';
 import ImageGallery from './ImageGallery';
 import ErrorBoundary from './ErrorBoundary';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
-import CommentsModal from './CommentsModal';
 import Avatar from './Avatar';
 import QualityScoreBadge from './QualityScoreBadge';
-import ShareModal from './ShareModal';
-import ShareInAppChatsModal from './ShareInAppChatsModal';
 import NativeAdCard from './NativeAdCard';
+import dynamic from 'next/dynamic';
+
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+const EditPostModal = dynamic(() => import('./EditPostModal'), { ssr: false });
+const DeleteConfirmModal = dynamic(() => import('./DeleteConfirmModal'), { ssr: false });
+const CommentsModal = dynamic(() => import('./CommentsModal'), { ssr: false });
+const ShareModal = dynamic(() => import('./ShareModal'), { ssr: false });
+const ShareInAppChatsModal = dynamic(() => import('./ShareInAppChatsModal'), { ssr: false });
 
 // ─── helpers ─────────────────────────────────────────────────────────────────
 
@@ -427,7 +429,7 @@ const PostCard = React.memo(function PostCard({
 
 // ─── FeedInner Component ─────────────────────────────────────────────────────
 
-function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
+function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; initialPosts?: any }) {
   const { animateButtonPress, animateButtonRelease, animateCardHover, animateCardHoverOut, animateListEntrance, animateUpvote } = useMicroAnimations();
   const feedListRef = useRef<HTMLDivElement>(null);
 
@@ -457,6 +459,13 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
     const saved = localStorage.getItem('paoblem_saved_posts');
     if (saved) {
       try { setSavedIds(JSON.parse(saved)); } catch (e) { console.error(e); }
+    }
+  }, []);
+
+  useEffect(() => {
+    if (process.env.NODE_ENV === 'development') {
+      const hydrationTime = performance.now();
+      console.log(`[Performance Metrics] Client hydration & feed initial mount complete in: ${hydrationTime.toFixed(2)}ms`);
     }
   }, []);
 
@@ -625,6 +634,10 @@ function FeedInner({ defaultFilter }: { defaultFilter?: string }) {
       },
       initialPageParam: null as string | null,
       getNextPageParam: (lastPage) => lastPage.nextCursor,
+      initialData: (initialPosts && filterType === 'all' && !singlePostId && !categoryParam) ? {
+        pages: [initialPosts],
+        pageParams: [null as string | null],
+      } : undefined,
     });
 
   const { data: userVotes } = useQuery({
@@ -1523,10 +1536,10 @@ function ExpandableBody({ body, postId }: { body: string; postId?: string }) {
 }
 
 // ── Public export ─────────────────────────────────────────────────────────────
-export default function Feed({ defaultFilter }: { defaultFilter?: string }) {
+export default function Feed({ defaultFilter, initialPosts }: { defaultFilter?: string; initialPosts?: any }) {
   return (
     <Suspense fallback={null}>
-      <FeedInner defaultFilter={defaultFilter} />
+      <FeedInner defaultFilter={defaultFilter} initialPosts={initialPosts} />
     </Suspense>
   );
 }

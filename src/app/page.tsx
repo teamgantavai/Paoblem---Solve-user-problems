@@ -21,7 +21,20 @@ export const metadata: Metadata = {
   },
 };
 
-export default function Home() {
+import { getInitialFeed } from '@/lib/feedFetcher';
+
+interface HomeProps {
+  searchParams: Promise<{ category?: string; filter?: string }>;
+}
+
+export default async function Home({ searchParams }: HomeProps) {
+  const resolvedParams = await searchParams;
+  const category = resolvedParams.category || null;
+  const filter = resolvedParams.filter || null;
+
+  // Fetch initial posts directly on the server (SSR)
+  const initialPosts = await getInitialFeed(category, filter);
+
   const siteUrl = process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com';
   
   const organizationSchema = {
@@ -65,7 +78,7 @@ export default function Home() {
       <Navbar />
       <div className="main-content">
         <SidebarLeft />
-        <Feed />
+        <Feed initialPosts={initialPosts} />
         <SidebarRight />
       </div>
     </div>

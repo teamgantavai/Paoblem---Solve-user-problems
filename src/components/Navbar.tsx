@@ -26,12 +26,14 @@ import {
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
 import type { Notification as AppNotification, Message } from '@/lib/types';
-import AuthModal from './AuthModal';
-import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
 import NotificationItem from './NotificationItem';
 import MessageItem from './MessageItem';
-import SearchOverlay from './SearchOverlay';
+import dynamic from 'next/dynamic';
+
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
+const SearchOverlay = dynamic(() => import('./SearchOverlay'), { ssr: false });
 
 type NavbarConversationSummary = Message & {
   unread_count?: number;

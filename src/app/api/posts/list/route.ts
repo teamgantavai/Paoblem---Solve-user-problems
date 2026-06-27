@@ -18,7 +18,8 @@ const PAGE_SIZE = getPageSize();
 
 export async function GET(req: NextRequest) {
   try {
-        const { searchParams } = new URL(req.url);
+    const startTime = Date.now();
+    const { searchParams } = new URL(req.url);
     const cursor = searchParams.get('cursor');
     const type = searchParams.get('type');
     const savedIds = searchParams.get('savedIds');
@@ -45,7 +46,7 @@ export async function GET(req: NextRequest) {
 
     let query = supabase
       .from('posts')
-      .select('*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)');
+      .select('id, title, body, type, image_url, external_link, link_name, upvotes, downvotes, comments_count, views_count, created_at, user_id, category, tags, quality_score, unique_viewers, saves, slug, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)');
 
     if (postId) {
       query = query.eq('id', postId);
@@ -80,7 +81,7 @@ export async function GET(req: NextRequest) {
       const admin = createClient(supabaseUrl, supabaseServiceKey);
       const { offset, excludeIds } = parseRecommendationCursor(cursor);
 
-      const baseSelect = '*, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)';
+      const baseSelect = 'id, title, body, type, image_url, external_link, link_name, upvotes, downvotes, comments_count, views_count, created_at, user_id, category, tags, quality_score, unique_viewers, saves, slug, profiles:user_id(full_name, avatar_url, role, username), solutions_count:solutions(count)';
       const [recentRes, engagedRes] = await Promise.all([
         admin
           .from('posts')
@@ -123,6 +124,10 @@ export async function GET(req: NextRequest) {
       const posts = hasMore ? ranked.slice(0, PAGE_SIZE) : ranked;
 
       const nextCursorSeenIds = [...excludeIds, ...posts.map(p => p.id)].join(',');
+      const apiDuration = Date.now() - startTime;
+      if (process.env.NODE_ENV === 'development') {
+        console.log(`[Performance Metrics] API /api/posts/list (recommendations) complete in: ${apiDuration}ms`);
+      }
 
       return NextResponse.json({
         posts,
@@ -131,13 +136,17 @@ export async function GET(req: NextRequest) {
       });
     }
 
-    let { data, error } = await query;
+    let data: any[] | null = null;
+    let error: any = null;
+    const res = await query;
+    data = res.data;
+    error = res.error;
 
     if (error && (error.message.includes('username') || error.message.includes('slug') || error.message.includes('solutions'))) {
       console.warn('[posts/list] Fallback: optional profile, slug, or solutions relation missing. Retrying basic query.');
       let fallbackQuery = supabase
         .from('posts')
-        .select('*, profiles:user_id(full_name, avatar_url, role, username)');
+        .select('id, title, body, type, image_url, external_link, link_name, upvotes, downvotes, comments_count, views_count, created_at, user_id, category, tags, quality_score, unique_viewers, saves, slug, profiles:user_id(full_name, avatar_url, role, username)');
 
       if (postId) {
         fallbackQuery = fallbackQuery.eq('id', postId);
@@ -189,6 +198,10 @@ export async function GET(req: NextRequest) {
     const hasMore = postsWithSolvedState.length > PAGE_SIZE;
     const posts = hasMore ? postsWithSolvedState.slice(0, PAGE_SIZE) : postsWithSolvedState;
     const nextCursor = hasMore ? posts[posts.length - 1].created_at : null;
+    const apiDuration = Date.now() - startTime;
+    if (process.env.NODE_ENV === 'development') {
+      console.log(`[Performance Metrics] API /api/posts/list (filters) complete in: ${apiDuration}ms`);
+    }
 
     return NextResponse.json({
       posts,

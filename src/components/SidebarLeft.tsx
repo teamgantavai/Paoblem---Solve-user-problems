@@ -17,9 +17,11 @@ import {
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
-import AuthModal from './AuthModal';
-import SettingsModal from './SettingsModal';
 import DevelopmentNotice from './DevelopmentNotice';
+import dynamic from 'next/dynamic';
+
+const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
+const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
 import Avatar from './Avatar';
 
 const SIDEBAR_PROFILE_CACHE_KEY = 'sidebar-left-profile-cache';
