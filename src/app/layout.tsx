@@ -7,7 +7,6 @@ import { Analytics } from "@vercel/analytics/next"
 import TopLoader from "@/components/TopLoader";
 import GSAPAnimations from '@/components/GSAPAnimations';
 import { SpeedInsights } from "@vercel/speed-insights/next";
-import AdRefresher from "@/components/AdRefresher";
 
 export const metadata: Metadata = {
   title: {
@@ -29,18 +28,6 @@ export default function RootLayout({
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
-        <script data-cfasync="false" src="https://cmp.gatekeeperconsent.com/min.js"></script>
-        <script data-cfasync="false" src="https://the.gatekeeperconsent.com/cmp.min.js"></script>
-        <script async src="//www.ezojs.com/ezoic/sa.min.js"></script>
-        <script
-          dangerouslySetInnerHTML={{
-            __html: `
-              window.ezstandalone = window.ezstandalone || {};
-              ezstandalone.cmd = ezstandalone.cmd || [];
-            `,
-          }}
-        />
-        <script src="//ezoicanalytics.com/analytics.js"></script>
         <script
           dangerouslySetInnerHTML={{
             __html: `
@@ -68,7 +55,6 @@ export default function RootLayout({
             <TopLoader />
           </Suspense>
           <GSAPAnimations />
-          <AdRefresher />
           {children}
         </Providers>
         <Analytics />
