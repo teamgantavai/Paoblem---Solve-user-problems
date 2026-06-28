@@ -1,10 +1,32 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import fs from 'fs';
 
-const supabaseAdmin = createClient(
-  process.env.NEXT_PUBLIC_SUPABASE_URL!,
-  process.env.SUPABASE_SERVICE_ROLE_KEY!
-);
+let supabaseAdmin: any;
+try {
+  let url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  let key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+
+  if (!url || !key) {
+    const envPath = 'd:/Paoblem/Paoblem/.env.local';
+    if (fs.existsSync(envPath)) {
+      const envContent = fs.readFileSync(envPath, 'utf8');
+      envContent.split('\n').forEach(line => {
+        const parts = line.split('=');
+        if (parts.length >= 2) {
+          const k = parts[0].trim();
+          const v = parts.slice(1).join('=').trim();
+          if (k === 'NEXT_PUBLIC_SUPABASE_URL') url = v;
+          if (k === 'SUPABASE_SERVICE_ROLE_KEY') key = v;
+        }
+      });
+    }
+  }
+
+  supabaseAdmin = createClient(url!, key!);
+} catch (e) {
+  console.error('Failed to initialize supabaseAdmin:', e);
+}
 
 // ─── Award checking logic ─────────────────────────────────────────────────────
 async function getUserStats(userId: string) {
@@ -28,7 +50,7 @@ async function getUserStats(userId: string) {
   let totalUpvotes = 0;
   let totalViews = 0;
 
-  posts.forEach((p) => {
+  posts.forEach((p: { type: string; upvotes: any; views_count: any; }) => {
     if (p.type === 'problem') problemCount++;
     else if (p.type === 'idea') ideaCount++;
     else if (p.type === 'startup') startupCount++;

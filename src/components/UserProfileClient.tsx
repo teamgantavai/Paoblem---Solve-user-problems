@@ -1,20 +1,21 @@
 'use client';
 
-import React, { useState, useEffect, useCallback } from 'react';
+import React, { useState, useEffect, useCallback, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import {
-  UserCheck, UserPlus, MessageCircle, MapPin, Briefcase,
-  ArrowUp, MessageSquare, Lightbulb, BookOpen, Users, Heart,
+  MessageCircle, MapPin, Briefcase,
+  MessageSquare, Lightbulb, BookOpen, Users,
   ExternalLink, ChevronRight, Calendar, Award, User, X,
-  Globe, Check, Plus, ShieldAlert, Trophy
+  Globe, Check, Plus, Share2, MoreHorizontal,
+  Flag, VolumeX, Ban, Link2
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import BadgeArtwork from '@/components/badges/BadgeArtwork';
 import { BADGE_DEFINITIONS, RARITY_CONFIG } from '@/lib/badgeDefinitions';
-import type { BadgeRarity, BadgeCategory } from '@/lib/badgeDefinitions';
+import type { BadgeCategory } from '@/lib/badgeDefinitions';
 
-/* ── Social Platform Custom Icons (Workaround for Lucide brand icons) ── */
+/* ── Social Platform Custom Icons ── */
 interface CustomIconProps {
   size?: number;
   style?: React.CSSProperties;
@@ -57,8 +58,6 @@ interface Profile {
   location?: string | null;
   website?: string | null;
   reputation?: number | null;
-
-  // Rich profile columns
   headline?: string | null;
   languages?: string[] | null;
   github?: string | null;
@@ -98,8 +97,6 @@ interface SolutionItem {
   comments_count?: number;
   created_at: string;
   problem?: { id: string; title?: string; slug?: string } | null;
-  external_link?: string | null;
-  link_name?: string | null;
 }
 
 interface CommentItem {
@@ -119,7 +116,7 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'overview' | 'posts' | 'solutions' | 'achievements' | 'comments' | 'projects' | 'about';
+type Tab = 'overview' | 'posts' | 'solutions' | 'achievements' | 'comments' | 'about';
 type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -138,79 +135,6 @@ function formatDate(d: string) {
   return new Date(d).toLocaleDateString('en-US', { year: 'numeric', month: 'short', day: 'numeric' });
 }
 
-const ProfileAvatar = ({
-  src,
-  name,
-  className,
-}: {
-  src?: string | null;
-  name: string;
-  className: string;
-}) => {
-  const [failed, setFailed] = useState(false);
-
-  const getAvatarColor = (str: string) => {
-    const colors = [
-      'linear-gradient(135deg, #6366f1 0%, #a855f7 100%)',
-      'linear-gradient(135deg, #ec4899 0%, #f43f5e 100%)',
-      'linear-gradient(135deg, #3b82f6 0%, #06b6d4 100%)',
-      'linear-gradient(135deg, #10b981 0%, #14b8a6 100%)',
-      'linear-gradient(135deg, #f59e0b 0%, #eab308 100%)',
-      'linear-gradient(135deg, #8b5cf6 0%, #d946ef 100%)',
-    ];
-    let hash = 0;
-    for (let i = 0; i < str.length; i++) {
-      hash = str.charCodeAt(i) + ((hash << 5) - hash);
-    }
-    return colors[Math.abs(hash) % colors.length];
-  };
-
-  const showImage = !!src && !failed;
-
-  if (showImage) {
-    return (
-      <img
-        src={src}
-        alt={name}
-        onError={() => setFailed(true)}
-        className={className}
-      />
-    );
-  }
-
-  const initials = name
-    .split(' ')
-    .map((n) => n[0])
-    .slice(0, 2)
-    .join('')
-    .toUpperCase() || name[0]?.toUpperCase() || '?';
-
-  const isSmall = className.includes('upf-user-card-avatar');
-
-  return (
-    <div
-      className={className}
-      style={{
-        background: getAvatarColor(name),
-        display: 'flex',
-        alignItems: 'center',
-        justifyContent: 'center',
-        color: '#ffffff',
-        fontWeight: 700,
-        fontSize: isSmall ? '0.85rem' : '1.8rem',
-        textShadow: '0 2px 4px rgba(0,0,0,0.15)',
-        userSelect: 'none',
-      }}
-    >
-      {isSmall ? (
-        <User size={16} style={{ color: 'rgba(255,255,255,0.95)' }} />
-      ) : (
-        <span>{initials}</span>
-      )}
-    </div>
-  );
-};
-
 // ─── Sub-components ───────────────────────────────────────────────────────────
 
 function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
@@ -223,9 +147,10 @@ function EmptyState({ icon, text }: { icon: React.ReactNode; text: string }) {
 }
 
 function UserCard({ user }: { user: FollowUser }) {
+  const avatarSrc = user.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${user.id}`;
   return (
     <Link href={`/user/${user.username}`} className="upf-user-card">
-      <ProfileAvatar src={user.avatar_url} name={user.full_name || user.username || 'User'} className="upf-user-card-avatar" />
+      <img src={avatarSrc} alt={user.full_name || user.username || 'User'} className="upf-user-card-avatar" />
       <div className="upf-user-card-info">
         <span className="upf-user-card-name">{user.full_name || user.username}</span>
         <span className="upf-user-card-role">@{user.username} {user.role ? `· ${user.role}` : ''}</span>
@@ -239,14 +164,9 @@ function UserCard({ user }: { user: FollowUser }) {
 // ─── Followers/Following Modal ────────────────────────────────────────────────
 
 function FollowModal({
-  view,
-  onClose,
-  onSwitchView,
-  followersList,
-  followingList,
-  followersCount,
-  followingCount,
-  name,
+  view, onClose, onSwitchView,
+  followersList, followingList,
+  followersCount, followingCount, name,
 }: {
   view: 'followers' | 'following';
   onClose: () => void;
@@ -257,7 +177,6 @@ function FollowModal({
   followingCount: number;
   name: string;
 }) {
-  // Close on ESC
   useEffect(() => {
     const handler = (e: KeyboardEvent) => { if (e.key === 'Escape') onClose(); };
     document.addEventListener('keydown', handler);
@@ -311,6 +230,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const [postSubFilter, setPostSubFilter] = useState<'all' | 'problems' | 'ideas' | 'startups'>('all');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
+  const [followHover, setFollowHover] = useState(false);
   const [followersCount, setFollowersCount] = useState(0);
   const [followingCount, setFollowingCount] = useState(0);
   const [followLoading, setFollowLoading] = useState(false);
@@ -319,6 +239,9 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const [listsLoaded, setListsLoaded] = useState(false);
   const [modalView, setModalView] = useState<ModalView>(null);
   const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
+  const [moreMenuOpen, setMoreMenuOpen] = useState(false);
+  const [shareToast, setShareToast] = useState(false);
+  const moreMenuRef = useRef<HTMLDivElement>(null);
 
   // Badge state
   const [userBadges, setUserBadges] = useState<Record<string, { earned_at: string; is_featured: boolean }>>({});
@@ -328,19 +251,8 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const ideas = posts.filter((p) => p.type === 'idea');
   const startups = posts.filter((p) => p.type === 'startup');
 
-  const trustScore = React.useMemo(() => {
-    return BADGE_DEFINITIONS.reduce((total, b) => {
-      if (userBadges[b.slug]) {
-        return total + (b.rep_reward || 0);
-      }
-      return total;
-    }, 0);
-  }, [userBadges]);
-
   const name = profile.full_name || profile.username || 'Member';
-  const isOwnProfile = currentUserId === profile.id;
-
-  const avatarSrc = profile.avatar_url;
+  const avatarSrc = profile.avatar_url || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id}`;
   const coverSrc = profile.cover_url;
 
   // Auth & follow state
@@ -405,10 +317,21 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     document.body.style.overflow = '';
   };
 
+  // Close more menu on outside click
+  useEffect(() => {
+    const handler = (e: MouseEvent) => {
+      if (moreMenuRef.current && !moreMenuRef.current.contains(e.target as Node)) {
+        setMoreMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, []);
+
   const handleFollow = async () => {
     if (followLoading) return;
     const { data: { session } } = await supabase.auth.getSession();
-    if (!session) { router.push('/login'); return; }
+    if (!session) { router.push('/'); return; }
 
     const wasFollowing = isFollowing;
     setIsFollowing(!wasFollowing);
@@ -440,46 +363,44 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
       if (!session) throw new Error('No session');
       const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify({
-          recipientId: profile.id,
-          startOnly: true
-        })
+        headers: { 'Content-Type': 'application/json', 'Authorization': `Bearer ${session.access_token}` },
+        body: JSON.stringify({ recipientId: profile.id, startOnly: true }),
       });
       if (!res.ok) throw new Error('Could not start chat');
       const data = await res.json();
-
       const params = new URLSearchParams();
       params.set('conversationId', data.conversationId);
       params.set('partnerId', profile.id);
       if (profile.full_name) params.set('partnerName', profile.full_name);
       if (profile.avatar_url) params.set('partnerAvatar', profile.avatar_url);
       if (profile.username) params.set('partnerUsername', profile.username);
-
       router.push(`/chats?${params.toString()}`);
-    } catch (error) {
+    } catch {
       window.dispatchEvent(new CustomEvent('top-loader:finish'));
       router.push(`/chats?userId=${profile.id}`);
     }
   };
 
-  const tabs: { key: Tab; label: string; count?: number; icon: React.ReactNode }[] = [
-    { key: 'overview', label: 'Overview', icon: <User size={15} /> },
-    { key: 'about', label: 'About', icon: <User size={15} /> },
-    { key: 'posts', label: 'Posts', count: posts.length, icon: <BookOpen size={15} /> },
-    { key: 'achievements', label: 'Achievements', count: Object.keys(userBadges).length, icon: <Trophy size={15} /> },
-    { key: 'comments', label: 'Comments', count: comments.length, icon: <MessageSquare size={15} /> },
-  ];
+  const handleShare = () => {
+    const url = window.location.href;
+    if (navigator.share) {
+      navigator.share({ title: name, url });
+    } else {
+      navigator.clipboard?.writeText(url);
+      setShareToast(true);
+      setTimeout(() => setShareToast(false), 2000);
+    }
+  };
+
+  const earnedBadges = BADGE_DEFINITIONS.filter(b => userBadges[b.slug]);
 
   return (
     <div className="upf-root" style={{ margin: '0 auto', maxWidth: '1000px', padding: '1rem' }}>
 
-      {/* ── Compact Redesigned Hero Card ── */}
+      {/* ── Premium Hero Card — identical layout to /profile ── */}
       <div className="upf-hero-card" id="section-intro">
-        {/* Cover Photo */}
+
+        {/* Cover Banner */}
         <div
           className="upf-hero-cover"
           onClick={() => coverSrc && setActiveLightboxImg(coverSrc)}
@@ -489,176 +410,303 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           }}
         />
 
-        {/* Profile Details Container */}
+        {/* Identity Section */}
         <div className="upf-hero-identity">
-          {/* Avatar Row Wrapper for Mobile Inline Layout */}
-          <div className="upf-avatar-socials-row">
-            {/* Avatar Picture */}
-            <div
-              className="upf-hero-avatar-container"
-              onClick={() => setActiveLightboxImg(avatarSrc || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id}`)}
-              style={{ cursor: 'zoom-in' }}
-            >
-              <ProfileAvatar src={avatarSrc} name={name} className="upf-hero-avatar" />
-            </div>
-
-            {/* Mobile Inline Socials */}
-            <div className="upf-hero-socials-inline-mobile">
-              {profile.github && (
-                <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub">
-                  <Github size={15} />
-                </a>
-              )}
-              {profile.linkedin && (
-                <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn">
-                  <Linkedin size={15} />
-                </a>
-              )}
-              {profile.twitter && (
-                <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X">
-                  <Twitter size={15} />
-                </a>
-              )}
-              {profile.youtube && (
-                <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube">
-                  <Youtube size={15} />
-                </a>
-              )}
-              {profile.other_link && (
-                <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link">
-                  <Globe size={15} />
-                </a>
-              )}
-            </div>
-          </div>
-
-          {/* Identity details */}
-          <div className="upf-hero-details">
-            <div className="upf-hero-name-row">
-              <div className="upf-hero-name-info">
-                <h1 className="upf-hero-name" style={{ fontSize: '1.45rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
-                  {name}
-                </h1>
-                <span className="upf-hero-username" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>@{profile.username}</span>
+          <div className="phero-identity-row">
+            {/* Avatar Row Wrapper for Mobile Inline Layout */}
+            <div className="upf-avatar-socials-row">
+              {/* Avatar */}
+              <div
+                className="upf-hero-avatar-container"
+                onClick={() => setActiveLightboxImg(avatarSrc)}
+                style={{ cursor: 'zoom-in' }}
+              >
+                <img src={avatarSrc} alt={name} className="upf-hero-avatar" />
               </div>
 
-              {/* Action Buttons */}
-              {!isOwnProfile && (
-                <div className="upf-actions" style={{ gap: '0.5rem', alignSelf: 'flex-start' }}>
-                  <button
-                    className={`upf-btn-follow ${isFollowing ? 'upf-btn-follow--active' : ''}`}
-                    onClick={handleFollow}
-                    disabled={followLoading}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    {isFollowing ? <Check size={13} /> : <Plus size={13} />}
-                    {isFollowing ? 'Following' : 'Follow'}
-                  </button>
-                  <button
-                    className="upf-btn-message"
-                    onClick={handleMessage}
-                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
-                  >
-                    <MessageCircle size={13} /> Message
-                  </button>
-                </div>
-              )}
-            </div>
-
-            {/* Headline */}
-            {profile.headline ? (
-              <p className="upf-hero-headline" style={{ margin: '0.5rem 0', fontSize: '0.92rem', color: 'var(--text-main)' }}>{profile.headline}</p>
-            ) : (
-              <p className="upf-hero-headline" style={{ margin: '0.5rem 0', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
-                Founder building Paoblem • AI • Product Development
-              </p>
-            )}
-
-            {/* Bio (max 250 characters) */}
-            {profile.bio && <p className="upf-hero-bio" style={{ margin: '0.25rem 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-body)', lineHeight: 1.4 }}>{profile.bio.substring(0, 250)}</p>}
-
-            {/* Meta Row & Socials combined */}
-            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
-              <div className="upf-hero-meta-list" style={{ margin: 0, gap: '1rem' }}>
-                {profile.location && (
-                  <div className="upf-hero-meta-item" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    <MapPin size={13} /> {profile.location}
-                  </div>
-                )}
-                {profile.website && (
-                  <div className="upf-hero-meta-item" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    <ExternalLink size={13} />
-                    <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)' }}>
-                      {profile.website.replace(/^https?:\/\/(www\.)?/, '')}
-                    </a>
-                  </div>
-                )}
-                <div style={{ display: 'inline-flex', gap: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                  <span style={{ cursor: 'pointer' }} onClick={() => setModalView('followers')}>
-                    <strong style={{ color: 'var(--text-main)' }}>{followersCount}</strong> Followers
-                  </span>
-                  <span>•</span>
-                  <span style={{ cursor: 'pointer' }} onClick={() => setModalView('following')}>
-                    <strong style={{ color: 'var(--text-main)' }}>{followingCount}</strong> Following
-                  </span>
-                </div>
-              </div>
-
-              {/* Social Icons row */}
-              <div className="upf-hero-socials" style={{ margin: 0, display: 'flex', gap: '0.65rem' }}>
+              {/* Mobile Inline Socials */}
+              <div className="upf-hero-socials-inline-mobile">
                 {profile.github && (
-                  <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub" style={{ padding: '4px' }}>
-                    <Github size={16} />
+                  <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub">
+                    <Github size={15} />
                   </a>
                 )}
                 {profile.linkedin && (
-                  <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn" style={{ padding: '4px' }}>
-                    <Linkedin size={16} />
+                  <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn">
+                    <Linkedin size={15} />
                   </a>
                 )}
                 {profile.twitter && (
-                  <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X" style={{ padding: '4px' }}>
-                    <Twitter size={16} />
+                  <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X">
+                    <Twitter size={15} />
                   </a>
                 )}
                 {profile.youtube && (
-                  <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube" style={{ padding: '4px' }}>
-                    <Youtube size={16} />
+                  <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube">
+                    <Youtube size={15} />
                   </a>
                 )}
                 {profile.other_link && (
-                  <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link" style={{ padding: '4px' }}>
-                    <Globe size={16} />
+                  <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link">
+                    <Globe size={15} />
                   </a>
                 )}
               </div>
             </div>
 
+            {/* Details Column */}
+            <div className="phero-details-col">
+              <div className="phero-top-row">
+                <div className="phero-name-block">
+                  <h1 className="upf-hero-name">{name}</h1>
+                  <span className="upf-hero-username">@{profile.username}</span>
+                </div>
+
+                {/* Visitor Action Buttons — Desktop */}
+                <div className="phero-actions phero-actions-desktop" ref={moreMenuRef} style={{ position: 'relative' }}>
+                  {/* Follow / Following */}
+                  <button
+                    className={`phero-btn ${isFollowing ? '' : 'phero-btn-primary'}`}
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                    onMouseEnter={() => setFollowHover(true)}
+                    onMouseLeave={() => setFollowHover(false)}
+                    style={{
+                      minWidth: '100px',
+                      ...(isFollowing && followHover ? {
+                        background: 'rgba(239,68,68,0.12) !important' as any,
+                        borderColor: 'rgba(239,68,68,0.35) !important' as any,
+                        color: '#ef4444 !important' as any,
+                      } : {}),
+                    }}
+                  >
+                    {isFollowing
+                      ? (followHover ? <><X size={13} /> Unfollow</> : <><Check size={13} /> Following</>)
+                      : <><Plus size={13} /> Follow</>
+                    }
+                  </button>
+
+                  {/* Message */}
+                  <button
+                    className="phero-btn"
+                    onClick={handleMessage}
+                    title="Send message"
+                  >
+                    <MessageCircle size={13} /> Message
+                  </button>
+
+                  {/* Share */}
+                  <button
+                    className="phero-btn phero-btn-icon"
+                    onClick={handleShare}
+                    title="Share profile"
+                  >
+                    <Share2 size={14} />
+                  </button>
+
+                  {/* More ⋯ */}
+                  <button
+                    className="phero-btn phero-btn-icon"
+                    onClick={() => setMoreMenuOpen(!moreMenuOpen)}
+                    title="More options"
+                  >
+                    <MoreHorizontal size={14} />
+                  </button>
+
+                  {/* More dropdown */}
+                  {moreMenuOpen && (
+                    <div className="settings-menu-dropdown-new">
+                      <button
+                        className="settings-menu-item-new"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(window.location.href);
+                          setShareToast(true);
+                          setTimeout(() => setShareToast(false), 2000);
+                          setMoreMenuOpen(false);
+                        }}
+                      >
+                        <Link2 size={13} /> Copy Profile Link
+                      </button>
+                      <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+                      <button className="settings-menu-item-new" style={{ color: 'var(--text-muted)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <Flag size={13} /> Report User
+                      </button>
+                      <button className="settings-menu-item-new" style={{ color: 'var(--text-muted)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <VolumeX size={13} /> Mute User
+                      </button>
+                      <button className="settings-menu-item-new" style={{ color: 'var(--accent-danger, #ef4444)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <Ban size={13} /> Block User
+                      </button>
+                    </div>
+                  )}
+                </div>
+
+                {/* Visitor Action Buttons — Mobile */}
+                <div className="phero-actions-mobile" ref={moreMenuRef} style={{ position: 'relative' }}>
+                  {/* Follow / Following */}
+                  <button
+                    className={`phero-btn-mobile-follow ${isFollowing ? 'following' : 'primary'}`}
+                    onClick={handleFollow}
+                    disabled={followLoading}
+                  >
+                    {isFollowing ? <><Check size={13} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} /> Following</> : <><Plus size={13} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} /> Follow</>}
+                  </button>
+                  {/* Message */}
+                  <button className="phero-btn-mobile-message" onClick={handleMessage}>
+                    <MessageCircle size={13} style={{ display: 'inline-block', verticalAlign: 'middle', marginRight: '4px' }} /> Message
+                  </button>
+                  {/* Share */}
+                  <button className="phero-btn-mobile-share" onClick={handleShare} title="Share">
+                    <Share2 size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+                  </button>
+                  {/* More */}
+                  <button className="phero-btn-mobile-more" onClick={() => setMoreMenuOpen(!moreMenuOpen)} title="More">
+                    <MoreHorizontal size={13} style={{ display: 'inline-block', verticalAlign: 'middle' }} />
+                  </button>
+
+                  {/* More dropdown (duplicate for mobile visibility) */}
+                  {moreMenuOpen && (
+                    <div className="settings-menu-dropdown-new">
+                      <button
+                        className="settings-menu-item-new"
+                        onClick={() => {
+                          navigator.clipboard?.writeText(window.location.href);
+                          setShareToast(true);
+                          setTimeout(() => setShareToast(false), 2000);
+                          setMoreMenuOpen(false);
+                        }}
+                      >
+                        <Link2 size={13} /> Copy Profile Link
+                      </button>
+                      <div style={{ borderTop: '1px solid var(--border-color)', margin: '4px 0' }} />
+                      <button className="settings-menu-item-new" style={{ color: 'var(--text-muted)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <Flag size={13} /> Report User
+                      </button>
+                      <button className="settings-menu-item-new" style={{ color: 'var(--text-muted)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <VolumeX size={13} /> Mute User
+                      </button>
+                      <button className="settings-menu-item-new" style={{ color: 'var(--accent-danger, #ef4444)' }} onClick={() => setMoreMenuOpen(false)}>
+                        <Ban size={13} /> Block User
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              {/* Headline */}
+              {profile.headline ? (
+                <p className="upf-hero-headline" style={{ margin: '0.5rem 0', fontSize: '0.92rem', color: 'var(--text-main)', fontWeight: 500 }}>{profile.headline}</p>
+              ) : (
+                <p className="upf-hero-headline" style={{ margin: '0.5rem 0', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                  Member of Paoblem
+                </p>
+              )}
+
+              {/* Bio */}
+              {profile.bio && (
+                <p className="upf-hero-bio" style={{ margin: '0.25rem 0 0.5rem', fontSize: '0.88rem', color: 'var(--text-body)', lineHeight: 1.5 }}>{profile.bio.substring(0, 250)}</p>
+              )}
+
+              {/* Bottom row: location + website + followers + socials */}
+              <div className="phero-bottom-row-desktop">
+                {/* Location + Website */}
+                {(profile.location || profile.website) && (
+                  <div className="phero-meta-row">
+                    {profile.location && (
+                      <span className="phero-meta-item">
+                        <MapPin size={13} /> {profile.location}
+                      </span>
+                    )}
+                    {profile.website && (
+                      <span className="phero-meta-item">
+                        <ExternalLink size={13} />
+                        <a
+                          href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                        >
+                          {profile.website.replace(/^https?:\/\/(www\.)?/, '')}
+                        </a>
+                      </span>
+                    )}
+                  </div>
+                )}
+
+                {/* Followers / Following */}
+                <div className="phero-counts">
+                  <span className="phero-count-item" onClick={() => openModal('followers')}>
+                    <strong className="phero-count-number">{followersCount}</strong>
+                    <span className="phero-count-label">{followersCount === 1 ? 'Follower' : 'Followers'}</span>
+                  </span>
+                  <span className="phero-counts-separator">•</span>
+                  <span className="phero-count-item" onClick={() => openModal('following')}>
+                    <strong className="phero-count-number">{followingCount}</strong>
+                    <span className="phero-count-label">Following</span>
+                  </span>
+                </div>
+
+                {/* Social Icons */}
+                <div className="upf-hero-socials">
+                  {profile.github && (
+                    <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub">
+                      <Github size={15} />
+                    </a>
+                  )}
+                  {profile.linkedin && (
+                    <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn">
+                      <Linkedin size={15} />
+                    </a>
+                  )}
+                  {profile.twitter && (
+                    <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X">
+                      <Twitter size={15} />
+                    </a>
+                  )}
+                  {profile.youtube && (
+                    <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube">
+                      <Youtube size={15} />
+                    </a>
+                  )}
+                  {profile.other_link && (
+                    <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link">
+                      <Globe size={15} />
+                    </a>
+                  )}
+                </div>
+              </div>
+
+            </div>
           </div>
         </div>
       </div>
 
-      {/* ── Unified Top Navigation ── */}
+      {/* ── Tab Navigation — identical to /profile ── */}
       <div className="profile-nav-tabs">
-        {tabs.map((tab) => (
-          <button
-            key={tab.key}
-            className={`profile-nav-tab-btn ${activeTab === tab.key ? 'active' : ''}`}
-            onClick={() => setActiveTab(tab.key)}
-          >
-            {tab.label}
-            {tab.count !== undefined && tab.count > 0 && <span style={{ opacity: 0.6, marginLeft: 4 }}>({tab.count})</span>}
-          </button>
-        ))}
+        <button className={`profile-nav-tab-btn ${activeTab === 'overview' ? 'active' : ''}`} onClick={() => setActiveTab('overview')}>
+          Overview
+        </button>
+        <button className={`profile-nav-tab-btn ${activeTab === 'about' ? 'active' : ''}`} onClick={() => setActiveTab('about')}>
+          About
+        </button>
+        <button className={`profile-nav-tab-btn ${activeTab === 'posts' ? 'active' : ''}`} onClick={() => setActiveTab('posts')}>
+          Posts ({posts.length})
+        </button>
+        <button className={`profile-nav-tab-btn ${activeTab === 'achievements' ? 'active' : ''}`} onClick={() => setActiveTab('achievements')}>
+          Achievements ({earnedBadges.length})
+        </button>
+        <button className={`profile-nav-tab-btn ${activeTab === 'comments' ? 'active' : ''}`} onClick={() => setActiveTab('comments')}>
+          Comments ({comments.length})
+        </button>
       </div>
 
-      {/* ── Content View Blocks ── */}
+      {/* ── Content Tabs ── */}
       <div className="upf-content">
 
-        {/* Tab 1: Overview (Structured Rich Profile - Stack of Rows) */}
+        {/* ── Tab 1: Overview ── */}
         {activeTab === 'overview' && (
           <div className="profile-layout-rows-new">
-            {/* About card */}
+
+            {/* About Card */}
             <div className="profile-card-new">
               <div className="profile-section-header">
                 <h2 className="profile-card-title-new"><User size={16} /> About Me</h2>
@@ -667,11 +715,10 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                 <div className="profile-about-markdown">{profile.about}</div>
               ) : (
                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
-                  No journey details or bio summary provided yet.
+                  No about details provided yet.
                 </p>
               )}
             </div>
-
 
             {/* Startup Interests Card */}
             <div className="profile-card-new">
@@ -758,10 +805,10 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
               )}
             </div>
 
-            {/* Skills card */}
+            {/* Skills Card */}
             <div className="profile-card-new">
               <div className="profile-section-header">
-                <h2 className="profile-card-title-new"><Award size={16} /> Skills</h2>
+                <h2 className="profile-card-title-new"><Award size={16} /> Skills &amp; Capabilities</h2>
               </div>
               <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
                 {profile.skills && profile.skills.length > 0 ? (
@@ -801,7 +848,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                 </div>
               ) : (
                 <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
-                  No work or project experience listed yet.
+                  No work experience listed yet.
                 </p>
               )}
             </div>
@@ -809,51 +856,91 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           </div>
         )}
 
-        {/* Tab 3: Projects (Separate tab for detailed grid) */}
-        {activeTab === 'projects' && (
-          <div className="profile-card-new">
-            <div className="profile-section-header">
-              <h2 className="profile-card-title-new"><Award size={16} /> Showcase Projects</h2>
+        {/* ── Tab 2: About ── */}
+        {activeTab === 'about' && (
+          <div className="profile-layout-rows-new">
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><User size={16} /> About Me</h2>
+              </div>
+              {profile.about ? (
+                <div className="profile-about-markdown" style={{ fontSize: '0.95rem' }}>{profile.about}</div>
+              ) : profile.bio ? (
+                <div className="profile-about-markdown">{profile.bio}</div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>No about details provided.</p>
+              )}
             </div>
-            {profile.projects && profile.projects.length > 0 ? (
-              <div className="profile-projects-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
-                {profile.projects.map((proj: any, index: number) => (
-                  <div key={index} className="profile-project-item-card">
-                    <div>
-                      <div className="profile-project-header">
-                        <h3 className="profile-project-title">{proj.title}</h3>
-                      </div>
-                      {proj.description && <p className="profile-project-desc">{proj.description}</p>}
-                      {proj.techStack && (
-                        <div className="profile-project-tech-list">
-                          {(Array.isArray(proj.techStack) ? proj.techStack : String(proj.techStack).split(',')).map((tech: string) => (
-                            <span key={tech} className="profile-project-tech-tag">{tech.trim()}</span>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                    <div className="profile-project-links">
-                      {proj.github && (
-                        <a href={proj.github.startsWith('http') ? proj.github : `https://${proj.github}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
-                          <Github size={12} /> Repo
-                        </a>
-                      )}
-                      {proj.liveDemo && (
-                        <a href={proj.liveDemo.startsWith('http') ? proj.liveDemo : `https://${proj.liveDemo}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
-                          <ExternalLink size={12} /> Live Demo
-                        </a>
-                      )}
+
+            {/* Skills + Languages */}
+            {((profile.skills && profile.skills.length > 0) || (profile.languages && profile.languages.length > 0)) && (
+              <div className="profile-card-new">
+                <div className="profile-section-header">
+                  <h2 className="profile-card-title-new"><Award size={16} /> Skills &amp; Languages</h2>
+                </div>
+                {profile.skills && profile.skills.length > 0 && (
+                  <div style={{ marginBottom: '0.85rem' }}>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Skills</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                      {profile.skills.map((s: string) => <span key={s} className="profile-skill-tag-new">{s}</span>)}
                     </div>
                   </div>
-                ))}
+                )}
+                {profile.languages && profile.languages.length > 0 && (
+                  <div>
+                    <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em', display: 'block', marginBottom: '0.5rem' }}>Languages</span>
+                    <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.4rem' }}>
+                      {profile.languages.map((l: string) => <span key={l} className="profile-tag-pill">{l}</span>)}
+                    </div>
+                  </div>
+                )}
               </div>
-            ) : (
-              <EmptyState icon={<Award size={36} />} text="No showcased projects yet." />
+            )}
+
+            {/* Social Links */}
+            {(profile.github || profile.linkedin || profile.twitter || profile.youtube || profile.website || profile.other_link) && (
+              <div className="profile-card-new">
+                <div className="profile-section-header">
+                  <h2 className="profile-card-title-new"><Globe size={16} /> Links &amp; Contact</h2>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.6rem' }}>
+                  {profile.github && (
+                    <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <Github size={16} /><span>{profile.github.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                  {profile.linkedin && (
+                    <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <Linkedin size={16} /><span>{profile.linkedin.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                  {profile.twitter && (
+                    <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <Twitter size={16} /><span>{profile.twitter.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                  {profile.youtube && (
+                    <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <Youtube size={16} /><span>{profile.youtube.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                  {profile.website && (
+                    <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <ExternalLink size={16} /><span>{profile.website.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                  {profile.other_link && (
+                    <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', color: 'var(--text-main)', textDecoration: 'none', fontSize: '0.85rem' }}>
+                      <Globe size={16} /><span>{profile.other_link.replace(/^https?:\/\/(www\.)?/, '')}</span>
+                    </a>
+                  )}
+                </div>
+              </div>
             )}
           </div>
         )}
 
-        {/* Tab 2: Posts (Feed style list) */}
+        {/* ── Tab 3: Posts ── */}
         {activeTab === 'posts' && (
           <div>
             <div className="profile-sub-filters">
@@ -885,10 +972,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                     postSubFilter === 'ideas' ? <Lightbulb size={36} /> :
                       postSubFilter === 'startups' ? <Briefcase size={36} /> : <BookOpen size={36} />;
                   return (
-                    <EmptyState
-                      icon={icon}
-                      text={`${name} hasn't posted any ${postSubFilter === 'all' ? 'posts' : postSubFilter} yet.`}
-                    />
+                    <EmptyState icon={icon} text={`${name} hasn't posted any ${postSubFilter === 'all' ? 'posts' : postSubFilter} yet.`} />
                   );
                 }
 
@@ -920,95 +1004,49 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           </div>
         )}
 
-        {/* Tab 3: Solutions */}
-        {activeTab === 'solutions' && (
-          <div className="upf-list">
-            {solutions.length === 0 ? (
-              <EmptyState icon={<Award size={36} />} text={`${name} hasn't proposed any solutions yet.`} />
+        {/* ── Tab 4: Achievements ── */}
+        {activeTab === 'achievements' && (
+          <div className="profile-achievements-tab">
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
+              <h3 className="profile-achievements-title" style={{ margin: 0 }}>Earned Badges ({earnedBadges.length})</h3>
+            </div>
+
+            {earnedBadges.length === 0 ? (
+              <EmptyState icon={<Award size={36} />} text={`${name} hasn't unlocked any badges yet.`} />
             ) : (
-              solutions.map((sol) => (
-                <article key={sol.id} className="upf-post-card" onClick={() => router.push(`/solutions/${sol.id}`)}>
-                  <div className="upf-post-meta">
-                    <span className="sticker-tag solution" style={{ marginLeft: 0 }}>Solution</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
-                  </div>
-                  <Link href={`/solutions/${sol.id}`} className="upf-post-title" onClick={(e) => e.stopPropagation()}>{sol.title}</Link>
-                  {sol.problem && (
-                    <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem" onClick={(e) => e.stopPropagation()} style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', display: 'inline-flex', gap: '3px', alignItems: 'center', margin: '0.2rem 0' }}>
-                      Re: {sol.problem.title}
-                    </Link>
-                  )}
-                  {sol.body && <p className="upf-post-body">{sol.body.substring(0, 200)}...</p>}
-                  <div className="upf-post-footer">
-                    <span className="upf-post-stat">▲ {sol.upvotes} upvotes</span>
-                  </div>
-                </article>
-              ))
+              <div className="profile-badges-grid">
+                {earnedBadges.map((badge) => {
+                  const rConf = RARITY_CONFIG[badge.rarity] || { color: '#ffffff', glow: 'rgba(255,255,255,0.1)' };
+                  return (
+                    <div
+                      key={badge.slug}
+                      className="profile-badge-card"
+                      style={{ '--rarity-color': rConf.color } as React.CSSProperties}
+                      title={badge.description}
+                    >
+                      <div className="profile-badge-icon-wrapper">
+                        <BadgeArtwork
+                          slug={badge.slug}
+                          rarity={badge.rarity}
+                          category={badge.category as BadgeCategory}
+                          size={70}
+                          locked={false}
+                          animated={true}
+                        />
+                      </div>
+                      <span className="profile-badge-name">{badge.name}</span>
+                      <span className="profile-badge-rarity" style={{ color: rConf.color, fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
+                        {badge.rarity}
+                      </span>
+                    </div>
+                  );
+                })}
+              </div>
             )}
           </div>
         )}
 
-        {/* Tab 4: Achievements */}
-        {activeTab === 'achievements' && (() => {
-          const earnedSlugs = Object.keys(userBadges);
-          const earnedBadges = BADGE_DEFINITIONS.filter(b => earnedSlugs.includes(b.slug));
-          return (
-            <div className="profile-achievements-tab">
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <h3 className="profile-achievements-title" style={{ margin: 0 }}>Earned Badges ({earnedBadges.length})</h3>
-                <button
-                  type="button"
-                  onClick={() => router.push('/achievements')}
-                  className="profile-sub-filter-pill active"
-                  style={{
-                    display: 'inline-flex',
-                    alignItems: 'center',
-                    gap: '4px',
-                    cursor: 'pointer',
-                    border: '1.5px solid var(--border-color)',
-                  }}
-                >
-                  View All Badges <ChevronRight size={14} />
-                </button>
-              </div>
-
-              {earnedBadges.length === 0 ? (
-                <EmptyState icon={<Award size={36} />} text={`${name} hasn't unlocked any badges yet.`} />
-              ) : (
-                <div className="profile-badges-grid">
-                  {earnedBadges.map((badge) => {
-                    const rConf = RARITY_CONFIG[badge.rarity] || { color: '#ffffff', glow: 'rgba(255,255,255,0.1)' };
-                    return (
-                      <div
-                        key={badge.slug}
-                        className="profile-badge-card"
-                        style={{ '--rarity-color': rConf.color } as React.CSSProperties}
-                        title={badge.description}
-                      >
-                        <div className="profile-badge-icon-wrapper">
-                          <BadgeArtwork
-                            slug={badge.slug}
-                            rarity={badge.rarity}
-                            category={badge.category as BadgeCategory}
-                            size={70}
-                            locked={false}
-                            animated={true}
-                          />
-                        </div>
-                        <span className="profile-badge-name">{badge.name}</span>
-                        <span className="profile-badge-rarity" style={{ color: rConf.color, fontSize: '0.7rem', textTransform: 'uppercase', fontWeight: 700, letterSpacing: '0.04em' }}>
-                          {badge.rarity}
-                        </span>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
-            </div>
-          );
-        })()}
-
-        {/* Tab 5: Comments */}
+        {/* ── Tab 5: Comments ── */}
         {activeTab === 'comments' && (
           <div className="upf-list">
             {comments.length === 0 ? (
@@ -1056,6 +1094,22 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           name={name}
         />
       )}
+
+      {/* ── Share Toast ── */}
+      {shareToast && (
+        <div style={{
+          position: 'fixed', bottom: '2rem', left: '50%', transform: 'translateX(-50%)',
+          background: 'var(--bg-card)', border: '1px solid var(--border-color)',
+          borderRadius: '10px', padding: '0.65rem 1.25rem',
+          fontSize: '0.85rem', fontWeight: 600, color: 'var(--text-main)',
+          boxShadow: '0 8px 24px rgba(0,0,0,0.3)',
+          zIndex: 9999, display: 'flex', alignItems: 'center', gap: '0.5rem',
+          animation: 'upf-card-in 0.2s ease',
+        }}>
+          <Check size={15} style={{ color: '#22c55e' }} /> Link copied!
+        </div>
+      )}
+
       {/* ── Image Lightbox ── */}
       {activeLightboxImg && (
         <div
@@ -1065,7 +1119,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
             background: 'rgba(0,0,0,0.85)',
             display: 'flex', alignItems: 'center', justifyContent: 'center',
             cursor: 'zoom-out', backdropFilter: 'blur(8px)',
-            animation: 'fadeIn 0.2s ease',
+            animation: 'upf-card-in 0.2s ease',
           }}
         >
           <img
@@ -1077,8 +1131,6 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
               borderRadius: '12px',
               boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
               objectFit: 'contain',
-              transform: 'scale(1)',
-              animation: 'scaleIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
             }}
           />
           <button
@@ -1088,7 +1140,7 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
               background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
               borderRadius: '50%', width: '40px', height: '40px',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              cursor: 'pointer', color: '#fff', fontSize: '1.2rem',
+              cursor: 'pointer', color: '#fff',
               backdropFilter: 'blur(4px)',
             }}
             title="Close"

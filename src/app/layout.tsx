@@ -19,6 +19,12 @@ export const metadata: Metadata = {
   creator: "Dilkhush Jha",
   authors: [{ name: "Dilkhush Jha" }],
   metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'https://paoblem.com'),
+  formatDetection: {
+    telephone: false,
+    date: false,
+    address: false,
+    email: false,
+  },
 };
 
 export default function RootLayout({

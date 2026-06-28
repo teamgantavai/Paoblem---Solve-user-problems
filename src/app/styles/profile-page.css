@@ -1093,17 +1093,18 @@
   display: flex;
   align-items: center;
   gap: 0.3rem;
+  color: var(--text-muted) !important;
 }
 
+.phero-meta-item *,
 .phero-meta-item a {
-  color: var(--text-muted);
-  text-decoration: none;
+  color: var(--text-muted) !important;
+  text-decoration: none !important;
   transition: color 0.2s;
 }
 
 .phero-meta-item a:hover {
-  color: var(--text-main);
-  text-decoration: underline;
+  color: var(--text-main) !important;
 }
 
 /* Bio */
@@ -1156,16 +1157,25 @@
 
 .phero-count-item {
   cursor: pointer;
-  transition: color 0.2s;
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.83rem;
+  transition: opacity 0.2s;
 }
 
 .phero-count-item:hover {
-  color: var(--text-main);
+  opacity: 0.85;
 }
 
-.phero-count-item strong {
-  color: var(--text-main);
-  font-weight: 600;
+.phero-count-number {
+  color: var(--text-main) !important;
+  font-weight: 700 !important;
+}
+
+.phero-count-label {
+  color: var(--text-muted) !important;
+  font-weight: 500 !important;
+  margin-left: 3px;
 }
 
 /* Social icons */
@@ -2797,6 +2807,7 @@
     margin-top: 4px !important;
     text-align: left !important;
     -webkit-line-clamp: 3 !important;
+    line-clamp: 3 !important;
   }
 
   /* ── Meta row: location, website ── */
@@ -3102,7 +3113,38 @@
   }
 
   .phero-bottom-row-desktop {
-    display: contents !important;
+    display: flex !important;
+    flex-direction: row !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.5rem 1rem !important;
+    margin-top: 10px !important;
+    border-top: 1px solid var(--border-color) !important;
+    padding-top: 10px !important;
+    width: 100% !important;
+    order: 4 !important;
+  }
+
+  .phero-bottom-row-desktop .phero-meta-row,
+  .phero-bottom-row-desktop .phero-counts {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .phero-bottom-row-desktop .phero-meta-row {
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.65rem !important;
+  }
+
+  /* Dot separator between location/link block and counts on mobile */
+  .phero-bottom-row-desktop .phero-meta-row::after {
+    content: "•";
+    color: var(--text-muted);
+    font-size: 0.8rem;
+    margin-left: 0.25rem;
+    opacity: 0.5;
   }
 
   /* Mobile camera hover/touch overlays */

@@ -931,7 +931,7 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                 <p className="upf-hero-headline" style={{ margin: '0.5rem 0', fontSize: '0.92rem', color: 'var(--text-main)', fontWeight: 500 }}>{profile.headline}</p>
               ) : (
                 <p className="upf-hero-headline" style={{ margin: '0.5rem 0', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
-                  Founder building Paoblem • AI • Product Development
+                  Paoblem Community Member
                 </p>
               )}
               {profile?.bio && (
@@ -966,11 +966,13 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
                 {/* Followers / Following counts */}
                 <div className="phero-counts">
                   <span className="phero-count-item" onClick={() => openModal('followers')}>
-                    <strong>{followData?.followersCount || 0}</strong> Followers
+                    <strong className="phero-count-number">{followData?.followersCount || 0}</strong>
+                    <span className="phero-count-label">{(followData?.followersCount || 0) === 1 ? 'Follower' : 'Followers'}</span>
                   </span>
                   <span className="phero-counts-separator">•</span>
                   <span className="phero-count-item" onClick={() => openModal('following')}>
-                    <strong>{followData?.followingCount || 0}</strong> Following
+                    <strong className="phero-count-number">{followData?.followingCount || 0}</strong>
+                    <span className="phero-count-label">Following</span>
                   </span>
                 </div>
 
