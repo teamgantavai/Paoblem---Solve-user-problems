@@ -1,0 +1,25 @@
+-- Migration: Add detailed fields to profiles for AI Optimization and Rich Profiles
+CREATE EXTENSION IF NOT EXISTS vector;
+
+ALTER TABLE public.profiles
+  ADD COLUMN IF NOT EXISTS headline TEXT,
+  ADD COLUMN IF NOT EXISTS languages TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS github TEXT,
+  ADD COLUMN IF NOT EXISTS linkedin TEXT,
+  ADD COLUMN IF NOT EXISTS twitter TEXT,
+  ADD COLUMN IF NOT EXISTS youtube TEXT,
+  ADD COLUMN IF NOT EXISTS other_link TEXT,
+  ADD COLUMN IF NOT EXISTS website TEXT,
+  ADD COLUMN IF NOT EXISTS about TEXT,
+  ADD COLUMN IF NOT EXISTS skills TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS looking_for TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS preferred_roles TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS availability TEXT,
+  ADD COLUMN IF NOT EXISTS work_preference TEXT,
+  ADD COLUMN IF NOT EXISTS interests TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS experience JSONB DEFAULT '[]'::JSONB,
+  ADD COLUMN IF NOT EXISTS projects JSONB DEFAULT '[]'::JSONB,
+  ADD COLUMN IF NOT EXISTS ai_summary TEXT,
+  ADD COLUMN IF NOT EXISTS ai_keywords TEXT[] DEFAULT '{}'::TEXT[],
+  ADD COLUMN IF NOT EXISTS ai_embedding vector(1536),
+  ADD COLUMN IF NOT EXISTS last_ai_update TIMESTAMPTZ;

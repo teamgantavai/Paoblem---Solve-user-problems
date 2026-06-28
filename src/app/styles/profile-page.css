@@ -201,7 +201,7 @@
   border-color: rgba(99, 102, 241, 0.5);
 }
 
-.profile-role-tag > :is(svg) {
+.profile-role-tag> :is(svg) {
   opacity: 0.7;
 }
 
@@ -301,7 +301,7 @@
   display: inline-flex;
   align-items: center;
   gap: 0.4rem;
-  border: 1px solid rgba(255, 255, 255, 0.2);
+  border: 1px solid var(--border-color);
   border-radius: 20px;
   padding: 0.45rem 1.1rem;
   font-size: 0.8rem;
@@ -309,23 +309,43 @@
   color: var(--text-main);
   background: transparent;
   cursor: pointer;
-  transition: background 0.2s, border-color 0.2s;
+  transition: background 0.2s, border-color 0.2s, transform 0.1s ease;
   white-space: nowrap;
 }
 
 .profile-action-btn:hover {
   background: var(--bg-hover);
-  border-color: rgba(255, 255, 255, 0.3);
+  border-color: var(--text-muted);
+}
+
+.profile-action-btn:active {
+  transform: scale(0.96);
 }
 
 .profile-action-btn.primary {
-  background: white;
-  border-color: white;
-  color: black;
+  background: var(--text-main);
+  border-color: var(--text-main);
+  color: var(--bg-body);
+  font-weight: 700;
+  letter-spacing: 0.01em;
 }
 
 .profile-action-btn.primary:hover {
-  opacity: 0.88;
+  filter: brightness(1.12);
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.3);
+  transform: translateY(-1px);
+}
+
+@keyframes lightboxScale {
+  from {
+    transform: scale(0.92);
+    opacity: 0;
+  }
+
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
 }
 
 /* -- About section in Profile tab -- */
@@ -768,5 +788,2345 @@
   .profile-right-sidebar {
     width: 100%;
     order: -1;
+  }
+}
+
+/* ============================================================
+   Redesigned Profile Visual Layout (GitHub/LinkedIn Hybrid)
+   ============================================================ */
+
+.profile-redesign-grid {
+  display: grid;
+  grid-template-columns: 2fr 1fr;
+  gap: 1.5rem;
+  margin-top: 1.5rem;
+  align-items: flex-start;
+}
+
+@media (max-width: 992px) {
+  .profile-redesign-grid {
+    grid-template-columns: 1fr;
+    gap: 1.25rem;
+  }
+}
+
+/* ============================================================
+   PREMIUM PROFILE HERO — phero-* Design System
+   ============================================================ */
+
+/* Card wrapper */
+.upf-hero-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  overflow: visible;
+  box-shadow: 0 1px 3px var(--card-shadow), 0 4px 16px rgba(0, 0, 0, 0.04);
+  position: relative;
+  margin-bottom: 1rem;
+}
+
+/* ── Cover Banner ── */
+.upf-hero-cover {
+  height: 280px;
+  position: relative;
+  background: linear-gradient(140deg, #0d1117 0%, #1c2a3a 50%, #0f1923 100%);
+  background-size: cover;
+  background-position: center;
+  border-top-left-radius: 16px;
+  border-top-right-radius: 16px;
+  overflow: hidden;
+  cursor: pointer;
+}
+
+/* Subtle dark overlay for readability */
+.upf-hero-cover::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to bottom,
+      rgba(0, 0, 0, 0.08) 0%,
+      rgba(0, 0, 0, 0.0) 40%,
+      rgba(0, 0, 0, 0.3) 100%);
+  pointer-events: none;
+}
+
+/* Desktop hover — frosted glass button fades in */
+.phero-cover-change-btn {
+  position: absolute;
+  inset: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  opacity: 0;
+  transition: opacity 0.25s ease;
+  pointer-events: none;
+}
+
+.upf-hero-cover:hover .phero-cover-change-btn {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+.phero-cover-change-btn button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+  padding: 0.6rem 1.25rem;
+  background: rgba(10, 10, 20, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  color: #fff;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  transform: scale(0.94);
+  transition: transform 0.22s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s;
+  letter-spacing: 0.02em;
+}
+
+.upf-hero-cover:hover .phero-cover-change-btn button {
+  transform: scale(1);
+}
+
+.phero-cover-change-btn button:hover {
+  background: rgba(255, 255, 255, 0.15);
+}
+
+/* Mobile-only: small circular cam button — always visible */
+.phero-cover-mobile-btn {
+  display: none;
+  position: absolute;
+  top: 12px;
+  right: 12px;
+  z-index: 6;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  background: rgba(10, 10, 20, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  border: 1.5px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.phero-cover-mobile-btn:hover {
+  transform: scale(1.1);
+}
+
+/* Cover uploading overlay */
+.phero-cover-uploading {
+  position: absolute;
+  inset: 0;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 20;
+}
+
+/* ── Identity Section ── */
+.upf-hero-identity {
+  padding: 0 2rem 2rem;
+  position: relative;
+}
+
+/* Row: [avatar] [details + actions] */
+.phero-identity-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 1.5rem;
+}
+
+/* ── Avatar ── */
+.upf-hero-avatar-container {
+  position: relative;
+  width: 130px;
+  height: 130px;
+  margin-top: -65px;
+  flex-shrink: 0;
+  border-radius: 24px;
+  border: 4px solid var(--bg-card);
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.2);
+  overflow: visible;
+  background-color: var(--bg-dark);
+  cursor: zoom-in;
+}
+
+.upf-hero-avatar {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 20px;
+  display: block;
+  transition: transform 0.3s ease;
+}
+
+/* Desktop hover overlay on avatar */
+.phero-avatar-hover-overlay {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.5);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  color: #fff;
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  opacity: 0;
+  transition: opacity 0.22s ease;
+  cursor: pointer;
+  z-index: 4;
+  pointer-events: none;
+}
+
+.upf-hero-avatar-container:hover .upf-hero-avatar {
+  transform: scale(1.03);
+}
+
+.upf-hero-avatar-container:hover .phero-avatar-hover-overlay {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+/* Mobile cam badge (always visible, bottom-right) */
+.upf-avatar-camera-btn {
+  position: absolute;
+  right: -2px;
+  bottom: -2px;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  background: var(--bg-card);
+  border: 2px solid var(--bg-card);
+  color: var(--text-main);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+  transition: transform 0.18s cubic-bezier(0.34, 1.56, 0.64, 1);
+  z-index: 10;
+}
+
+.upf-avatar-camera-btn:hover {
+  transform: scale(1.15);
+}
+
+/* Avatar uploading overlay */
+.phero-avatar-uploading {
+  position: absolute;
+  inset: 0;
+  border-radius: 20px;
+  background: rgba(0, 0, 0, 0.555);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 6;
+}
+
+/* ── Details Column ── */
+.phero-details-col {
+  flex: 1;
+  min-width: 0;
+  padding-top: 1rem;
+}
+
+/* Top row: name block + action buttons side by side */
+.phero-top-row {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+/* Name + badges */
+.phero-name-block {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+}
+
+.upf-hero-name {
+  font-size: 2rem;
+  font-weight: 700;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+  margin: 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.upf-hero-username {
+  font-size: 0.9rem;
+  color: var(--text-muted);
+  font-weight: 400;
+  margin-top: 0.1rem;
+}
+
+/* Info row: location, website */
+.phero-meta-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-top: 0.5rem;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+}
+
+.phero-meta-item {
+  display: flex;
+  align-items: center;
+  gap: 0.3rem;
+}
+
+.phero-meta-item a {
+  color: var(--text-muted);
+  text-decoration: none;
+  transition: color 0.2s;
+}
+
+.phero-meta-item a:hover {
+  color: var(--text-main);
+  text-decoration: underline;
+}
+
+/* Bio */
+.upf-hero-bio,
+.upf-hero-headline {
+  font-size: 0.9rem;
+  color: var(--text-body);
+  line-height: 1.6;
+  margin-top: 0.5rem;
+  display: block !important;
+  max-width: 640px;
+}
+
+/* Combined bottom row of details on desktop */
+.phero-bottom-row-desktop {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 1.5rem;
+  margin-top: 0.85rem;
+  border-top: 1px solid var(--border-color);
+  padding-top: 0.85rem;
+  width: 100%;
+}
+
+.phero-bottom-row-desktop .phero-meta-row,
+.phero-bottom-row-desktop .phero-counts {
+  margin-top: 0 !important;
+}
+
+.phero-bottom-row-desktop .upf-hero-socials {
+  margin-left: auto;
+  margin-top: 0 !important;
+}
+
+.phero-counts-separator {
+  color: var(--border-color);
+}
+
+/* Followers / Following counts */
+.phero-counts {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-top: 0.65rem;
+  font-size: 0.83rem;
+  color: var(--text-muted);
+}
+
+.phero-count-item {
+  cursor: pointer;
+  transition: color 0.2s;
+}
+
+.phero-count-item:hover {
+  color: var(--text-main);
+}
+
+.phero-count-item strong {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* Social icons */
+.upf-hero-socials {
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+  flex-wrap: wrap;
+  margin-top: 0.75rem;
+}
+
+.upf-social-icon {
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  transition: color 0.2s, border-color 0.2s, transform 0.18s, background 0.2s;
+  background: transparent;
+}
+
+.upf-social-icon:hover {
+  color: var(--text-main);
+  border-color: var(--text-muted);
+  transform: translateY(-2px);
+  background: var(--bg-hover);
+}
+
+/* ── Badges ── */
+.phero-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.22rem 0.65rem;
+  border-radius: 999px;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  border: 1px solid;
+}
+
+/* Verified — soft indigo */
+.phero-badge-verified {
+  background: rgba(99, 102, 241, 0.1);
+  color: var(--accent-primary);
+  border-color: rgba(99, 102, 241, 0.25);
+}
+
+/* Role — neutral */
+.phero-badge-role {
+  background: var(--bg-hover);
+  color: var(--text-muted);
+  border-color: var(--border-color);
+}
+
+/* Trust — soft amber */
+.phero-badge-trust {
+  background: rgba(180, 120, 30, 0.1);
+  color: #b87c1e;
+  border-color: rgba(180, 120, 30, 0.22);
+}
+
+[data-theme="dark"] .phero-badge-trust {
+  background: rgba(251, 191, 36, 0.1);
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.22);
+}
+
+/* ── Action Buttons ── */
+.phero-actions {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+  flex-shrink: 0;
+}
+
+.phero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  padding: 0.48rem 1rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  /* Default (Dark Theme) */
+  background: #18181b !important;
+  color: #ffffff !important;
+  border: 1px solid #27272a !important;
+  transition: background 0.18s, border-color 0.18s, box-shadow 0.18s, transform 0.15s;
+  white-space: nowrap;
+  letter-spacing: 0.01em;
+}
+
+.phero-btn:hover {
+  background: #27272a !important;
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.2);
+}
+
+.phero-btn:active {
+  transform: scale(0.97);
+}
+
+/* Primary — dark fill, theme-adaptive */
+.phero-btn-primary {
+  /* Default (Dark Theme) */
+  background: #ffffff !important;
+  border-color: #ffffff !important;
+  color: #000000 !important;
+  font-weight: 700;
+}
+
+.phero-btn-primary:hover {
+  background: #f4f4f5 !important;
+  border-color: #f4f4f5 !important;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.25);
+}
+
+/* Light theme overrides for desktop buttons */
+.light-theme .phero-btn {
+  background: #ffffff !important;
+  color: #18181b !important;
+  border: 1px solid #e4e4e7 !important;
+}
+
+.light-theme .phero-btn:hover {
+  background: #f4f4f5 !important;
+}
+
+.light-theme .phero-btn-primary {
+  background: #18181b !important;
+  border-color: #18181b !important;
+  color: #ffffff !important;
+}
+
+.light-theme .phero-btn-primary:hover {
+  background: #27272a !important;
+  border-color: #27272a !important;
+}
+
+/* Icon-only circle button */
+.phero-btn-icon {
+  width: 36px;
+  height: 36px;
+  padding: 0;
+  border-radius: 50%;
+  justify-content: center;
+}
+
+/* Follow button */
+.phero-btn-follow {
+  background: var(--accent-primary);
+  border-color: var(--accent-primary);
+  color: #fff;
+}
+
+.phero-btn-follow:hover {
+  filter: brightness(1.1);
+  box-shadow: 0 4px 14px rgba(99, 102, 241, 0.3);
+}
+
+/* -- Profile Completeness Card -- */
+.profile-readiness-card {
+  background: linear-gradient(135deg, rgba(37, 99, 235, 0.08) 0%, rgba(99, 102, 241, 0.04) 100%);
+  border: 1px solid rgba(37, 99, 235, 0.2);
+  border-radius: 20px;
+  padding: 1.5rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  gap: 1.5rem;
+  align-items: center;
+}
+
+@media (max-width: 576px) {
+  .profile-readiness-card {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1rem;
+  }
+}
+
+.profile-readiness-circle-wrap {
+  position: relative;
+  width: 76px;
+  height: 76px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.profile-readiness-percentage {
+  position: absolute;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: var(--text-main);
+}
+
+.profile-readiness-info {
+  flex: 1;
+}
+
+.profile-readiness-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+  margin-bottom: 0.25rem;
+}
+
+.profile-readiness-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+}
+
+.profile-readiness-missing-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.profile-readiness-missing-item {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: var(--text-main);
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  padding: 0.25rem 0.65rem;
+  border-radius: 12px;
+  transition: all 0.2s;
+}
+
+/* -- Section Card Styles -- */
+.profile-section-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 20px;
+  padding: 1.75rem;
+  margin-bottom: 1.5rem;
+  box-shadow: 0 2px 12px var(--card-shadow);
+}
+
+.profile-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 1.25rem;
+}
+
+.profile-section-title {
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: var(--text-main);
+  letter-spacing: -0.02em;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-section-add-btn,
+.profile-section-edit-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 0;
+}
+
+.profile-section-add-btn:hover,
+.profile-section-edit-btn:hover {
+  background: var(--border-strong);
+  transform: scale(1.05);
+}
+
+.profile-about-markdown {
+  font-size: 0.95rem;
+  color: var(--text-body);
+  line-height: 1.65;
+  white-space: pre-wrap;
+}
+
+/* -- Experience Timeline -- */
+.profile-experience-list {
+  position: relative;
+  padding-left: 1.5rem;
+  border-left: 2px solid var(--border-color);
+  margin-left: 0.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+}
+
+.profile-experience-item {
+  position: relative;
+}
+
+.profile-experience-dot {
+  position: absolute;
+  left: -29px;
+  top: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--text-muted);
+  border: 2px solid var(--bg-card);
+}
+
+.profile-experience-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.profile-experience-company {
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.profile-experience-role {
+  font-size: 0.9rem;
+  font-weight: 600;
+  color: var(--text-body);
+  margin-top: 0.15rem;
+}
+
+.profile-experience-duration {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  font-weight: 500;
+}
+
+.profile-experience-desc {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.5rem;
+  white-space: pre-wrap;
+}
+
+/* -- Projects Grid -- */
+.profile-projects-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 1.25rem;
+}
+
+.profile-project-item-card {
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  height: 100%;
+  transition: all 0.25s ease;
+  position: relative;
+}
+
+.profile-project-item-card:hover {
+  transform: translateY(-3px);
+  border-color: var(--border-strong);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.2);
+}
+
+.profile-project-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.profile-project-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.profile-project-desc {
+  font-size: 0.85rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.5rem;
+  flex-grow: 1;
+}
+
+.profile-project-tech-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+  margin-top: 0.85rem;
+}
+
+.profile-project-tech-tag {
+  font-size: 0.72rem;
+  font-weight: 600;
+  background-color: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  color: var(--text-body);
+  padding: 0.15rem 0.45rem;
+  border-radius: 8px;
+}
+
+.profile-project-links {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 1rem;
+  font-size: 0.8rem;
+}
+
+.profile-project-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  color: var(--text-muted);
+  text-decoration: none;
+  font-weight: 600;
+  transition: color 0.2s;
+}
+
+.profile-project-link:hover {
+  color: var(--text-main);
+}
+
+/* -- Startup Interests Card Details -- */
+.profile-interests-detail-box {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.interests-detail-item {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.interests-detail-label {
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.interests-detail-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.interests-detail-value {
+  font-size: 0.9rem;
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+/* -- Tag Pills -- */
+.profile-tag-pill {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.3rem 0.75rem;
+  border-radius: 12px;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-body);
+  transition: all 0.2s;
+}
+
+.profile-tag-pill:hover {
+  border-color: var(--border-strong);
+  color: var(--text-main);
+}
+
+/* -- Tag Pill Categories -- */
+.profile-tag-pill.skill {
+  background-color: rgba(37, 99, 235, 0.06);
+  border-color: rgba(37, 99, 235, 0.2);
+  color: #93c5fd;
+}
+
+.profile-tag-pill.skill:hover {
+  background-color: rgba(37, 99, 235, 0.12);
+  border-color: rgba(37, 99, 235, 0.4);
+}
+
+.profile-tag-pill.interest {
+  background-color: rgba(16, 185, 129, 0.06);
+  border-color: rgba(16, 185, 129, 0.2);
+  color: #6ee7b7;
+}
+
+.profile-tag-pill.interest:hover {
+  background-color: rgba(16, 185, 129, 0.12);
+  border-color: rgba(16, 185, 129, 0.4);
+}
+
+/* -- Add/Edit form layout inside modals -- */
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 1rem;
+}
+
+@media (max-width: 576px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+  }
+}
+
+.tag-editor-input-wrap {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.tag-editor-tags-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+  max-height: 160px;
+  overflow-y: auto;
+  padding: 0.25rem;
+  border: 1px dashed var(--border-color);
+  border-radius: 12px;
+}
+
+.tag-editor-removable-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.25rem 0.65rem;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-main);
+  border-radius: 10px;
+}
+
+.tag-editor-remove-btn {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  cursor: pointer;
+  padding: 0;
+  display: flex;
+  align-items: center;
+}
+
+.tag-editor-remove-btn:hover {
+  color: var(--accent-danger);
+}
+
+/* ============================================================
+   Font & Card System Consistency
+   ============================================================ */
+
+.upf-root,
+.profile-page-wrap,
+.profile-section-card,
+.upf-hero-card {
+  font-family: -apple-system, BlinkMacSystemFont, "Inter", "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+
+.profile-section-title {
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  font-size: 1.05rem;
+  color: var(--text-main);
+}
+
+.profile-section-card {
+  box-shadow: 0 1px 3px var(--card-shadow);
+  border: 1px solid var(--border-color);
+  background-color: var(--bg-card);
+  border-radius: 12px;
+}
+
+/* 4. Suggested for You (Profile Strength Completeness Card) Redesign */
+.profile-readiness-card {
+  background: var(--bg-card) !important;
+  border: 1px solid var(--border-color) !important;
+  border-radius: 8px !important;
+  padding: 1.25rem !important;
+  box-shadow: none !important;
+  display: flex;
+  flex-direction: column !important;
+  align-items: stretch !important;
+  gap: 0.75rem !important;
+}
+
+.profile-strength-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.88rem;
+  color: var(--text-muted);
+}
+
+.profile-strength-bar-bg {
+  width: 100%;
+  height: 8px;
+  background-color: var(--bg-hover);
+  border-radius: 4px;
+  overflow: hidden;
+  margin: 0.5rem 0;
+}
+
+.profile-strength-bar-fill {
+  height: 100%;
+  background-color: var(--accent-primary) !important;
+  /* solid clean color instead of neon gradient */
+  border-radius: 4px;
+  transition: width 0.4s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.profile-strength-missing-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.profile-strength-missing-btn {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--accent-primary);
+  background-color: transparent;
+  border: 1px solid var(--accent-primary);
+  padding: 0.25rem 0.6rem;
+  border-radius: 12px;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.profile-strength-missing-btn:hover {
+  background-color: rgba(37, 99, 235, 0.08);
+}
+
+/* 5. Structured Key-Value List Layout for Startup Interests */
+.profile-interests-list {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.profile-interest-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 0.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  font-size: 0.88rem;
+}
+
+.profile-interest-row:last-child {
+  border-bottom: none;
+}
+
+.profile-interest-label {
+  font-weight: 500;
+  color: var(--text-muted);
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-interest-value {
+  font-weight: 600;
+  color: var(--text-main);
+  text-align: right;
+  max-width: 60%;
+}
+
+.profile-interest-value.empty {
+  color: var(--text-muted);
+  font-weight: 400;
+  font-style: italic;
+}
+
+/* 6. LinkedIn-style Timeline for Work Experience */
+.profile-experience-timeline-new {
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  margin-top: 0.5rem;
+}
+
+.profile-experience-item-new {
+  display: flex;
+  gap: 1rem;
+  position: relative;
+}
+
+.profile-experience-item-new:not(:last-child)::after {
+  content: '';
+  position: absolute;
+  left: 20px;
+  /* middle of 40px monogram avatar */
+  top: 44px;
+  bottom: -20px;
+  width: 2px;
+  background-color: var(--border-color);
+}
+
+.profile-timeline-company-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 4px;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  font-size: 1.1rem;
+  color: var(--accent-primary);
+  flex-shrink: 0;
+  z-index: 2;
+}
+
+.profile-experience-content {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+}
+
+.profile-experience-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 1rem;
+}
+
+.profile-experience-company-name {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+}
+
+.profile-experience-role-title {
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--text-body);
+  margin-top: 0.15rem;
+}
+
+.profile-experience-dates {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  margin-top: 0.15rem;
+}
+
+.profile-experience-description {
+  font-size: 0.88rem;
+  color: var(--text-muted);
+  line-height: 1.5;
+  margin-top: 0.4rem;
+  white-space: pre-wrap;
+}
+
+/* 7. Flat, clean, non-neon Tag styles */
+.profile-tag-pill.skill,
+.profile-tag-pill.interest {
+  background-color: var(--bg-hover) !important;
+  border: 1px solid var(--border-color) !important;
+  color: var(--text-body) !important;
+}
+
+.profile-tag-pill.skill:hover,
+.profile-tag-pill.interest:hover {
+  background-color: var(--border-color) !important;
+  border-color: var(--border-strong) !important;
+  color: var(--text-main) !important;
+}
+
+/* 8. Profile Completeness Stepper Wizard Styling */
+.profile-strength-bar-container {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.profile-strength-nav-group {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+}
+
+.profile-strength-nav-btn {
+  background: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  color: var(--text-muted);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+  padding: 0;
+}
+
+.profile-strength-nav-btn:hover {
+  background: var(--border-strong);
+  color: var(--text-main);
+}
+
+.profile-strength-nav-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+}
+
+.profile-suggestion-inner-card {
+  background-color: var(--bg-hover);
+  border: 1px dashed var(--border-color);
+  border-radius: 6px;
+  padding: 1rem;
+  margin-top: 0.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.profile-suggestion-title {
+  font-size: 0.92rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0;
+}
+
+.profile-suggestion-desc {
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  line-height: 1.4;
+  margin: 0;
+}
+
+.profile-suggestion-btn {
+  align-self: flex-start;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: white !important;
+  background-color: var(--accent-primary);
+  border: none;
+  padding: 0.4rem 1rem;
+  border-radius: 20px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+  margin-top: 0.25rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+}
+
+.profile-suggestion-btn:hover {
+  background-color: var(--accent-primary-hover, #1d4ed8);
+}
+
+/* 9. Profile Sticky Rows Layout */
+.profile-layout-rows-new {
+  display: flex;
+  flex-direction: column;
+  gap: 1.75rem;
+  margin-top: 1.5rem;
+  width: 100%;
+}
+
+/* 10. Compact Cover Banner Height Override */
+.upf-hero-cover {
+  height: 200px !important;
+}
+
+/* 11. Top Tab Navigation Underline Style */
+.profile-nav-tabs {
+  display: flex;
+  gap: 1.5rem;
+  border-bottom: 1px solid var(--border-color);
+  padding-bottom: 0px;
+  margin-top: 1.5rem;
+  margin-bottom: 1.5rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.profile-nav-tabs::-webkit-scrollbar {
+  display: none;
+}
+
+.profile-nav-tab-btn {
+  font-size: 0.9rem;
+  font-weight: 500;
+  color: var(--text-muted);
+  background: transparent;
+  border: none;
+  padding: 0.5rem 0.25rem 0.75rem;
+  cursor: pointer;
+  position: relative;
+  transition: color 0.2s;
+  white-space: nowrap;
+  font-family: inherit;
+}
+
+.profile-nav-tab-btn:hover {
+  color: var(--text-main);
+}
+
+.profile-nav-tab-btn.active {
+  color: var(--text-main);
+  font-weight: 600;
+}
+
+.profile-nav-tab-btn.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background-color: var(--accent-primary);
+}
+
+/* 12. Soft Modern Cards with Large Padding & Soft Shadow */
+.profile-card-new {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  padding: 1.75rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+}
+
+.profile-card-title-new {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+/* 13. Minimal Skill Tags */
+.profile-skill-tag-new {
+  display: inline-block;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 0.25rem 0.75rem;
+  font-size: 0.8rem;
+  color: var(--text-body);
+  font-weight: 500;
+  transition: all 0.2s ease;
+}
+
+.profile-skill-tag-new:hover {
+  background-color: var(--border-color);
+  color: var(--text-main);
+  transform: translateY(-1px);
+}
+
+/* 14. Achievements Compact Badges Row */
+.achievements-badges-row-new {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+}
+
+.achievement-badge-mini-new {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  background-color: var(--bg-hover);
+  border: 1px solid var(--border-color);
+  padding: 0.35rem 0.6rem;
+  border-radius: 6px;
+}
+
+.achievement-badge-mini-text-new {
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--text-main);
+}
+
+/* 15. AI Match Ready Widget */
+.ai-match-card-new {
+  background-color: rgba(37, 99, 235, 0.03);
+  border: 1px dashed rgba(37, 99, 235, 0.2);
+  border-radius: 8px;
+  padding: 1.25rem;
+}
+
+.ai-match-header-new {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 0.75rem;
+}
+
+.ai-match-status-new {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--accent-primary);
+}
+
+.ai-match-grid-new {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.ai-match-item-new {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  padding: 0.6rem;
+  border-radius: 6px;
+  text-align: center;
+}
+
+.ai-match-val-new {
+  font-size: 1.05rem;
+  font-weight: 700;
+  color: var(--text-main);
+}
+
+.ai-match-lbl-new {
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  font-weight: 500;
+  margin-top: 0.1rem;
+}
+
+/* 16. Dropdown Settings Menu next to Edit Profile */
+.settings-menu-container-new {
+  position: relative;
+  display: inline-block;
+}
+
+.settings-menu-dropdown-new {
+  position: absolute;
+  right: 0;
+  top: 115%;
+  background-color: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  width: 220px;
+  z-index: 100;
+  padding: 0.5rem 0;
+}
+
+.settings-menu-item-new {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  width: 100%;
+  border: none;
+  background: transparent;
+  padding: 0.5rem 1rem;
+  font-size: 0.85rem;
+  color: var(--text-body);
+  cursor: pointer;
+  text-align: left;
+  transition: background 0.2s;
+  font-family: inherit;
+}
+
+.settings-menu-item-new:hover {
+  background-color: var(--bg-hover);
+  color: var(--text-main);
+}
+
+/* 17. Recent Activity Timeline (Posts, Solutions, Comments) */
+.activity-timeline-new {
+  display: flex;
+  flex-direction: column;
+  gap: 1.25rem;
+}
+
+.activity-item-new {
+  position: relative;
+  padding-left: 1.5rem;
+}
+
+.activity-item-new::before {
+  content: '';
+  position: absolute;
+  left: 4px;
+  top: 6px;
+  bottom: -18px;
+  width: 1.5px;
+  background-color: var(--border-color);
+}
+
+.activity-item-new:last-child::before {
+  display: none;
+}
+
+.activity-dot-new {
+  position: absolute;
+  left: 0;
+  top: 6px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background-color: var(--border-strong);
+  border: 2px solid var(--bg-card);
+}
+
+.activity-header-new {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  font-size: 0.82rem;
+  color: var(--text-muted);
+  margin-bottom: 0.25rem;
+}
+
+.activity-title-new {
+  font-weight: 600;
+  color: var(--text-main);
+  font-size: 0.88rem;
+  margin: 0;
+}
+
+.activity-body-new {
+  font-size: 0.82rem;
+  color: var(--text-body);
+  line-height: 1.45;
+  margin: 0.35rem 0 0;
+}
+
+/* 18. Global upf-content override for flat cards timeline spacing */
+.upf-root .upf-content,
+.upf-page-body .upf-content {
+  background: transparent !important;
+  border: none !important;
+  padding: 0 !important;
+  min-height: auto !important;
+  box-shadow: none !important;
+  margin-top: 0px !important;
+}
+
+/* 19. Profile Settings Tab Redesign Styles */
+.profile-settings-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  padding: 1.5rem 0;
+  border-bottom: 1px solid var(--border-color);
+  gap: 2rem;
+}
+
+.profile-settings-row:last-child {
+  border-bottom: none;
+}
+
+.profile-settings-info {
+  flex: 1;
+  max-width: 55%;
+}
+
+.profile-settings-title {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--text-main);
+  margin: 0 0 0.35rem 0;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.profile-settings-desc {
+  font-size: 0.8rem;
+  color: var(--text-muted);
+  line-height: 1.45;
+  margin: 0;
+}
+
+.profile-settings-control {
+  flex: 1;
+  display: flex;
+  justify-content: flex-end;
+  max-width: 45%;
+}
+
+.profile-settings-checkbox-group {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  width: 100%;
+}
+
+.profile-settings-checkbox-label {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  color: var(--text-body);
+  cursor: pointer;
+  user-select: none;
+  line-height: 1.4;
+  text-align: left;
+}
+
+.profile-settings-checkbox-label input[type="checkbox"] {
+  margin-top: 0.2rem;
+  accent-color: var(--accent-primary);
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.profile-theme-toggle-btn {
+  padding: 0.4rem 0.9rem;
+  border-radius: 8px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1.5px solid var(--border-color);
+  background: transparent;
+  color: var(--text-body);
+  transition: all 0.18s ease;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.profile-theme-toggle-btn:hover {
+  background: var(--bg-hover);
+  color: var(--text-main);
+  border-color: var(--border-strong);
+}
+
+.profile-theme-toggle-btn.active {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: var(--accent-primary);
+}
+
+.profile-theme-toggle-btn.active:hover {
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: var(--accent-primary);
+  opacity: 0.9;
+}
+
+@media (max-width: 768px) {
+  .profile-settings-row {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 1rem;
+    padding: 1.25rem 0;
+  }
+
+  .profile-settings-info,
+  .profile-settings-control {
+    max-width: 100%;
+  }
+
+  .profile-settings-control {
+    justify-content: flex-start;
+  }
+
+  /* ── Hero Mobile ── */
+  .upf-hero-cover {
+    height: 180px;
+  }
+
+  /* Show mobile cam button on cover, hide desktop hover btn */
+  .phero-cover-change-btn {
+    display: none !important;
+  }
+
+  .phero-cover-mobile-btn {
+    display: flex !important;
+  }
+
+  /* Avatar: slightly smaller on mobile */
+  .upf-hero-avatar-container {
+    width: 88px;
+    height: 88px;
+    margin-top: -44px;
+    border-width: 3px;
+  }
+
+  /* Hide desktop hover overlay on mobile, show cam badge instead */
+  .phero-avatar-hover-overlay {
+    display: none !important;
+  }
+
+  .upf-avatar-camera-btn {
+    display: flex !important;
+  }
+
+  /* Identity layout: stack on mobile */
+  .upf-hero-identity {
+    padding: 0 1rem 1.5rem;
+  }
+
+  .phero-identity-row {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.75rem;
+  }
+
+  .phero-details-col {
+    padding-top: 0;
+    align-items: center;
+    display: flex;
+    flex-direction: column;
+    width: 100%;
+  }
+
+  .upf-hero-name {
+    font-size: 1.4rem;
+    justify-content: center;
+    flex-wrap: wrap;
+  }
+
+  .phero-top-row {
+    flex-direction: column;
+    align-items: center;
+    gap: 0.75rem;
+  }
+
+  .phero-name-block {
+    align-items: center;
+  }
+
+  .phero-meta-row {
+    justify-content: center;
+  }
+
+  .upf-hero-bio,
+  .upf-hero-headline {
+    font-size: 0.85rem;
+    text-align: center;
+  }
+
+  .phero-counts {
+    justify-content: center;
+  }
+
+  .upf-hero-socials {
+    justify-content: center;
+  }
+
+  .phero-actions {
+    justify-content: center;
+    width: 100%;
+  }
+
+  .phero-btn {
+    flex: 1;
+    justify-content: center;
+    min-width: 120px;
+  }
+
+  .phero-btn-icon {
+    flex: unset;
+    width: 36px;
+    min-width: unset;
+  }
+}
+
+.profile-images-edit-buttons {
+  display: flex;
+  gap: 0.75rem;
+  margin-top: 0.25rem;
+  width: 100%;
+}
+
+@media (max-width: 480px) {
+  .profile-images-edit-buttons {
+    flex-direction: column;
+    gap: 0.5rem;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════
+   MOBILE PROFILE HERO — Exact match to screenshot design
+   Paste this AFTER your existing profile CSS files.
+   Only affects screens ≤ 768px.
+   ═══════════════════════════════════════════════════════════════ */
+
+@media (max-width: 768px) {
+
+  /* ── IMMERSIVE EDGE-TO-EDGE RESET ── */
+  .main-content.profile-main-wrapper {
+    padding: 0 0 100px 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .profile-inner-wrapper {
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
+  }
+
+  .upf-root {
+    max-width: 100% !important;
+    padding: 0 !important;
+    margin: 0 !important;
+  }
+
+  /* ── Hero card: flush to screen edges ── */
+  .upf-hero-card {
+    border-radius: 0 !important;
+    border: none !important;
+    margin: 0 !important;
+    box-shadow: none !important;
+    background: var(--bg-card) !important;
+  }
+
+  /* ── Cover banner: edge-to-edge ── */
+  .upf-hero-cover {
+    height: 130px !important;
+    border-radius: 0 !important;
+    background-size: cover !important;
+    background-position: center !important;
+  }
+
+  /* Desktop hover cover btn: hidden on mobile */
+  .phero-cover-change-btn {
+    display: none !important;
+  }
+
+  /* Mobile cam button on cover: top-right circle */
+  .phero-cover-mobile-btn {
+    display: flex !important;
+    position: absolute !important;
+    top: 10px !important;
+    right: 10px !important;
+    width: 32px !important;
+    height: 32px !important;
+    border-radius: 50% !important;
+    background: rgba(0, 0, 0, 0.55) !important;
+    backdrop-filter: blur(6px) !important;
+    -webkit-backdrop-filter: blur(6px) !important;
+    border: 1px solid rgba(255, 255, 255, 0.2) !important;
+    color: #fff !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    z-index: 10 !important;
+  }
+
+  /* ── Identity section: padding matches screenshot ── */
+  .upf-hero-identity {
+    padding: 0 16px 20px 16px !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    gap: 0 !important;
+    position: relative !important;
+  }
+
+  /* ── Avatar: square, left-aligned, overlaps cover ── */
+  .upf-hero-avatar-container {
+    position: relative !important;
+    width: 90px !important;
+    height: 90px !important;
+    margin-top: -45px !important;
+    margin-bottom: 12px !important;
+    border-radius: 16px !important;
+    border: 3px solid var(--bg-card) !important;
+    overflow: hidden !important;
+    flex-shrink: 0 !important;
+    align-self: flex-start !important;
+    box-shadow: 0 2px 12px rgba(0, 0, 0, 0.25) !important;
+    cursor: zoom-in !important;
+  }
+
+  .upf-hero-avatar {
+    width: 100% !important;
+    height: 100% !important;
+    object-fit: cover !important;
+    border-radius: 13px !important;
+    display: block !important;
+  }
+
+  /* Desktop hover overlay: hidden on mobile */
+  .phero-avatar-hover-overlay {
+    display: none !important;
+  }
+
+  /* Mobile cam badge: bottom-right of avatar */
+  .upf-avatar-camera-btn {
+    display: flex !important;
+    position: absolute !important;
+    bottom: -2px !important;
+    right: -2px !important;
+    width: 26px !important;
+    height: 26px !important;
+    border-radius: 50% !important;
+    background: var(--bg-card) !important;
+    border: 2px solid var(--bg-card) !important;
+    color: var(--text-main) !important;
+    align-items: center !important;
+    justify-content: center !important;
+    cursor: pointer !important;
+    box-shadow: 0 1px 6px rgba(0, 0, 0, 0.2) !important;
+    z-index: 5 !important;
+  }
+
+  /* ── Details column: full width, left-aligned ── */
+  .phero-details-col {
+    width: 100% !important;
+    padding-top: 0 !important;
+    display: flex !important;
+    flex-direction: column !important;
+    align-items: flex-start !important;
+    text-align: left !important;
+    gap: 0 !important;
+  }
+
+  /* ── Top row: name+badges left, action buttons below ── */
+  .phero-top-row {
+    display: contents !important;
+  }
+
+  /* Name block */
+  .phero-name-block {
+    order: 1 !important;
+    align-items: flex-start !important;
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 0 !important;
+  }
+
+  /* ── Name: bold, left, ~24px ── */
+  .upf-hero-name {
+    font-size: 1.4rem !important;
+    font-weight: 700 !important;
+    color: var(--text-main) !important;
+    letter-spacing: -0.02em !important;
+    line-height: 1.2 !important;
+    margin: 0 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 6px !important;
+    flex-wrap: wrap !important;
+  }
+
+  /* Verified badge inline with name */
+  .phero-badge-verified {
+    font-size: 0.65rem !important;
+    padding: 0.15rem 0.5rem !important;
+    border-radius: 20px !important;
+    font-weight: 600 !important;
+  }
+
+  /* Role badge inline with name — pill style */
+  .phero-badge-role {
+    font-size: 0.65rem !important;
+    padding: 0.15rem 0.5rem !important;
+    border-radius: 20px !important;
+    font-weight: 600 !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+  }
+
+  /* Trust badge: below name, amber pill */
+  .phero-badge-trust {
+    display: inline-flex !important;
+    align-items: center !important;
+    gap: 4px !important;
+    font-size: 0.72rem !important;
+    font-weight: 600 !important;
+    padding: 0.22rem 0.65rem !important;
+    border-radius: 20px !important;
+    background: rgba(245, 158, 11, 0.1) !important;
+    color: #d97706 !important;
+    border: 1px solid rgba(245, 158, 11, 0.25) !important;
+    margin-top: 6px !important;
+  }
+
+  /* ── Username: muted, smaller ── */
+  .upf-hero-username {
+    font-size: 0.82rem !important;
+    color: var(--text-muted) !important;
+    font-weight: 400 !important;
+    display: block !important;
+    margin-top: 4px !important;
+    line-height: 1 !important;
+  }
+
+  /* ── Headline (shown as bio-like text in screenshot) ── */
+  .upf-hero-headline {
+    order: 2 !important;
+    font-size: 0.88rem !important;
+    font-weight: 400 !important;
+    color: var(--text-body) !important;
+    line-height: 1.45 !important;
+    margin-top: 8px !important;
+    text-align: left !important;
+  }
+
+  /* ── Bio (short, muted) ── */
+  .upf-hero-bio {
+    order: 3 !important;
+    font-size: 0.85rem !important;
+    font-weight: 400 !important;
+    color: var(--text-body) !important;
+    line-height: 1.45 !important;
+    margin-top: 4px !important;
+    text-align: left !important;
+    -webkit-line-clamp: 3 !important;
+  }
+
+  /* ── Meta row: location, website ── */
+  .phero-meta-row {
+    order: 4 !important;
+    display: flex !important;
+    flex-wrap: wrap !important;
+    align-items: center !important;
+    justify-content: flex-start !important;
+    gap: 0.65rem !important;
+    margin-top: 6px !important;
+    font-size: 0.8rem !important;
+    color: var(--text-muted) !important;
+  }
+
+  .phero-meta-item {
+    display: flex !important;
+    align-items: center !important;
+    gap: 3px !important;
+    color: var(--text-muted) !important;
+  }
+
+  .phero-meta-item a {
+    color: var(--text-muted) !important;
+    text-decoration: none !important;
+  }
+
+  /* ── Followers / Following counts ── */
+  .phero-counts {
+    order: 5 !important;
+    display: flex !important;
+    align-items: center !important;
+    gap: 0.6rem !important;
+    margin-top: 8px !important;
+    font-size: 0.8rem !important;
+    color: var(--text-muted) !important;
+    justify-content: flex-start !important;
+  }
+
+  /* ── Social icons row ── */
+  .upf-hero-socials {
+    order: 7 !important;
+    display: flex !important;
+    flex-direction: row !important;
+    justify-content: flex-start !important;
+    flex-wrap: wrap !important;
+    gap: 6px !important;
+    margin-top: 10px !important;
+  }
+
+  .upf-social-icon {
+    width: 30px !important;
+    height: 30px !important;
+    border-radius: 7px !important;
+    border: 1px solid var(--border-color) !important;
+    color: var(--text-muted) !important;
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+  }
+
+  /* ── Mobile Action buttons wrapper ── */
+  .phero-actions-mobile {
+    order: 6 !important;
+    width: 100% !important;
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: center !important;
+    flex-wrap: nowrap !important;
+    gap: 8px !important;
+    margin-top: 14px !important;
+    justify-content: flex-start !important;
+  }
+
+  /* Mobile pill buttons */
+  .phero-btn-mobile-edit {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 0 !important;
+    height: 38px !important;
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    flex: 2.2 !important;
+    border: none !important;
+    /* Default (Dark Theme) - pure white and black */
+    background: #ffffff !important;
+    color: #000000 !important;
+  }
+
+  .phero-btn-mobile-analytics {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    gap: 6px !important;
+    padding: 0 !important;
+    height: 38px !important;
+    font-size: 0.8rem !important;
+    font-weight: 700 !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    white-space: nowrap !important;
+    flex: 2 !important;
+    /* Default (Dark Theme) - neutral dark zinc-900 */
+    background: #18181b !important;
+    color: #ffffff !important;
+    border: 1px solid #27272a !important;
+  }
+
+  .phero-btn-mobile-settings {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    flex: 1 !important;
+    /* Default (Dark Theme) - neutral dark zinc-900 */
+    background: #18181b !important;
+    color: #ffffff !important;
+    border: 1px solid #27272a !important;
+  }
+
+  .phero-btn-mobile-logout {
+    display: inline-flex !important;
+    align-items: center !important;
+    justify-content: center !important;
+    height: 38px !important;
+    border-radius: 12px !important;
+    cursor: pointer !important;
+    flex: 1 !important;
+    /* Default (Dark Theme) - neutral dark zinc-900 */
+    background: #18181b !important;
+    color: #ffffff !important;
+    border: 1px solid #27272a !important;
+  }
+
+  /* Light theme overrides to exactly match colors without blue tints */
+  .light-theme .phero-btn-mobile-edit {
+    background: #18181b !important;
+    color: #ffffff !important;
+  }
+
+  .light-theme .phero-btn-mobile-analytics,
+  .light-theme .phero-btn-mobile-settings,
+  .light-theme .phero-btn-mobile-logout {
+    background: #ffffff !important;
+    color: #18181b !important;
+    border: 1px solid #e4e4e7 !important;
+  }
+
+  /* Settings dropdown: right-anchored on mobile */
+  .settings-menu-dropdown-new {
+    position: absolute !important;
+    right: 0 !important;
+    left: auto !important;
+    top: calc(100% + 6px) !important;
+    width: 210px !important;
+    border-radius: 10px !important;
+    box-shadow: 0 8px 24px rgba(0, 0, 0, 0.25) !important;
+    z-index: 1000 !important;
+  }
+
+  /* ── Nav tabs ── */
+  .profile-nav-tabs {
+    display: flex !important;
+    gap: 0 !important;
+    padding: 0 !important;
+    margin-top: 0 !important;
+    margin-bottom: 12px !important;
+    overflow-x: auto !important;
+    scrollbar-width: none !important;
+    border-bottom: 1px solid var(--border-color) !important;
+    background-color: var(--bg-card) !important;
+  }
+
+  .profile-nav-tabs::-webkit-scrollbar {
+    display: none !important;
+  }
+
+  .profile-nav-tab-btn {
+    font-size: 0.8rem !important;
+    font-weight: 500 !important;
+    padding: 0.45rem 0.7rem 0.6rem !important;
+    color: var(--text-muted) !important;
+    white-space: nowrap !important;
+    text-transform: none !important;
+    letter-spacing: 0 !important;
+    flex-shrink: 0 !important;
+  }
+
+  .profile-nav-tab-btn.active {
+    color: var(--text-main) !important;
+    font-weight: 600 !important;
+  }
+
+  .profile-nav-tab-btn.active::after {
+    height: 2px !important;
+    border-radius: 2px !important;
+    background: var(--text-main) !important;
+  }
+
+  /* ── Content cards on mobile ── */
+  .profile-card-new {
+    border-radius: 12px !important;
+    padding: 1.25rem !important;
+    margin: 0 12px 16px 12px !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    background-color: var(--bg-card) !important;
+  }
+
+  .profile-layout-rows-new {
+    gap: 12px !important;
+    margin-top: 0 !important;
+  }
+
+  .upf-content {
+    padding: 0 !important;
+    border: none !important;
+    background: transparent !important;
+  }
+}
+
+/* ── Tiny screens (< 360px) ── */
+@media (max-width: 360px) {
+  .upf-hero-name {
+    font-size: 1.2rem !important;
+  }
+
+  .phero-btn-primary {
+    min-width: 100px !important;
+    font-size: 0.75rem !important;
+  }
+
+  .phero-btn-icon {
+    width: 34px !important;
+    height: 34px !important;
+    flex: 0 0 34px !important;
+  }
+}
+
+.phero-actions-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .phero-actions-desktop {
+    display: none !important;
+  }
+  .phero-actions-mobile {
+    display: flex !important;
+  }
+}
+
+.upf-avatar-socials-row {
+  display: contents;
+}
+
+.upf-hero-socials-inline-mobile {
+  display: none !important;
+}
+
+@media (max-width: 768px) {
+  .phero-actions-desktop {
+    display: none !important;
+  }
+  .phero-actions-mobile {
+    display: flex !important;
+  }
+
+  .upf-avatar-socials-row {
+    display: flex !important;
+    flex-direction: row !important;
+    align-items: flex-end !important;
+    justify-content: space-between !important;
+    width: 100% !important;
+    margin-top: -45px !important;
+    margin-bottom: 12px !important;
+  }
+
+  .upf-hero-socials-inline-mobile {
+    display: flex !important;
+    flex-direction: row !important;
+    gap: 8px !important;
+    align-items: center !important;
+    margin-bottom: 8px !important;
+  }
+
+  .upf-hero-avatar-container,
+  .upf-avatar-wrap {
+    margin-top: 0 !important;
+    margin-bottom: 0 !important;
+  }
+
+  .phero-details-col .upf-hero-socials,
+  .upf-hero-details .upf-hero-socials {
+    display: none !important;
+  }
+
+  .phero-bottom-row-desktop {
+    display: contents !important;
+  }
+
+  /* Mobile camera hover/touch overlays */
+  .phero-cover-change-btn,
+  .phero-avatar-hover-overlay {
+    display: flex !important;
+    opacity: 0 !important;
+    pointer-events: none !important;
+  }
+
+  .upf-hero-cover:hover .phero-cover-change-btn,
+  .upf-hero-cover:active .phero-cover-change-btn,
+  .upf-hero-avatar-container:hover .phero-avatar-hover-overlay,
+  .upf-hero-avatar-container:active .phero-avatar-hover-overlay {
+    opacity: 1 !important;
+    pointer-events: auto !important;
+  }
+
+  .phero-avatar-hover-overlay {
+    border-radius: 13px !important;
+  }
+
+  .phero-cover-mobile-btn,
+  .upf-avatar-camera-btn {
+    display: none !important;
   }
 }

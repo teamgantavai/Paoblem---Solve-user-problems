@@ -1,10 +1,19 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@supabase/supabase-js';
+import { processProfileAi } from '@/lib/profileAi';
 
 const supabaseAdmin = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY || process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
 );
+
+const SELECT_FIELDS = [
+  'id', 'full_name', 'avatar_url', 'role', 'bio', 'location', 'created_at', 'username', 'cover_url', 'reputation',
+  'pref_receive_saves', 'pref_receive_analytics', 'pref_receive_solutions', 'pref_receive_replies',
+  'headline', 'languages', 'github', 'linkedin', 'twitter', 'youtube', 'other_link', 'website',
+  'about', 'skills', 'looking_for', 'preferred_roles', 'availability', 'work_preference', 'interests',
+  'experience', 'projects', 'ai_summary', 'ai_keywords', 'last_ai_update'
+].join(', ');
 
 // ── GET /api/profile?userId=<id> ──────────────────────────────────────────────
 export async function GET(req: NextRequest) {
@@ -15,10 +24,23 @@ export async function GET(req: NextRequest) {
       return NextResponse.json({ error: 'userId or username is required' }, { status: 400 });
     }
 
+    // Check if requester is the owner by parsing auth header
+    const authHeader = req.headers.get('Authorization');
+    let requestingUserId: string | null = null;
+    if (authHeader?.startsWith('Bearer ')) {
+      const token = authHeader.slice(7);
+      try {
+        const { data: { user } } = await supabaseAdmin.auth.getUser(token);
+        if (user) requestingUserId = user.id;
+      } catch (err) {
+        // Safe to ignore token parsing errors for public retrieval
+      }
+    }
+
     // Fetch profile
     let query = supabaseAdmin
       .from('profiles')
-      .select('id, full_name, avatar_url, role, bio, location, created_at, username, cover_url, reputation, pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies');
+      .select(SELECT_FIELDS as any);
 
     if (userId) {
       query = query.eq('id', userId);
@@ -26,7 +48,7 @@ export async function GET(req: NextRequest) {
       query = query.eq('username', username);
     }
 
-    let { data: profile, error: profileError } = await query.single();
+    let { data: profile, error: profileError } = (await query.single()) as { data: any, error: any };
 
     if ((profileError || !profile) && userId) {
       console.warn(`[GET /api/profile] Profile missing for user ${userId}, checking auth.users...`);
@@ -44,7 +66,7 @@ export async function GET(req: NextRequest) {
             username: fallbackUsername,
             reputation: 0
           })
-          .select()
+          .select(SELECT_FIELDS as any)
           .single();
 
         if (!profileCreateError && newProfile) {
@@ -62,6 +84,15 @@ export async function GET(req: NextRequest) {
     }
 
     const targetUserId = profile.id;
+    const isOwner = requestingUserId && requestingUserId === targetUserId;
+
+    // Filter out private AI Recommendation data for public visitors
+    const responseProfile = { ...profile };
+    if (!isOwner) {
+      delete responseProfile.ai_summary;
+      delete responseProfile.ai_keywords;
+      delete responseProfile.last_ai_update;
+    }
 
     // Fetch post count
     const { count: postCount } = await supabaseAdmin
@@ -84,7 +115,7 @@ export async function GET(req: NextRequest) {
     const totalUpvotes = posts?.reduce((sum, p) => sum + (p.upvotes || 0), 0) ?? 0;
 
     return NextResponse.json({
-      profile,
+      profile: responseProfile,
       stats: {
         postCount: postCount ?? 0,
         commentCount: commentCount ?? 0,
@@ -114,7 +145,10 @@ export async function PUT(req: NextRequest) {
     const body = await req.json();
     const { 
       full_name, role, bio, location, avatar_url, username, cover_url,
-      pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies 
+      pref_receive_saves, pref_receive_analytics, pref_receive_solutions, pref_receive_replies,
+      headline, languages, github, linkedin, twitter, youtube, other_link, website,
+      about, skills, looking_for, preferred_roles, availability, work_preference, interests,
+      experience, projects
     } = body;
 
     // Validate role
@@ -148,6 +182,26 @@ export async function PUT(req: NextRequest) {
     if (pref_receive_analytics !== undefined) updates.pref_receive_analytics = !!pref_receive_analytics;
     if (pref_receive_solutions !== undefined) updates.pref_receive_solutions = !!pref_receive_solutions;
     if (pref_receive_replies !== undefined) updates.pref_receive_replies = !!pref_receive_replies;
+    
+    // Rich profile updates
+    if (headline !== undefined) updates.headline = headline?.trim() || null;
+    if (languages !== undefined) updates.languages = Array.isArray(languages) ? languages.map(l => l.trim()).filter(Boolean) : [];
+    if (github !== undefined) updates.github = github?.trim() || null;
+    if (linkedin !== undefined) updates.linkedin = linkedin?.trim() || null;
+    if (twitter !== undefined) updates.twitter = twitter?.trim() || null;
+    if (youtube !== undefined) updates.youtube = youtube?.trim() || null;
+    if (other_link !== undefined) updates.other_link = other_link?.trim() || null;
+    if (website !== undefined) updates.website = website?.trim() || null;
+    if (about !== undefined) updates.about = about || null;
+    if (skills !== undefined) updates.skills = Array.isArray(skills) ? skills.map(s => s.trim()).filter(Boolean) : [];
+    if (looking_for !== undefined) updates.looking_for = Array.isArray(looking_for) ? looking_for.map(l => l.trim()).filter(Boolean) : [];
+    if (preferred_roles !== undefined) updates.preferred_roles = Array.isArray(preferred_roles) ? preferred_roles.map(r => r.trim()).filter(Boolean) : [];
+    if (availability !== undefined) updates.availability = availability?.trim() || null;
+    if (work_preference !== undefined) updates.work_preference = work_preference?.trim() || null;
+    if (interests !== undefined) updates.interests = Array.isArray(interests) ? interests.map(i => i.trim()).filter(Boolean) : [];
+    if (experience !== undefined) updates.experience = Array.isArray(experience) ? experience : [];
+    if (projects !== undefined) updates.projects = Array.isArray(projects) ? projects : [];
+
     if (username !== undefined) {
       const cleanUsername = username?.trim().toLowerCase();
       if (!cleanUsername) {
@@ -190,12 +244,13 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: 'No fields to update' }, { status: 400 });
     }
 
-    const { data: updated, error: updateError } = await supabaseAdmin
+    // First save the user-updated fields to profiles
+    const { data: updated, error: updateError } = (await supabaseAdmin
       .from('profiles')
       .update(updates)
       .eq('id', user.id)
-      .select()
-      .single();
+      .select(SELECT_FIELDS as any)
+      .single()) as { data: any, error: any };
 
     if (updateError) {
       console.error('[PUT /api/profile] update error:', updateError);
@@ -217,9 +272,46 @@ export async function PUT(req: NextRequest) {
       });
     }
 
-    return NextResponse.json({ profile: updated });
+    // Process AI optimization fields synchronously to provide immediate profile readiness response
+    let finalProfile = updated;
+    try {
+      const aiInput = {
+        full_name: updated.full_name,
+        headline: updated.headline,
+        bio: updated.bio,
+        about: updated.about,
+        skills: updated.skills || [],
+        looking_for: updated.looking_for || [],
+        preferred_roles: updated.preferred_roles || [],
+        availability: updated.availability,
+        work_preference: updated.work_preference,
+        interests: updated.interests || [],
+        experience: updated.experience || [],
+        projects: updated.projects || []
+      };
+
+      const aiOutput = await processProfileAi(aiInput);
+
+      const { data: updatedWithAi, error: aiUpdateError } = (await supabaseAdmin
+        .from('profiles')
+        .update(aiOutput)
+        .eq('id', user.id)
+        .select(SELECT_FIELDS as any)
+        .single()) as { data: any, error: any };
+
+      if (!aiUpdateError && updatedWithAi) {
+        finalProfile = updatedWithAi;
+      } else {
+        console.error('[PUT /api/profile] Database error saving AI output:', aiUpdateError);
+      }
+    } catch (aiErr) {
+      console.error('[PUT /api/profile] Failed to generate AI summary/embeddings:', aiErr);
+    }
+
+    return NextResponse.json({ profile: finalProfile });
   } catch (err: any) {
     console.error('[PUT /api/profile]', err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }
+

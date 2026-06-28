@@ -6,12 +6,43 @@ import { useRouter } from 'next/navigation';
 import {
   UserCheck, UserPlus, MessageCircle, MapPin, Briefcase,
   ArrowUp, MessageSquare, Lightbulb, BookOpen, Users, Heart,
-  ExternalLink, ChevronRight, Calendar, Award, User, X, Trophy
+  ExternalLink, ChevronRight, Calendar, Award, User, X,
+  Globe, Check, Plus, ShieldAlert, Trophy
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import BadgeArtwork from '@/components/badges/BadgeArtwork';
 import { BADGE_DEFINITIONS, RARITY_CONFIG } from '@/lib/badgeDefinitions';
 import type { BadgeRarity, BadgeCategory } from '@/lib/badgeDefinitions';
+
+/* ── Social Platform Custom Icons (Workaround for Lucide brand icons) ── */
+interface CustomIconProps {
+  size?: number;
+  style?: React.CSSProperties;
+}
+
+const Github = ({ size = 18, style }: CustomIconProps) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+    <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+  </svg>
+);
+
+const Linkedin = ({ size = 18, style }: CustomIconProps) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+    <path d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433c-1.144 0-2.063-.926-2.063-2.065 0-1.138.92-2.063 2.063-2.063 1.14 0 2.064.925 2.064 2.063 0 1.139-.925 2.065-2.064 2.065zm1.782 13.019H3.555V9h3.564v11.452zM22.225 0H1.771C.792 0 0 .774 0 1.729v20.542C0 23.227.792 24 1.771 24h20.451C23.2 24 24 23.227 24 22.271V1.729C24 .774 23.2 0 22.222 0h.003z" />
+  </svg>
+);
+
+const Twitter = ({ size = 18, style }: CustomIconProps) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+    <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+  </svg>
+);
+
+const Youtube = ({ size = 18, style }: CustomIconProps) => (
+  <svg viewBox="0 0 24 24" width={size} height={size} fill="currentColor" style={{ display: 'inline-block', verticalAlign: 'middle', ...style }}>
+    <path d="M23.498 6.163a3.003 3.003 0 0 0-2.11-2.11C19.53 3.545 12 3.545 12 3.545s-7.53 0-9.388.508a3.003 3.003 0 0 0-2.11 2.11C0 8.017 0 12 0 12s0 3.983.502 5.837a3.003 3.003 0 0 0 2.11 2.11c1.858.508 9.388.508 9.388.508s7.53 0 9.388-.508a3.003 3.003 0 0 0 2.11-2.11C24 15.983 24 12 24 12s0-3.983-.502-5.837zM9.545 15.568V8.432L15.818 12l-6.273 3.568z" />
+  </svg>
+);
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -26,6 +57,24 @@ interface Profile {
   location?: string | null;
   website?: string | null;
   reputation?: number | null;
+
+  // Rich profile columns
+  headline?: string | null;
+  languages?: string[] | null;
+  github?: string | null;
+  linkedin?: string | null;
+  twitter?: string | null;
+  youtube?: string | null;
+  other_link?: string | null;
+  about?: string | null;
+  skills?: string[] | null;
+  looking_for?: string[] | null;
+  preferred_roles?: string[] | null;
+  availability?: string | null;
+  work_preference?: string | null;
+  interests?: string[] | null;
+  experience?: any[] | null;
+  projects?: any[] | null;
 }
 
 interface PostItem {
@@ -70,7 +119,7 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'posts' | 'solutions' | 'comments' | 'achievements';
+type Tab = 'overview' | 'posts' | 'solutions' | 'achievements' | 'comments' | 'projects' | 'about';
 type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -258,7 +307,7 @@ function FollowModal({
 export default function UserProfileClient({ profile, posts, solutions, comments, stats }: UserProfileClientProps) {
   const router = useRouter();
 
-  const [activeTab, setActiveTab] = useState<Tab>('posts');
+  const [activeTab, setActiveTab] = useState<Tab>('overview');
   const [postSubFilter, setPostSubFilter] = useState<'all' | 'problems' | 'ideas' | 'startups'>('all');
   const [currentUserId, setCurrentUserId] = useState<string | null>(null);
   const [isFollowing, setIsFollowing] = useState(false);
@@ -269,11 +318,11 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const [followingList, setFollowingList] = useState<FollowUser[]>([]);
   const [listsLoaded, setListsLoaded] = useState(false);
   const [modalView, setModalView] = useState<ModalView>(null);
+  const [activeLightboxImg, setActiveLightboxImg] = useState<string | null>(null);
 
   // Badge state
   const [userBadges, setUserBadges] = useState<Record<string, { earned_at: string; is_featured: boolean }>>({});
   const [badgesLoaded, setBadgesLoaded] = useState(false);
-  const [showLockedBadges, setShowLockedBadges] = useState(true);
 
   const problems = posts.filter((p) => p.type === 'problem');
   const ideas = posts.filter((p) => p.type === 'idea');
@@ -288,8 +337,11 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     }, 0);
   }, [userBadges]);
 
-  const name = profile.full_name || profile.username || 'Unknown';
+  const name = profile.full_name || profile.username || 'Member';
   const isOwnProfile = currentUserId === profile.id;
+
+  const avatarSrc = profile.avatar_url;
+  const coverSrc = profile.cover_url;
 
   // Auth & follow state
   useEffect(() => {
@@ -345,7 +397,6 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
   const openModal = (view: 'followers' | 'following') => {
     loadLists();
     setModalView(view);
-    // Prevent body scroll
     document.body.style.overflow = 'hidden';
   };
 
@@ -415,173 +466,411 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
     }
   };
 
-  const tabs: { key: Tab; label: string; count: number; icon: React.ReactNode }[] = [
+  const tabs: { key: Tab; label: string; count?: number; icon: React.ReactNode }[] = [
+    { key: 'overview', label: 'Overview', icon: <User size={15} /> },
+    { key: 'about', label: 'About', icon: <User size={15} /> },
     { key: 'posts', label: 'Posts', count: posts.length, icon: <BookOpen size={15} /> },
-    { key: 'solutions', label: 'Solutions', count: solutions.length, icon: <Award size={15} /> },
     { key: 'achievements', label: 'Achievements', count: Object.keys(userBadges).length, icon: <Trophy size={15} /> },
     { key: 'comments', label: 'Comments', count: comments.length, icon: <MessageSquare size={15} /> },
   ];
 
   return (
-    <div className="upf-root">
-      {/* ── Cover + Avatar + Identity ─────────────────────────── */}
-      <div className="upf-header-card">
-        <div
-          className="upf-cover"
-          style={profile.cover_url ? { backgroundImage: `url(${profile.cover_url})` } : undefined}
-        >
-          <div className="upf-cover-overlay" />
-        </div>
+    <div className="upf-root" style={{ margin: '0 auto', maxWidth: '1000px', padding: '1rem' }}>
 
-        <div className="upf-identity">
-          {/* Avatar */}
-          <div className="upf-avatar-wrap">
-            <ProfileAvatar src={profile.avatar_url} name={name} className="upf-avatar" />
-            <div className="upf-avatar-ring" />
+      {/* ── Compact Redesigned Hero Card ── */}
+      <div className="upf-hero-card" id="section-intro">
+        {/* Cover Photo */}
+        <div
+          className="upf-hero-cover"
+          onClick={() => coverSrc && setActiveLightboxImg(coverSrc)}
+          style={{
+            backgroundImage: coverSrc ? `url(${coverSrc})` : undefined,
+            cursor: coverSrc ? 'zoom-in' : 'default',
+          }}
+        />
+
+        {/* Profile Details Container */}
+        <div className="upf-hero-identity">
+          {/* Avatar Row Wrapper for Mobile Inline Layout */}
+          <div className="upf-avatar-socials-row">
+            {/* Avatar Picture */}
+            <div
+              className="upf-hero-avatar-container"
+              onClick={() => setActiveLightboxImg(avatarSrc || `https://api.dicebear.com/7.x/bottts/svg?seed=${profile.id}`)}
+              style={{ cursor: 'zoom-in' }}
+            >
+              <ProfileAvatar src={avatarSrc} name={name} className="upf-hero-avatar" />
+            </div>
+
+            {/* Mobile Inline Socials */}
+            <div className="upf-hero-socials-inline-mobile">
+              {profile.github && (
+                <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub">
+                  <Github size={15} />
+                </a>
+              )}
+              {profile.linkedin && (
+                <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn">
+                  <Linkedin size={15} />
+                </a>
+              )}
+              {profile.twitter && (
+                <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X">
+                  <Twitter size={15} />
+                </a>
+              )}
+              {profile.youtube && (
+                <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube">
+                  <Youtube size={15} />
+                </a>
+              )}
+              {profile.other_link && (
+                <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link">
+                  <Globe size={15} />
+                </a>
+              )}
+            </div>
           </div>
 
-          {/* Info body */}
-          <div className="upf-identity-body">
-            {/* Name + Actions row */}
-            <div className="upf-name-row">
-              <div className="upf-name-group">
-                <div className="upf-name-line">
-                  <h1 className="upf-name">{name}</h1>
-                  {/* Role badge inline with name */}
-                  {profile.role && (
-                    <span className="upf-role-badge">
-                      <Briefcase size={11} /> {profile.role}
-                    </span>
-                  )}
-                  {/* Trust Score badge */}
-                  <span className="profile-trust-badge" title="Trust Score">
-                    <Award size={11} /> {trustScore} Trust
-                  </span>
-                </div>
-                <p className="upf-username">@{profile.username}</p>
+          {/* Identity details */}
+          <div className="upf-hero-details">
+            <div className="upf-hero-name-row">
+              <div className="upf-hero-name-info">
+                <h1 className="upf-hero-name" style={{ fontSize: '1.45rem', fontWeight: 700, margin: 0, display: 'flex', alignItems: 'center', gap: '0.45rem' }}>
+                  {name}
+                </h1>
+                <span className="upf-hero-username" style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>@{profile.username}</span>
               </div>
 
-              {/* Action buttons */}
-              {!isOwnProfile && currentUserId && (
-                <div className="upf-actions">
+              {/* Action Buttons */}
+              {!isOwnProfile && (
+                <div className="upf-actions" style={{ gap: '0.5rem', alignSelf: 'flex-start' }}>
                   <button
                     className={`upf-btn-follow ${isFollowing ? 'upf-btn-follow--active' : ''}`}
                     onClick={handleFollow}
                     disabled={followLoading}
-                    aria-label={isFollowing ? 'Unfollow' : 'Follow'}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
                   >
-                    {isFollowing ? <UserCheck size={15} /> : <UserPlus size={15} />}
+                    {isFollowing ? <Check size={13} /> : <Plus size={13} />}
                     {isFollowing ? 'Following' : 'Follow'}
                   </button>
-                  <button className="upf-btn-message" onClick={handleMessage} aria-label="Message">
-                    <MessageCircle size={15} />
-                    Message
+                  <button
+                    className="upf-btn-message"
+                    onClick={handleMessage}
+                    style={{ display: 'inline-flex', alignItems: 'center', gap: '6px' }}
+                  >
+                    <MessageCircle size={13} /> Message
                   </button>
                 </div>
               )}
             </div>
 
-            {/* Location */}
-            {profile.location && (
-              <p className="upf-location"><MapPin size={12} /> {profile.location}</p>
+            {/* Headline */}
+            {profile.headline ? (
+              <p className="upf-hero-headline" style={{ margin: '0.5rem 0', fontSize: '0.92rem', color: 'var(--text-main)' }}>{profile.headline}</p>
+            ) : (
+              <p className="upf-hero-headline" style={{ margin: '0.5rem 0', color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                Founder building Paoblem • AI • Product Development
+              </p>
             )}
 
-            {/* Bio */}
-            {profile.bio && <p className="upf-bio">{profile.bio}</p>}
+            {/* Bio (max 250 characters) */}
+            {profile.bio && <p className="upf-hero-bio" style={{ margin: '0.25rem 0 0.5rem', fontSize: '0.85rem', color: 'var(--text-body)', lineHeight: 1.4 }}>{profile.bio.substring(0, 250)}</p>}
 
-            {/* Website */}
-            {profile.website && (
-              <a href={profile.website} target="_blank" rel="noopener noreferrer" className="upf-website">
-                <ExternalLink size={12} /> {profile.website.replace(/^https?:\/\//, '')}
-              </a>
-            )}
+            {/* Meta Row & Socials combined */}
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: '1rem', marginTop: '0.75rem', borderTop: '1px solid var(--border-color)', paddingTop: '0.75rem' }}>
+              <div className="upf-hero-meta-list" style={{ margin: 0, gap: '1rem' }}>
+                {profile.location && (
+                  <div className="upf-hero-meta-item" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    <MapPin size={13} /> {profile.location}
+                  </div>
+                )}
+                {profile.website && (
+                  <div className="upf-hero-meta-item" style={{ fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                    <ExternalLink size={13} />
+                    <a href={profile.website.startsWith('http') ? profile.website : `https://${profile.website}`} target="_blank" rel="noopener noreferrer" style={{ color: 'var(--text-muted)' }}>
+                      {profile.website.replace(/^https?:\/\/(www\.)?/, '')}
+                    </a>
+                  </div>
+                )}
+                <div style={{ display: 'inline-flex', gap: '0.75rem', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
+                  <span style={{ cursor: 'pointer' }} onClick={() => setModalView('followers')}>
+                    <strong style={{ color: 'var(--text-main)' }}>{followersCount}</strong> Followers
+                  </span>
+                  <span>•</span>
+                  <span style={{ cursor: 'pointer' }} onClick={() => setModalView('following')}>
+                    <strong style={{ color: 'var(--text-main)' }}>{followingCount}</strong> Following
+                  </span>
+                </div>
+              </div>
 
-            {/* Stats bar */}
-            <div className="upf-stats-bar">
-              <div className="upf-stat">
-                <span className="upf-stat-num">{stats.postCount}</span>
-                <span className="upf-stat-label">{stats.postCount === 1 ? 'Post' : 'Posts'}</span>
+              {/* Social Icons row */}
+              <div className="upf-hero-socials" style={{ margin: 0, display: 'flex', gap: '0.65rem' }}>
+                {profile.github && (
+                  <a href={profile.github.startsWith('http') ? profile.github : `https://github.com/${profile.github}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="GitHub" style={{ padding: '4px' }}>
+                    <Github size={16} />
+                  </a>
+                )}
+                {profile.linkedin && (
+                  <a href={profile.linkedin.startsWith('http') ? profile.linkedin : `https://linkedin.com/in/${profile.linkedin}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="LinkedIn" style={{ padding: '4px' }}>
+                    <Linkedin size={16} />
+                  </a>
+                )}
+                {profile.twitter && (
+                  <a href={profile.twitter.startsWith('http') ? profile.twitter : `https://x.com/${profile.twitter}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Twitter/X" style={{ padding: '4px' }}>
+                    <Twitter size={16} />
+                  </a>
+                )}
+                {profile.youtube && (
+                  <a href={profile.youtube.startsWith('http') ? profile.youtube : `https://youtube.com/${profile.youtube}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="YouTube" style={{ padding: '4px' }}>
+                    <Youtube size={16} />
+                  </a>
+                )}
+                {profile.other_link && (
+                  <a href={profile.other_link.startsWith('http') ? profile.other_link : `https://${profile.other_link}`} target="_blank" rel="noopener noreferrer" className="upf-social-icon" title="Other Link" style={{ padding: '4px' }}>
+                    <Globe size={16} />
+                  </a>
+                )}
               </div>
-              <div className="upf-stat">
-                <span className="upf-stat-num">{stats.solutionCount}</span>
-                <span className="upf-stat-label">{stats.solutionCount === 1 ? 'Solution' : 'Solutions'}</span>
-              </div>
-              <div className="upf-stat">
-                <span className="upf-stat-num">{stats.totalUpvotes}</span>
-                <span className="upf-stat-label">{stats.totalUpvotes === 1 ? 'Upvote' : 'Upvotes'}</span>
-              </div>
-              <button
-                className="upf-stat upf-stat--clickable"
-                onClick={() => openModal('followers')}
-                title="View followers"
-              >
-                <span className="upf-stat-num">{followersCount}</span>
-                <span className="upf-stat-label">{followersCount === 1 ? 'Follower' : 'Followers'}</span>
-              </button>
-              <button
-                className="upf-stat upf-stat--clickable"
-                onClick={() => openModal('following')}
-                title="View following"
-              >
-                <span className="upf-stat-num">{followingCount}</span>
-                <span className="upf-stat-label">Following</span>
-              </button>
             </div>
+
           </div>
         </div>
       </div>
 
-
-      {/* ── Tab Navigation ───────────────────────────────────────── */}
-      <div className="upf-tabs">
+      {/* ── Unified Top Navigation ── */}
+      <div className="profile-nav-tabs">
         {tabs.map((tab) => (
           <button
             key={tab.key}
-            className={`upf-tab-btn ${activeTab === tab.key ? 'upf-tab-btn--active' : ''}`}
+            className={`profile-nav-tab-btn ${activeTab === tab.key ? 'active' : ''}`}
             onClick={() => setActiveTab(tab.key)}
           >
-            {tab.icon}
-            <span className="upf-tab-label">{tab.label}</span>
-            <span className="upf-tab-count">{tab.count}</span>
+            {tab.label}
+            {tab.count !== undefined && tab.count > 0 && <span style={{ opacity: 0.6, marginLeft: 4 }}>({tab.count})</span>}
           </button>
         ))}
       </div>
 
-      {/* ── Tab Content ──────────────────────────────────────────── */}
+      {/* ── Content View Blocks ── */}
       <div className="upf-content">
 
-        {/* Posts Tab */}
+        {/* Tab 1: Overview (Structured Rich Profile - Stack of Rows) */}
+        {activeTab === 'overview' && (
+          <div className="profile-layout-rows-new">
+            {/* About card */}
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><User size={16} /> About Me</h2>
+              </div>
+              {profile.about ? (
+                <div className="profile-about-markdown">{profile.about}</div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                  No journey details or bio summary provided yet.
+                </p>
+              )}
+            </div>
+
+
+            {/* Startup Interests Card */}
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><Briefcase size={16} /> Startup Interests</h2>
+              </div>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Looking For</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {profile.looking_for && profile.looking_for.length > 0 ? (
+                      profile.looking_for.map((item: string) => (
+                        <span key={item} className="profile-tag-pill" style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'var(--bg-hover)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-main)' }}>{item}</span>
+                      ))
+                    ) : <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>—</span>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Preferred Roles</span>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.35rem' }}>
+                    {profile.preferred_roles && profile.preferred_roles.length > 0 ? (
+                      profile.preferred_roles.map((item: string) => (
+                        <span key={item} className="profile-tag-pill" style={{ fontSize: '0.75rem', padding: '0.2rem 0.6rem', background: 'var(--bg-hover)', border: '1px solid var(--border-color)', borderRadius: '4px', color: 'var(--text-main)' }}>{item}</span>
+                      ))
+                    ) : <span style={{ fontSize: '0.8rem', color: 'var(--text-muted)' }}>—</span>}
+                  </div>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Availability</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: profile.availability ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                    {profile.availability || '—'}
+                  </span>
+                </div>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.45rem' }}>
+                  <span style={{ fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.05em' }}>Work Preference</span>
+                  <span style={{ fontSize: '0.82rem', fontWeight: 600, color: profile.work_preference ? 'var(--text-main)' : 'var(--text-muted)' }}>
+                    {profile.work_preference || '—'}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Projects Card */}
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><Award size={16} /> Showcase Projects</h2>
+              </div>
+              {profile.projects && profile.projects.length > 0 ? (
+                <div className="profile-projects-grid">
+                  {profile.projects.slice(0, 3).map((proj: any, index: number) => (
+                    <div key={index} className="profile-project-item-card">
+                      <div>
+                        <div className="profile-project-header">
+                          <h3 className="profile-project-title">{proj.title}</h3>
+                        </div>
+                        {proj.description && <p className="profile-project-desc">{proj.description}</p>}
+                        {proj.techStack && (
+                          <div className="profile-project-tech-list">
+                            {(Array.isArray(proj.techStack) ? proj.techStack : String(proj.techStack).split(',')).map((tech: string) => (
+                              <span key={tech} className="profile-project-tech-tag">{tech.trim()}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      <div className="profile-project-links">
+                        {proj.github && (
+                          <a href={proj.github.startsWith('http') ? proj.github : `https://${proj.github}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
+                            <Github size={12} /> Repo
+                          </a>
+                        )}
+                        {proj.liveDemo && (
+                          <a href={proj.liveDemo.startsWith('http') ? proj.liveDemo : `https://${proj.liveDemo}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
+                            <ExternalLink size={12} /> Live Demo
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                  No highlighted projects showcased yet.
+                </p>
+              )}
+            </div>
+
+            {/* Skills card */}
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><Award size={16} /> Skills</h2>
+              </div>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.45rem' }}>
+                {profile.skills && profile.skills.length > 0 ? (
+                  profile.skills.map((item: string) => (
+                    <span key={item} className="profile-skill-tag-new">{item}</span>
+                  ))
+                ) : (
+                  <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.78rem', margin: 0 }}>No skills listed.</p>
+                )}
+              </div>
+            </div>
+
+            {/* Work Experience Card */}
+            <div className="profile-card-new">
+              <div className="profile-section-header">
+                <h2 className="profile-card-title-new"><Briefcase size={16} /> Work Experience</h2>
+              </div>
+              {profile.experience && profile.experience.length > 0 ? (
+                <div className="profile-experience-timeline-new">
+                  {profile.experience.map((exp: any, index: number) => (
+                    <div key={index} className="profile-experience-item-new">
+                      <div className="profile-timeline-company-logo">
+                        {exp.company ? exp.company.charAt(0).toUpperCase() : 'W'}
+                      </div>
+                      <div className="profile-experience-content">
+                        <div className="profile-experience-title-row">
+                          <div>
+                            <h3 className="profile-experience-company-name">{exp.company}</h3>
+                            <p className="profile-experience-role-title">{exp.role}</p>
+                            <span className="profile-experience-dates">{exp.duration}</span>
+                          </div>
+                        </div>
+                        {exp.description && <p className="profile-experience-description">{exp.description}</p>}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontSize: '0.88rem' }}>
+                  No work or project experience listed yet.
+                </p>
+              )}
+            </div>
+
+          </div>
+        )}
+
+        {/* Tab 3: Projects (Separate tab for detailed grid) */}
+        {activeTab === 'projects' && (
+          <div className="profile-card-new">
+            <div className="profile-section-header">
+              <h2 className="profile-card-title-new"><Award size={16} /> Showcase Projects</h2>
+            </div>
+            {profile.projects && profile.projects.length > 0 ? (
+              <div className="profile-projects-grid" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))' }}>
+                {profile.projects.map((proj: any, index: number) => (
+                  <div key={index} className="profile-project-item-card">
+                    <div>
+                      <div className="profile-project-header">
+                        <h3 className="profile-project-title">{proj.title}</h3>
+                      </div>
+                      {proj.description && <p className="profile-project-desc">{proj.description}</p>}
+                      {proj.techStack && (
+                        <div className="profile-project-tech-list">
+                          {(Array.isArray(proj.techStack) ? proj.techStack : String(proj.techStack).split(',')).map((tech: string) => (
+                            <span key={tech} className="profile-project-tech-tag">{tech.trim()}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                    <div className="profile-project-links">
+                      {proj.github && (
+                        <a href={proj.github.startsWith('http') ? proj.github : `https://${proj.github}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
+                          <Github size={12} /> Repo
+                        </a>
+                      )}
+                      {proj.liveDemo && (
+                        <a href={proj.liveDemo.startsWith('http') ? proj.liveDemo : `https://${proj.liveDemo}`} target="_blank" rel="noopener noreferrer" className="profile-project-link">
+                          <ExternalLink size={12} /> Live Demo
+                        </a>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : (
+              <EmptyState icon={<Award size={36} />} text="No showcased projects yet." />
+            )}
+          </div>
+        )}
+
+        {/* Tab 2: Posts (Feed style list) */}
         {activeTab === 'posts' && (
           <div>
-            {/* Sleek Sub-Filter Pills */}
             <div className="profile-sub-filters">
-              <button
-                className={`profile-sub-filter-pill ${postSubFilter === 'all' ? 'active' : ''}`}
-                onClick={() => setPostSubFilter('all')}
-              >
+              <button className={`profile-sub-filter-pill ${postSubFilter === 'all' ? 'active' : ''}`} onClick={() => setPostSubFilter('all')}>
                 All Posts ({posts.length})
               </button>
-              <button
-                className={`profile-sub-filter-pill ${postSubFilter === 'problems' ? 'active' : ''}`}
-                onClick={() => setPostSubFilter('problems')}
-              >
+              <button className={`profile-sub-filter-pill ${postSubFilter === 'problems' ? 'active' : ''}`} onClick={() => setPostSubFilter('problems')}>
                 Problems ({problems.length})
               </button>
-              <button
-                className={`profile-sub-filter-pill ${postSubFilter === 'ideas' ? 'active' : ''}`}
-                onClick={() => setPostSubFilter('ideas')}
-              >
+              <button className={`profile-sub-filter-pill ${postSubFilter === 'ideas' ? 'active' : ''}`} onClick={() => setPostSubFilter('ideas')}>
                 Ideas ({ideas.length})
               </button>
-              <button
-                className={`profile-sub-filter-pill ${postSubFilter === 'startups' ? 'active' : ''}`}
-                onClick={() => setPostSubFilter('startups')}
-              >
+              <button className={`profile-sub-filter-pill ${postSubFilter === 'startups' ? 'active' : ''}`} onClick={() => setPostSubFilter('startups')}>
                 Startups ({startups.length})
               </button>
             </div>
 
-            {/* List */}
             <div className="upf-list">
               {(() => {
                 const filtered = posts.filter(p => {
@@ -604,25 +893,25 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
                 }
 
                 return filtered.map((post) => (
-                  <article key={post.id} className="upf-post-card">
+                  <article key={post.id} className="upf-post-card" onClick={() => router.push(`/post/${post.slug || post.id}`)}>
                     <div className="upf-post-meta">
-                      <span className={`upf-tag upf-tag--${post.type}`}>
+                      <span className={`sticker-tag ${post.type}`} style={{ marginLeft: 0 }}>
                         {post.type}
                       </span>
                       <span className="upf-date"><Calendar size={12} />{formatDate(post.created_at)}</span>
                     </div>
-                    <Link href={`/post/${post.slug || post.id}`} className="upf-post-title">{post.title}</Link>
+                    <Link href={`/post/${post.slug || post.id}`} className="upf-post-title" onClick={(e) => e.stopPropagation()}>{post.title}</Link>
                     {post.body && (
                       <p className="upf-post-body">{post.body.substring(0, 180)}{post.body.length > 180 ? '…' : ''}</p>
                     )}
                     {post.external_link && (
-                      <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
+                      <a href={post.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link" onClick={(e) => e.stopPropagation()} style={{ fontSize: '0.8rem', display: 'inline-flex', alignItems: 'center', gap: '4px', color: 'var(--accent-primary)', textDecoration: 'none', margin: '4px 0 8px 0' }}>
                         <ExternalLink size={12} /> {post.link_name || post.external_link || 'Website'}
                       </a>
                     )}
                     <div className="upf-post-footer">
-                      <span className="upf-post-stat"><ArrowUp size={13} />{post.upvotes}</span>
-                      <span className="upf-post-stat"><MessageSquare size={13} />{post.comments_count}</span>
+                      <span className="upf-post-stat">▲ {post.upvotes} upvotes</span>
+                      <span className="upf-post-stat">💬 {post.comments_count} comments</span>
                     </div>
                   </article>
                 ));
@@ -631,74 +920,42 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           </div>
         )}
 
-        {/* Solutions Tab */}
+        {/* Tab 3: Solutions */}
         {activeTab === 'solutions' && (
           <div className="upf-list">
-            {solutions.length === 0
-              ? <EmptyState icon={<Award size={36} />} text={`${name} hasn't proposed any solutions yet.`} />
-              : solutions.map((sol) => (
-                <article key={sol.id} className="upf-post-card">
+            {solutions.length === 0 ? (
+              <EmptyState icon={<Award size={36} />} text={`${name} hasn't proposed any solutions yet.`} />
+            ) : (
+              solutions.map((sol) => (
+                <article key={sol.id} className="upf-post-card" onClick={() => router.push(`/solutions/${sol.id}`)}>
                   <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--solution">Solution</span>
+                    <span className="sticker-tag solution" style={{ marginLeft: 0 }}>Solution</span>
                     <span className="upf-date"><Calendar size={12} />{formatDate(sol.created_at)}</span>
                   </div>
-                  <Link href={`/solutions/${sol.id}`} className="upf-post-title">{sol.title}</Link>
+                  <Link href={`/solutions/${sol.id}`} className="upf-post-title" onClick={(e) => e.stopPropagation()}>{sol.title}</Link>
                   {sol.problem && (
-                    <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem">
-                      <BookOpen size={12} /> Re: {sol.problem.title}
+                    <Link href={`/post/${sol.problem.slug || sol.problem.id}`} className="upf-solution-problem" onClick={(e) => e.stopPropagation()} style={{ fontSize: '0.78rem', color: 'var(--accent-primary)', display: 'inline-flex', gap: '3px', alignItems: 'center', margin: '0.2rem 0' }}>
+                      Re: {sol.problem.title}
                     </Link>
                   )}
-                  {sol.body && (
-                    <p className="upf-post-body">{sol.body.substring(0, 200)}{sol.body.length > 200 ? '…' : ''}</p>
-                  )}
-                  {sol.external_link && (
-                    <a href={sol.external_link} target="_blank" rel="noopener noreferrer" className="upf-ext-link">
-                      <ExternalLink size={12} /> {sol.link_name || 'View Resource'}
-                    </a>
-                  )}
+                  {sol.body && <p className="upf-post-body">{sol.body.substring(0, 200)}...</p>}
                   <div className="upf-post-footer">
-                    <span className="upf-post-stat"><ArrowUp size={13} />{sol.upvotes}</span>
-                    <span className="upf-post-stat"><MessageSquare size={13} />{sol.comments_count || 0}</span>
+                    <span className="upf-post-stat">▲ {sol.upvotes} upvotes</span>
                   </div>
                 </article>
               ))
-            }
+            )}
           </div>
         )}
 
-        {/* Comments Tab */}
-        {activeTab === 'comments' && (
-          <div className="upf-list">
-            {comments.length === 0
-              ? <EmptyState icon={<MessageSquare size={36} />} text={`${name} hasn't commented yet.`} />
-              : comments.map((c) => (
-                <article key={c.id} className="upf-comment-card">
-                  <div className="upf-post-meta">
-                    <span className="upf-tag upf-tag--comment">Comment</span>
-                    <span className="upf-date"><Calendar size={12} />{formatDate(c.created_at)}</span>
-                  </div>
-                  {c.post && (
-                    <Link href={`/post/${c.post.slug || c.post_id}`} className="upf-comment-context">
-                      <BookOpen size={12} /> On: {c.post.title || 'a post'}
-                    </Link>
-                  )}
-                  <p className="upf-comment-body">{c.body}</p>
-                </article>
-              ))
-            }
-          </div>
-        )}
-
-        {/* Achievements Tab */}
+        {/* Tab 4: Achievements */}
         {activeTab === 'achievements' && (() => {
           const earnedSlugs = Object.keys(userBadges);
           const earnedBadges = BADGE_DEFINITIONS.filter(b => earnedSlugs.includes(b.slug));
           return (
             <div className="profile-achievements-tab">
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.25rem', flexWrap: 'wrap', gap: '0.75rem' }}>
-                <h3 className="profile-achievements-title" style={{ margin: 0 }}>
-                  Badges ({earnedBadges.length})
-                </h3>
+                <h3 className="profile-achievements-title" style={{ margin: 0 }}>Earned Badges ({earnedBadges.length})</h3>
                 <button
                   type="button"
                   onClick={() => router.push('/achievements')}
@@ -750,12 +1007,46 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
             </div>
           );
         })()}
+
+        {/* Tab 5: Comments */}
+        {activeTab === 'comments' && (
+          <div className="upf-list">
+            {comments.length === 0 ? (
+              <EmptyState icon={<MessageSquare size={36} />} text={`${name} hasn't commented on any posts yet.`} />
+            ) : (
+              comments.map((c) => (
+                <article key={c.id} className="upf-comment-card" style={{ padding: '1rem', border: '1px solid var(--border-color)', borderRadius: '8px', background: 'var(--bg-card)', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', flexWrap: 'wrap' }}>
+                      <MessageSquare size={13} style={{ color: 'var(--text-muted)' }} />
+                      <span>Commented on</span>
+                      {c.post ? (
+                        <Link href={`/post/${c.post.slug || c.post_id}`} style={{ fontWeight: 600, color: 'var(--accent-primary)', textDecoration: 'none' }} className="hover-underline">
+                          {c.post.title || 'a post'}
+                        </Link>
+                      ) : (
+                        <Link href={`/post/${c.post_id}`} style={{ fontWeight: 600, color: 'var(--accent-primary)', textDecoration: 'none' }} className="hover-underline">
+                          Post #{c.post_id.substring(0, 8)}
+                        </Link>
+                      )}
+                    </div>
+                    <span style={{ fontSize: '0.75rem', whiteSpace: 'nowrap' }}><Calendar size={11} style={{ display: 'inline', marginRight: '3px', verticalAlign: 'middle' }} />{formatDate(c.created_at)}</span>
+                  </div>
+                  <div style={{ borderLeft: '2px solid var(--border-color)', paddingLeft: '0.75rem', marginTop: '0.25rem', color: 'var(--text-main)', fontSize: '0.86rem', lineHeight: 1.5 }}>
+                    {c.body}
+                  </div>
+                </article>
+              ))
+            )}
+          </div>
+        )}
+
       </div>
 
-      {/* ── Followers / Following Modal ────────────────────────── */}
+      {/* ── Followers / Following Modal ── */}
       {modalView && (
         <FollowModal
-          view={modalView}
+          view={modalView as 'followers' | 'following'}
           onClose={closeModal}
           onSwitchView={setModalView}
           followersList={followersList}
@@ -764,6 +1055,45 @@ export default function UserProfileClient({ profile, posts, solutions, comments,
           followingCount={followingCount}
           name={name}
         />
+      )}
+      {/* ── Image Lightbox ── */}
+      {activeLightboxImg && (
+        <div
+          onClick={() => setActiveLightboxImg(null)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 9999,
+            background: 'rgba(0,0,0,0.85)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            cursor: 'zoom-out', backdropFilter: 'blur(8px)',
+            animation: 'fadeIn 0.2s ease',
+          }}
+        >
+          <img
+            src={activeLightboxImg}
+            alt="Preview"
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              maxWidth: '90vw', maxHeight: '90vh',
+              borderRadius: '12px',
+              boxShadow: '0 24px 80px rgba(0,0,0,0.7)',
+              objectFit: 'contain',
+              transform: 'scale(1)',
+              animation: 'scaleIn 0.22s cubic-bezier(0.34,1.56,0.64,1)',
+            }}
+          />
+          <button
+            onClick={() => setActiveLightboxImg(null)}
+            style={{
+              position: 'absolute', top: '1.25rem', right: '1.25rem',
+              background: 'rgba(255,255,255,0.12)', border: '1px solid rgba(255,255,255,0.2)',
+              borderRadius: '50%', width: '40px', height: '40px',
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              cursor: 'pointer', color: '#fff', fontSize: '1.2rem',
+              backdropFilter: 'blur(4px)',
+            }}
+            title="Close"
+          >✕</button>
+        </div>
       )}
     </div>
   );

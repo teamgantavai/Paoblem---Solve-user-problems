@@ -181,14 +181,15 @@
 }
 
 .upf-btn-follow {
-  background: var(--text-main);
-  color: var(--bg-card);
-  border-color: var(--text-main);
+  background: var(--accent-primary);
+  color: #ffffff;
+  border-color: var(--accent-primary);
 }
 
 .upf-btn-follow:hover:not(:disabled) {
   transform: translateY(-2px);
-  box-shadow: 0 6px 20px rgba(255, 255, 255, 0.15);
+  box-shadow: 0 6px 20px rgba(99, 102, 241, 0.35);
+  filter: brightness(1.08);
 }
 
 .upf-btn-follow--active {
@@ -198,8 +199,9 @@
 }
 
 .upf-btn-follow--active:hover:not(:disabled) {
-  border-color: var(--text-main);
+  border-color: var(--accent-primary);
   background: var(--bg-hover);
+  color: var(--accent-primary);
   transform: translateY(-1px);
 }
 
@@ -209,9 +211,15 @@
 }
 
 .upf-btn-message {
-  background: transparent;
+  background: var(--bg-card);
   color: var(--text-main);
   border-color: var(--border-color);
+}
+
+.upf-btn-message:hover:not(:disabled) {
+  background: var(--bg-hover);
+  border-color: var(--text-main);
+  transform: translateY(-1px);
 }
 
 .upf-btn-message:hover {
@@ -956,14 +964,19 @@ button.upf-stat {
 @media (max-width: 768px) {
   .profile-main-wrapper {
     padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
   }
 
   .profile-inner-wrapper {
-    padding: 0;
+    padding: 0 !important;
+    margin: 0 !important;
+    max-width: 100% !important;
   }
 
   .upf-page-body {
-    padding: 0.5rem 0 5rem;
+    padding: 0 0 100px 0 !important;
+    max-width: 100% !important;
   }
 
   .upf-root {
@@ -973,41 +986,41 @@ button.upf-stat {
   }
 
   .upf-header-card {
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
-    margin-bottom: 0;
-    box-shadow: none;
+    border-radius: 0 !important;
+    border: none !important;
+    margin-bottom: 0 !important;
+    box-shadow: none !important;
+    background: var(--bg-card) !important;
   }
 
   .upf-cover {
-    height: 130px;
+    height: 130px !important;
     border-radius: 0 !important;
   }
 
   .upf-identity {
-    padding: 0 20px 20px 20px !important;
-    gap: 10px !important;
+    padding: 0 16px 20px 16px !important;
+    gap: 0 !important;
     flex-direction: column !important;
     align-items: flex-start !important;
   }
 
   .upf-avatar-wrap {
-    width: 80px;
-    height: 80px;
-    margin-top: -40px;
-    margin-bottom: -0.25rem;
+    width: 90px !important;
+    height: 90px !important;
+    margin-top: -45px !important;
+    margin-bottom: 8px !important;
   }
 
   .upf-avatar {
-    width: 80px;
-    height: 80px;
-    border-radius: 18px;
-    border-width: 3px;
+    width: 90px !important;
+    height: 90px !important;
+    border-radius: 16px !important;
+    border-width: 3px !important;
   }
 
   .upf-avatar-ring {
-    border-radius: 21px;
+    border-radius: 19px !important;
   }
 
   .upf-identity-body {
@@ -1187,7 +1200,9 @@ button.upf-stat {
     border-right: none;
     border-radius: 0;
     padding: 0 0.25rem;
-    margin-top: 1px;
+    margin-top: 0 !important;
+    margin-bottom: 12px !important;
+    background-color: var(--bg-card) !important;
   }
 
   .upf-tab-btn {
@@ -1204,15 +1219,19 @@ button.upf-stat {
   }
 
   .upf-content {
-    border-left: none;
-    border-right: none;
-    border-radius: 0;
-    padding: 1rem;
+    border: none !important;
+    border-radius: 0 !important;
+    padding: 0 !important;
+    background: transparent !important;
   }
 
   .upf-post-card,
   .upf-comment-card {
-    border-radius: 12px;
+    border-radius: 12px !important;
+    margin: 0 12px 16px 12px !important;
+    border: 1px solid var(--border-color) !important;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04) !important;
+    background-color: var(--bg-card) !important;
   }
 
   .upf-modal {
