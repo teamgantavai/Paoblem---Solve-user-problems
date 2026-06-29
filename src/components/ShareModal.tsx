@@ -18,9 +18,12 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [svgUrl, setSvgUrl] = useState('');
+  const [showImageCard, setShowImageCard] = useState(false);
 
   const postUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/post/${post.slug || post.id}`
+    ? (post.type === 'startup'
+        ? `${window.location.origin}/startups/${post.id}`
+        : `${window.location.origin}/post/${post.slug || post.id}`)
     : '';
 
   useEffect(() => {
@@ -28,6 +31,7 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
       setSvgUrl(`/api/og?postId=${post.id}&t=${Date.now()}`);
       setCopied(false);
       setErrorMsg(null);
+      setShowImageCard(false);
     }
   }, [isOpen, post.id]);
 
@@ -155,7 +159,7 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
           await navigator.share({
             files: [file],
             title: post.title,
-            text: 'Check out this problem on Paoblem!',
+            text: post.type === 'startup' ? 'Check out this startup on Paoblem!' : 'Check out this problem on Paoblem!',
           });
           trackShareEvent('share_image_native');
         } else {
@@ -181,10 +185,10 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
       )
     },
     {
-      name: 'Twitter',
+      name: 'X',
       key: 'twitter' as const,
-      color: '#1DA1F2',
-      bgHover: 'rgba(29, 161, 242, 0.08)',
+      color: 'var(--text-main, #ffffff)',
+      bgHover: 'var(--bg-hover, rgba(255, 255, 255, 0.08))',
       icon: (
         <svg viewBox="0 0 24 24" width="20" height="20" fill="currentColor">
           <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
@@ -360,7 +364,7 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
               <button
                 onClick={handleCopyLink}
                 style={{
-                  background: copied ? '#22c55e' : '#7c3aed',
+                  background: copied ? 'var(--accent-success, #22c55e)' : 'var(--accent-primary, #7c3aed)',
                   color: '#fff',
                   border: 'none',
                   borderRadius: '8px',
@@ -372,10 +376,10 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
                   flexShrink: 0,
                 }}
                 onMouseEnter={(e) => {
-                  if (!copied) e.currentTarget.style.backgroundColor = '#6d28d9';
+                  e.currentTarget.style.opacity = '0.9';
                 }}
                 onMouseLeave={(e) => {
-                  if (!copied) e.currentTarget.style.backgroundColor = '#7c3aed';
+                  e.currentTarget.style.opacity = '1';
                 }}
               >
                 {copied ? 'Copied' : 'Copy'}
@@ -385,12 +389,35 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
 
           {/* Collapsible/Elegant Extra: Download Image Card */}
           <div style={{ borderTop: '1px solid var(--border-color)', paddingTop: '1.25rem', marginTop: '0.5rem' }}>
-            <details style={{ cursor: 'pointer' }}>
-              <summary style={{ fontSize: '0.8rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', color: 'var(--text-muted)', display: 'flex', alignItems: 'center', gap: '0.35rem', listStyle: 'none' }}>
-                <span style={{ fontSize: '0.65rem', transform: 'rotate(90deg)', display: 'inline-block' }}>▶</span> Share as Image Card
-              </summary>
+            <button
+              onClick={() => setShowImageCard(!showImageCard)}
+              style={{
+                background: 'none',
+                border: 'none',
+                cursor: 'pointer',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                color: 'var(--text-muted)',
+                display: 'inline-flex',
+                alignItems: 'center',
+                gap: '0.35rem',
+                padding: 0,
+                outline: 'none',
+                width: 'auto'
+              }}
+            >
+              <span style={{
+                fontSize: '0.65rem',
+                transform: showImageCard ? 'rotate(90deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+                display: 'inline-block'
+              }}>▶</span> Share as Image Card
+            </button>
 
-              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap', marginTop: '0.75rem', cursor: 'default' }} onClick={e => e.stopPropagation()}>
+            {showImageCard && (
+              <div style={{ display: 'flex', gap: '1rem', alignItems: 'flex-start', flexWrap: 'wrap', marginTop: '0.75rem' }}>
                 {/* Image Preview */}
                 <div
                   style={{
@@ -475,7 +502,7 @@ export default function ShareModal({ isOpen, onClose, post, session }: ShareModa
                   </div>
                 </div>
               </div>
-            </details>
+            )}
           </div>
 
           {/* Error Message */}

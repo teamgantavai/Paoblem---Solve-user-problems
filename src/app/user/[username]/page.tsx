@@ -30,13 +30,6 @@ async function getUserProfile(username: string) {
     .eq('user_id', profile.id)
     .order('created_at', { ascending: false });
 
-  // Fetch solutions
-  const { data: solutions } = await supabase
-    .from('solutions')
-    .select('id, title, body, upvotes, comments_count, created_at, external_link, link_name, problem:problem_id(id, title, slug)')
-    .eq('user_id', profile.id)
-    .order('created_at', { ascending: false });
-
   // Fetch comments (with post info)
   const { data: comments } = await supabase
     .from('comments')
@@ -46,17 +39,16 @@ async function getUserProfile(username: string) {
     .order('created_at', { ascending: false })
     .limit(50);
 
-  const totalUpvotes = (posts || []).reduce((sum, p) => sum + (p.upvotes || 0), 0)
-    + (solutions || []).reduce((sum, s) => sum + (s.upvotes || 0), 0);
+  const totalUpvotes = (posts || []).reduce((sum, p) => sum + (p.upvotes || 0), 0);
 
   return {
     profile,
     posts: (posts || []) as any[],
-    solutions: (solutions || []) as any[],
+    solutions: [] as any[],
     comments: (comments || []) as any[],
     stats: {
       postCount: posts?.length || 0,
-      solutionCount: solutions?.length || 0,
+      solutionCount: 0,
       commentCount: comments?.length || 0,
       totalUpvotes,
     },

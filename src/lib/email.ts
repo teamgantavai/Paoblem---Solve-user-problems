@@ -716,4 +716,64 @@ export async function sendPostAnalyticsEmail(
   console.log(`[Email Notification] Successfully sent analytics digest email to ${ownerUser.email}`);
 }
 
+// ── Startup Application Email Notifications ───────────────────────────────
 
+export async function sendNewApplicationEmail({
+  founderEmail, founderName, startupName, startupId, applicantName, role, introText,
+}: {
+  founderEmail: string; founderName: string; startupName: string; startupId: string;
+  applicantName: string; role: string; introText: string;
+}) {
+  const appUrl = getAppUrl();
+  const ctaUrl = `${appUrl}/startups/${startupId}?tab=applicants`;
+  const bodyContent = `
+    <h2 style="font-size:20px;font-weight:700;color:#fff;margin-top:0;margin-bottom:12px;text-align:center;">New Application for ${startupName}</h2>
+    <p style="font-size:14px;color:#a1a1aa;text-align:center;margin:0 0 24px;">Hi ${founderName}, someone just applied to join your startup.</p>
+    <div style="background:#1c1e26;border:1px solid #272a34;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <div style="display:flex;gap:12px;margin-bottom:10px;"><span style="font-size:12px;font-weight:700;color:#a1a1aa;min-width:90px;">Applicant</span><span style="font-size:14px;color:#fff;font-weight:600;">${applicantName}</span></div>
+      <div style="display:flex;gap:12px;margin-bottom:${introText ? '10px' : '0'};"><span style="font-size:12px;font-weight:700;color:#a1a1aa;min-width:90px;">Role</span><span style="font-size:14px;color:#fff;font-weight:600;">${role}</span></div>
+      ${introText ? `<div style="margin-top:12px;border-top:1px solid #272a34;padding-top:12px;font-size:13px;color:#a1a1aa;line-height:1.6;font-style:italic;">"${introText.slice(0, 200)}${introText.length > 200 ? '…' : ''}"</div>` : ''}
+    </div>
+    <div style="text-align:center;"><a href="${ctaUrl}" style="display:inline-block;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;text-decoration:none;padding:14px 32px;font-weight:700;font-size:15px;border-radius:10px;">Review Application →</a></div>`;
+  const html = getEmailLayout(`New Application for ${startupName}`, bodyContent);
+  try { await sendEmail({ to: founderEmail, subject: `New Application for ${startupName}`, html }); } catch (e) { console.error('[email] sendNewApplicationEmail', e); }
+}
+
+export async function sendApplicationAcceptedEmail({
+  applicantEmail, applicantName, startupName, startupId, role, founderName,
+}: {
+  applicantEmail: string; applicantName: string; startupName: string; startupId: string;
+  role: string; founderName: string;
+}) {
+  const appUrl = getAppUrl();
+  const chatUrl = `${appUrl}/chats`;
+  const startupUrl = `${appUrl}/startups/${startupId}`;
+  const bodyContent = `
+    <h2 style="font-size:22px;font-weight:700;color:#fff;margin-top:0;margin-bottom:12px;text-align:center;">Congratulations! 🎉</h2>
+    <p style="font-size:15px;color:#a1a1aa;text-align:center;margin:0 0 24px;">Hi ${applicantName}, your application to <strong style="color:#fff;">${startupName}</strong> has been accepted.</p>
+    <div style="background:#1c1e26;border:1px solid #272a34;border-radius:12px;padding:20px;margin-bottom:24px;">
+      <div style="display:flex;gap:12px;margin-bottom:10px;"><span style="font-size:12px;font-weight:700;color:#a1a1aa;min-width:90px;">Startup</span><span style="font-size:14px;color:#fff;font-weight:600;">${startupName}</span></div>
+      <div style="display:flex;gap:12px;margin-bottom:10px;"><span style="font-size:12px;font-weight:700;color:#a1a1aa;min-width:90px;">Role</span><span style="font-size:14px;color:#fff;font-weight:600;">${role}</span></div>
+      <div style="display:flex;gap:12px;"><span style="font-size:12px;font-weight:700;color:#a1a1aa;min-width:90px;">Founder</span><span style="font-size:14px;color:#fff;font-weight:600;">${founderName}</span></div>
+    </div>
+    <p style="font-size:14px;color:#a1a1aa;line-height:1.6;margin-bottom:24px;text-align:center;">The founder is excited to have you on board. Open a chat to discuss next steps.</p>
+    <div style="text-align:center;margin-bottom:12px;"><a href="${chatUrl}" style="display:inline-block;background:linear-gradient(135deg,#059669,#10b981);color:#fff;text-decoration:none;padding:14px 32px;font-weight:700;font-size:15px;border-radius:10px;">Open Chat with ${founderName} →</a></div>
+    <div style="text-align:center;"><a href="${startupUrl}" style="font-size:13px;color:#3b82f6;text-decoration:none;">View Startup Page</a></div>`;
+  const html = getEmailLayout(`Accepted to ${startupName}`, bodyContent);
+  try { await sendEmail({ to: applicantEmail, subject: `Congratulations! Your application to ${startupName} has been accepted 🎉`, html }); } catch (e) { console.error('[email] sendApplicationAcceptedEmail', e); }
+}
+
+export async function sendApplicationRejectedEmail({
+  applicantEmail, applicantName, startupName, role,
+}: {
+  applicantEmail: string; applicantName: string; startupName: string; role: string;
+}) {
+  const appUrl = getAppUrl();
+  const bodyContent = `
+    <h2 style="font-size:20px;font-weight:700;color:#fff;margin-top:0;margin-bottom:12px;text-align:center;">Thanks for applying to ${startupName}</h2>
+    <p style="font-size:15px;color:#a1a1aa;text-align:center;margin:0 0 24px;">Hi ${applicantName}, thank you for your application for <strong style="color:#fff;">${role}</strong> at <strong style="color:#fff;">${startupName}</strong>.</p>
+    <div style="background:#1c1e26;border-left:4px solid #6b7280;border-radius:0 8px 8px 0;padding:16px 20px;margin-bottom:24px;"><p style="font-size:14px;color:#a1a1aa;line-height:1.6;margin:0;">After careful consideration, the founder has decided to move forward with other candidates at this time. Keep building — the right opportunity is out there.</p></div>
+    <div style="text-align:center;"><a href="${appUrl}/startups" style="display:inline-block;background:linear-gradient(135deg,#3b82f6,#8b5cf6);color:#fff;text-decoration:none;padding:14px 32px;font-weight:700;font-size:15px;border-radius:10px;">Explore More Startups →</a></div>`;
+  const html = getEmailLayout(`Your application to ${startupName}`, bodyContent);
+  try { await sendEmail({ to: applicantEmail, subject: `Your application to ${startupName}`, html }); } catch (e) { console.error('[email] sendApplicationRejectedEmail', e); }
+}

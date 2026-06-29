@@ -28,6 +28,7 @@ import { Post } from '@/lib/types';
 import { parseLinksInText, Segment } from '@/app/lib/linkParser';
 import ImageGallery from './ImageGallery';
 import ErrorBoundary from './ErrorBoundary';
+import StartupCard from './StartupCard';
 import { decodeHTMLEntities } from '@/lib/htmlDecoder';
 import { useMicroAnimations } from '@/hooks/useMicroAnimations';
 import Avatar from './Avatar';
@@ -158,8 +159,8 @@ const PostCard = React.memo(function PostCard({
                 }}>
                 {authorName}
               </span>
-              <span className={`post-type-badge ${post.type}`} style={{ textTransform: 'capitalize' }}>
-                {post.type}
+              <span className={`post-type-badge ${post.type === 'startup' ? 'advice' : post.type}`} style={{ textTransform: 'capitalize' }}>
+                {post.type === 'startup' ? 'Advice' : post.type}
               </span>
               <QualityScoreBadge
                 qualityScore={post.quality_score}
@@ -404,23 +405,6 @@ const PostCard = React.memo(function PostCard({
           >
             <SendHorizontal size={18} />
           </button>
-
-          {post.type === 'problem' && (
-            <button
-              type="button"
-              className="solve-it-btn"
-              onClick={(e) => {
-                e.stopPropagation();
-                window.dispatchEvent(new CustomEvent('top-loader:start'));
-                router.push(`/problems/${post.id}/solutions`);
-              }}
-              style={{
-                marginLeft: 'auto',
-              }}
-            >
-              Solve It
-            </button>
-          )}
         </div>
       </div>
     </div>
@@ -614,7 +598,7 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
 
   const { data, fetchNextPage, hasNextPage, isFetchingNextPage, isLoading, isError } =
     useInfiniteQuery({
-      queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : '', singlePostId || '', categoryParam || ''],
+      queryKey: ['posts', filterType, filterType === 'saved' ? savedIds.join(',') : '', singlePostId || '', categoryParam || '', session?.user?.id || 'guest'],
       queryFn: async ({ pageParam = null }) => {
         let url = `/api/posts/list?type=${filterType}`;
         if (categoryParam) {
@@ -945,13 +929,58 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
     return posts;
   }, [newlyCreatedPosts, filterType, categoryParam]);
 
+  const { data: startupsData } = useQuery<any>({
+    queryKey: ['feed-startups'],
+    queryFn: async () => {
+      const res = await fetch('/api/startups?limit=15');
+      if (!res.ok) return { startups: [] };
+      return res.json();
+    },
+    staleTime: 60000,
+  });
+  const startups = startupsData?.startups || [];
+
   const posts = useMemo(() => {
     const rawPosts = data?.pages.flatMap(page => page.posts) || [];
     const mergedPosts = [...filteredNewPosts, ...rawPosts];
     return mergedPosts.filter((post, index, self) => index === self.findIndex(p => p.id === post.id));
   }, [data, filteredNewPosts]);
 
-  const displayedPosts = posts;
+  const displayedPosts = useMemo(() => {
+    if (singlePostId || filterType !== 'all') {
+      return posts;
+    }
+    const mixed: any[] = [];
+    let startupIndex = 0;
+    
+    posts.forEach((post, index) => {
+      mixed.push(post);
+      // Inject a startup card after every 3rd post
+      if ((index + 1) % 3 === 0 && startupIndex < startups.length) {
+        const startup = startups[startupIndex];
+        mixed.push({
+          ...startup,
+          id: `startup-mixed-${startup.id}`,
+          _isStartup: true,
+          originalStartup: startup
+        });
+        startupIndex++;
+      }
+    });
+
+    // If there are very few posts, but we have startups, append one at the end
+    if (posts.length > 0 && posts.length < 3 && startupIndex < startups.length) {
+      const startup = startups[startupIndex];
+      mixed.push({
+        ...startup,
+        id: `startup-mixed-${startup.id}`,
+        _isStartup: true,
+        originalStartup: startup
+      });
+    }
+
+    return mixed;
+  }, [posts, startups, singlePostId, filterType]);
   const commentsModalPost = commentsModalPostId
     ? displayedPosts.find(p => p.id === commentsModalPostId) || null
     : null;
@@ -1069,15 +1098,29 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
 
       {/* Filter Tabs */}
       {!singlePostId && (
-        <div className="flex gap-2" style={{ margin: '0.5rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none' }}>
+        <div className="flex gap-2" style={{ margin: '0.5rem 0 0.85rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none', display: 'flex', gap: '0.45rem' }}>
           {[
             { id: 'all', label: 'All Feed' },
             { id: 'problem', label: 'Problems' },
             { id: 'idea', label: 'Ideas' },
-            { id: 'startup', label: 'Startups' },
+            { id: 'startup', label: 'Advice' },
           ].map(tab => (
             <button key={tab.id} className={`btn ${filterType === tab.id ? 'btn-primary' : ''}`}
-              style={{ background: filterType === tab.id ? undefined : 'var(--bg-card)', color: 'var(--text-main)', border: filterType === tab.id ? 'none' : '1px solid var(--border-color)', flexShrink: 0 }}
+              style={{
+                background: filterType === tab.id ? 'linear-gradient(135deg, var(--accent-primary) 0%, #1d4ed8 100%)' : 'var(--bg-card)',
+                color: filterType === tab.id ? 'white' : 'var(--text-muted)',
+                border: '1px solid ' + (filterType === tab.id ? 'transparent' : 'var(--border-color)'),
+                flexShrink: 0,
+                display: 'inline-flex',
+                alignItems: 'center',
+                padding: '0.5rem 1rem',
+                fontSize: '0.8rem',
+                fontWeight: 600,
+                borderRadius: '10px',
+                cursor: 'pointer',
+                boxShadow: filterType === tab.id ? '0 4px 10px rgba(37, 99, 235, 0.2)' : 'none',
+                transition: 'all 200ms ease'
+              }}
               onClick={() => {
                 const params = new URLSearchParams(searchParams.toString());
                 if (tab.id === 'all') params.delete('filter');
@@ -1092,17 +1135,20 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
 
       {/* Category Filter Chips */}
       {!singlePostId && (
-        <div className="flex gap-2" style={{ margin: '0.25rem 0 0.75rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none', gap: '0.35rem' }}>
+        <div className="flex gap-2" style={{ margin: '0.25rem 0 0.75rem 0', padding: '0.25rem 0', overflowX: 'auto', whiteSpace: 'nowrap', maxWidth: '100%', scrollbarWidth: 'none', gap: '0.35rem', display: 'flex' }}>
           <button
             className={`btn btn-xs ${!categoryParam ? 'btn-primary' : ''}`}
             style={{
-              background: !categoryParam ? undefined : 'var(--bg-card)',
-              color: 'var(--text-main)',
+              background: !categoryParam ? 'linear-gradient(135deg, var(--accent-primary) 0%, #1d4ed8 100%)' : 'var(--bg-card)',
+              color: !categoryParam ? 'white' : 'var(--text-muted)',
               border: !categoryParam ? 'none' : '1px solid var(--border-color)',
               flexShrink: 0,
               fontSize: '0.75rem',
-              padding: '0.25rem 0.6rem',
-              borderRadius: '20px'
+              padding: '0.25rem 0.75rem',
+              borderRadius: '20px',
+              cursor: 'pointer',
+              boxShadow: !categoryParam ? '0 3px 8px rgba(37, 99, 235, 0.15)' : 'none',
+              transition: 'all 200ms ease'
             }}
             onClick={() => {
               const params = new URLSearchParams(searchParams.toString());
@@ -1120,13 +1166,16 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
                 key={cat}
                 className={`btn btn-xs ${isActive ? 'btn-primary' : ''}`}
                 style={{
-                  background: isActive ? undefined : 'var(--bg-card)',
-                  color: 'var(--text-main)',
+                  background: isActive ? 'linear-gradient(135deg, var(--accent-primary) 0%, #1d4ed8 100%)' : 'var(--bg-card)',
+                  color: isActive ? 'white' : 'var(--text-muted)',
                   border: isActive ? 'none' : '1px solid var(--border-color)',
                   flexShrink: 0,
                   fontSize: '0.75rem',
-                  padding: '0.25rem 0.6rem',
-                  borderRadius: '20px'
+                  padding: '0.25rem 0.75rem',
+                  borderRadius: '20px',
+                  cursor: 'pointer',
+                  boxShadow: isActive ? '0 3px 8px rgba(37, 99, 235, 0.15)' : 'none',
+                  transition: 'all 200ms ease'
                 }}
                 onClick={() => {
                   const params = new URLSearchParams(searchParams.toString());
@@ -1162,30 +1211,58 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
           </div>
         )}
 
-        {displayedPosts.map((post: Post, index: number) => (
+        {displayedPosts.map((post: any, index: number) => (
           <React.Fragment key={post.id}>
             <ErrorBoundary>
-              <PostCard
-                post={post}
-                session={session}
-                profile={profile}
-                hasUpvoted={userVotes?.[post.id] === 'up'}
-                hasDownvoted={userVotes?.[post.id] === 'down'}
-                followings={followings}
-                savedIds={savedIds}
-                activeShareMenuPostId={activeShareMenuPostId}
-                setActiveShareMenuPostId={setActiveShareMenuPostId}
-                handleToggleSave={handleToggleSave}
-                handleVote={handleVote}
-                openCommentsModal={openCommentsModal}
-                followMutation={followMutation}
-                setEditingPost={setEditingPost}
-                setDeletingPostId={setDeletingPostId}
-                trackPostEvent={trackPostEvent}
-                showToast={showToast}
-                onShare={setSelectedSharePost}
-                onChatShare={handleChatShare}
-              />
+              {post._isStartup ? (
+                <div className="post-card-animate" style={{ animation: 'slideUp 0.3s ease' }}>
+                  <StartupCard
+                    startup={post.originalStartup}
+                    session={session}
+                    onAuthRequired={() => setIsAuthOpen(true)}
+                    onShareClick={(s) => setSelectedSharePost({
+                      id: s.id,
+                      title: s.name,
+                      body: s.tagline || s.description || '',
+                      slug: undefined,
+                      user_id: s.founder_id,
+                      profiles: s.profiles,
+                      type: 'startup'
+                    } as any)}
+                    onChatShareClick={(s) => setSelectedChatSharePost({
+                      id: s.id,
+                      title: s.name,
+                      body: s.tagline || s.description || '',
+                      slug: undefined,
+                      user_id: s.founder_id,
+                      profiles: s.profiles,
+                      type: 'startup'
+                    } as any)}
+                  />
+                </div>
+              ) : (
+                <PostCard
+                  post={post}
+                  session={session}
+                  profile={profile}
+                  hasUpvoted={userVotes?.[post.id] === 'up'}
+                  hasDownvoted={userVotes?.[post.id] === 'down'}
+                  followings={followings}
+                  savedIds={savedIds}
+                  activeShareMenuPostId={activeShareMenuPostId}
+                  setActiveShareMenuPostId={setActiveShareMenuPostId}
+                  handleToggleSave={handleToggleSave}
+                  handleVote={handleVote}
+                  openCommentsModal={openCommentsModal}
+                  followMutation={followMutation}
+                  setEditingPost={setEditingPost}
+                  setDeletingPostId={setDeletingPostId}
+                  trackPostEvent={trackPostEvent}
+                  showToast={showToast}
+                  onShare={setSelectedSharePost}
+                  onChatShare={handleChatShare}
+                />
+              )}
             </ErrorBoundary>
             {(index === 1 || (displayedPosts.length === 1 && index === 0)) && (
               <ErrorBoundary>

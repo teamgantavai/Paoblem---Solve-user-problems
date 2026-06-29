@@ -116,7 +116,7 @@ interface FollowUser {
   bio?: string | null;
 }
 
-type Tab = 'overview' | 'posts' | 'solutions' | 'achievements' | 'comments' | 'about';
+type Tab = 'overview' | 'posts' | 'achievements' | 'comments' | 'about';
 type ModalView = 'followers' | 'following' | null;
 
 // ─── Props ───────────────────────────────────────────────────────────────────
@@ -124,7 +124,7 @@ type ModalView = 'followers' | 'following' | null;
 interface UserProfileClientProps {
   profile: Profile;
   posts: PostItem[];
-  solutions: SolutionItem[];
+  solutions?: any[];
   comments: CommentItem[];
   stats: { postCount: number; commentCount: number; totalUpvotes: number; solutionCount: number };
 }

@@ -232,6 +232,15 @@ body {
   color: var(--text-main);
 }
 
+/* Prevent body scroll when any modal overlay is present in the DOM */
+body:has(.modal-overlay),
+body:has(.comments-modal-overlay),
+body:has(.cp-modal-overlay),
+body:has(.admin-modal-overlay),
+body:has(.clean-modal-overlay) {
+  overflow: hidden !important;
+}
+
 /* Modals styling */
 .modal-overlay {
   position: fixed;

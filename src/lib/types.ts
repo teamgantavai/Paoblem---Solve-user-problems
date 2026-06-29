@@ -76,6 +76,151 @@ export interface Solution {
   } | null;
 }
 
+// ==========================================
+// Startup Types
+// ==========================================
+
+export type StartupStage = 'Idea' | 'Validation' | 'MVP' | 'Beta' | 'Launched' | 'Revenue' | 'Funded';
+export type CompensationType = 'Equity' | 'Paid' | 'Internship' | 'Volunteer' | 'Revenue Share';
+export type WorkType = 'Remote' | 'Hybrid' | 'On-site';
+export type ApplicationStatus = 'pending' | 'accepted' | 'rejected';
+
+export interface Startup {
+  id: string;
+  founder_id: string;
+  name: string;
+  slug: string | null;
+  logo_url: string | null;
+  banner_url: string | null;
+  tagline: string | null;
+  description: string | null;
+  stage: StartupStage;
+  industry: string | null;
+  funding_stage: string | null;
+  website: string | null;
+  compensation_type: CompensationType;
+  work_type: WorkType;
+  looking_for: string[];
+  required_skills: string[];
+  deadline: string | null;
+  followers_count: number;
+  applications_count: number;
+  verified: boolean;
+  created_at: string;
+  updated_at: string;
+  // Joined fields
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+    username: string | null;
+  } | null;
+  // Client-side computed
+  is_following?: boolean;
+  has_applied?: boolean;
+  match_score?: number | null;
+}
+
+export interface StartupApplication {
+  id: string;
+  startup_id: string;
+  applicant_id: string;
+  intro: string | null;
+  reason: string | null;
+  portfolio_links: string[];
+  status: ApplicationStatus;
+  applied_at: string;
+  updated_at: string;
+  // Joined fields
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+    username: string | null;
+    headline?: string | null;
+    skills?: string[] | null;
+  } | null;
+  startups?: {
+    name: string;
+    stage: StartupStage;
+    logo_url: string | null;
+  } | null;
+  match_score?: number | null;
+}
+
+export interface StartupMember {
+  id: string;
+  startup_id: string;
+  user_id: string;
+  role: string | null;
+  joined_at: string;
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+    username: string | null;
+  } | null;
+}
+
+export interface StartupUpdate {
+  id: string;
+  startup_id: string;
+  author_id: string;
+  body: string;
+  created_at: string;
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    username: string | null;
+  } | null;
+}
+
+export interface StartupAIMatch {
+  startup_id: string;
+  user_id: string;
+  match_score: number;
+  match_reasons: string[];
+  computed_at: string;
+  profiles?: {
+    full_name: string | null;
+    avatar_url: string | null;
+    role: string | null;
+    username: string | null;
+    headline?: string | null;
+    skills?: string[] | null;
+    preferred_roles?: string[] | null;
+  } | null;
+}
+
+export interface StartupsListResponse {
+  startups: Startup[];
+  nextCursor: string | null;
+  hasMore: boolean;
+}
+
+export interface CreateStartupPayload {
+  name: string;
+  tagline?: string;
+  description?: string;
+  stage: StartupStage;
+  industry?: string;
+  funding_stage?: string;
+  website?: string;
+  logo_url?: string;
+  banner_url?: string;
+  compensation_type: CompensationType;
+  work_type: WorkType;
+  looking_for: string[];
+  required_skills: string[];
+  deadline?: string;
+}
+
+export interface ApplyToStartupPayload {
+  intro?: string;
+  reason?: string;
+  portfolio_links?: string[];
+}
+
 
 export interface Vote {
   id: string;
@@ -485,6 +630,7 @@ export interface SearchResponse {
   ideas: SearchResult[];
   solutions: SearchResultSolution[];
   users: SearchResultUser[];
+  startups?: any[];
   trending?: TrendingData;
 }
 

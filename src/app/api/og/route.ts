@@ -36,14 +36,33 @@ export async function GET(req: NextRequest) {
     const admin = createClient(supabaseUrl, supabaseServiceKey);
 
     // Fetch post and author profiles
-    const { data: post, error: postErr } = await admin
+    let { data: post, error: postErr } = await admin
       .from('posts')
       .select('*, profiles:user_id(*)')
       .eq('id', postId)
       .single();
 
     if (postErr || !post) {
-      return new NextResponse('Post not found', { status: 404 });
+      const { data: startup, error: startupErr } = await admin
+        .from('startups')
+        .select('*, profiles:founder_id(*)')
+        .eq('id', postId)
+        .single();
+
+      if (startupErr || !startup) {
+        return new NextResponse('Post or Startup not found', { status: 404 });
+      }
+
+      post = {
+        id: startup.id,
+        title: startup.name,
+        body: startup.tagline || startup.description || '',
+        upvotes: startup.followers_count || 0,
+        comments_count: startup.applications_count || 0,
+        saves: 0,
+        user_id: startup.founder_id,
+        profiles: startup.profiles
+      };
     }
 
     const title = post.title || 'No title';

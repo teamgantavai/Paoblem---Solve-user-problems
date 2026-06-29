@@ -22,7 +22,9 @@ export default function ShareInAppChatsModal({ isOpen, onClose, post, session }:
   const [errorMsg, setErrorMsg] = useState<string | null>(null);
 
   const postUrl = typeof window !== 'undefined'
-    ? `${window.location.origin}/post/${post.slug || post.id}`
+    ? (post.type === 'startup'
+        ? `${window.location.origin}/startups/${post.id}`
+        : `${window.location.origin}/post/${post.slug || post.id}`)
     : '';
 
   // Helpers to clean body description to 2 lines

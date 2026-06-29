@@ -51,7 +51,15 @@ export async function GET(req: NextRequest) {
     const solutions = results?.solutions || [];
     const users = results?.users || [];
 
-    const totalResults = problems.length + ideas.length + solutions.length + users.length;
+    // Query startups directly using ilike pattern matching
+    const { data: startupsData } = await supabase
+      .from('startups')
+      .select('id, name, tagline, description, slug, logo_url, industry')
+      .or(`name.ilike.%${trimmedQuery}%,tagline.ilike.%${trimmedQuery}%,description.ilike.%${trimmedQuery}%,industry.ilike.%${trimmedQuery}%`)
+      .limit(limit);
+
+    const startupsList = startupsData || [];
+    const totalResults = problems.length + ideas.length + solutions.length + users.length + startupsList.length;
 
     // Track search query asynchronously in search_queries
     // Do not block response for tracking
@@ -70,7 +78,8 @@ export async function GET(req: NextRequest) {
       problems,
       ideas,
       solutions,
-      users
+      users,
+      startups: startupsList
     });
   } catch (err: any) {
     console.error('[search/route] Unexpected error:', err);

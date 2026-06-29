@@ -3,14 +3,29 @@
 import { useEffect, useRef } from 'react';
 import { usePathname, useSearchParams } from 'next/navigation';
 
-/* ─── Tiny CSS-only top progress bar – no external deps ──────────────────── */
+/* ─── Theme-aware top progress bar ────────────────────────────────────────── */
 
 let timer: ReturnType<typeof setTimeout> | null = null;
+
+function getBarColor() {
+  return '#2563eb';
+}
+
+function getGlowColor() {
+  return 'rgba(37, 99, 235, 0.45)';
+}
 
 function startBar() {
   const bar = document.getElementById('top-loader-bar');
   const glow = document.getElementById('top-loader-glow');
   if (!bar || !glow) return;
+
+  const color = getBarColor();
+
+  bar.style.background = color;
+  bar.style.boxShadow = 'none';
+  glow.style.boxShadow = 'none';
+
   bar.style.transition = 'none';
   bar.style.width = '0%';
   bar.style.opacity = '1';
@@ -82,9 +97,9 @@ export default function TopLoader() {
           position: 'fixed',
           top: 0,
           left: 0,
-          height: '3px',
+          height: '2px',
           width: '0%',
-          background: 'linear-gradient(90deg, #0084ff, #a855f7)',
+          background: '#ffffff',
           zIndex: 9999,
           opacity: 0,
           pointerEvents: 'none',
@@ -99,12 +114,11 @@ export default function TopLoader() {
           top: 0,
           left: 0,
           width: '100%',
-          height: '3px',
+          height: '2px',
           background: 'transparent',
           zIndex: 9998,
           opacity: 0,
           pointerEvents: 'none',
-          boxShadow: '0 0 10px 2px rgba(0, 132, 255, 0.5)',
         }}
       />
     </>

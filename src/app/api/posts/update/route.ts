@@ -66,9 +66,7 @@ export async function PUT(req: NextRequest) {
       return NextResponse.json({ error: parsed.error.errors[0].message }, { status: 400 });
     }
 
-    if (parsed.data.type === 'startup' && (!parsed.data.external_link || !parsed.data.external_link.trim())) {
-      return NextResponse.json({ error: 'Startup website link is required' }, { status: 400 });
-    }
+
 
     const { id, title, body: postBody, type, image_url, external_link, link_name, category, tags, metadata } = parsed.data;
 

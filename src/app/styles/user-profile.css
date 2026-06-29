@@ -536,12 +536,12 @@ button.upf-stat {
 
 .upf-tab-btn--active {
   color: var(--text-main);
-  border-bottom-color: var(--accent-blue, #0084ff);
+  border-bottom-color: var(--text-main);
   background: transparent;
 }
 
 .upf-tab-btn--active svg {
-  color: var(--accent-blue, #0084ff);
+  color: var(--text-main);
 }
 
 .upf-tab-label {
@@ -563,8 +563,8 @@ button.upf-stat {
 }
 
 .upf-tab-btn--active .upf-tab-count {
-  background: rgba(0, 132, 255, 0.15);
-  color: var(--accent-blue, #0084ff);
+  background: rgba(37, 99, 235, 0.15);
+  color: var(--accent-primary);
 }
 
 /* ── Sub-Filter Pills for Posts ── */

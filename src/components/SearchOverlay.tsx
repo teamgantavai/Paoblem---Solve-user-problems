@@ -1,6 +1,6 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Search, X, ChevronLeft, AlertTriangle, Lightbulb, User, Clock, Trash2, ArrowRight, NotebookPen, Loader2 } from 'lucide-react';
+import { Search, X, ChevronLeft, AlertTriangle, Lightbulb, User, Clock, Trash2, ArrowRight, NotebookPen, Loader2, Rocket } from 'lucide-react';
 import { useSearch } from '@/hooks/useSearch';
 import { SearchResult, SearchResultSolution, SearchResultUser } from '@/lib/types';
 import { supabase } from '@/lib/supabase';
@@ -71,7 +71,7 @@ export default function SearchOverlay({ isOpen, onClose, initialQuery = '' }: Se
   // Compile list of navigable items
   const getNavigableItems = () => {
     const items: Array<{
-      type: 'query' | 'problem' | 'idea' | 'solution' | 'user' | 'action';
+      type: 'query' | 'problem' | 'idea' | 'solution' | 'user' | 'action' | 'startup';
       label: string;
       url: string;
       onClick: () => void;
@@ -134,6 +134,23 @@ export default function SearchOverlay({ isOpen, onClose, initialQuery = '' }: Se
           }
         });
       });
+      // Startups
+      if (searchResults.startups) {
+        searchResults.startups.forEach((s: any) => {
+          items.push({
+            type: 'startup',
+            label: s.name,
+            url: `/startups?q=${encodeURIComponent(s.name)}`,
+            onClick: () => {
+              addHistory(query);
+              trackClick(query);
+              router.push(`/startups?q=${encodeURIComponent(s.name)}`);
+              onClose();
+            }
+          });
+        });
+      }
+
       // Users
       searchResults.users.forEach((u) => {
         items.push({
@@ -467,6 +484,48 @@ export default function SearchOverlay({ isOpen, onClose, initialQuery = '' }: Se
                   </div>
                 </div>
               )}
+
+              {/* Startups category */}
+              {searchResults.startups && searchResults.startups.length > 0 && (
+                <div className="result-category-instagram" style={{ marginTop: '20px' }}>
+                  <div className="category-header">Startups</div>
+                  <div className="instagram-suggested-list">
+                    {searchResults.startups.map((s: any) => {
+                      const itemIdx = navigableItems.findIndex((x) => x.type === 'startup' && x.label === s.name);
+                      const isFocused = activeIndex === itemIdx;
+                      return (
+                        <div
+                          key={s.id}
+                          className={`instagram-row-item ${isFocused ? 'focused' : ''}`}
+                          onClick={() => {
+                            addHistory(query);
+                            trackClick(query);
+                            router.push(`/startups?q=${encodeURIComponent(s.name)}`);
+                            onClose();
+                          }}
+                        >
+                          {s.logo_url ? (
+                            <img
+                              src={s.logo_url}
+                              alt={s.name}
+                              className="instagram-profile-avatar"
+                              style={{ borderRadius: '8px', objectFit: 'cover' }}
+                            />
+                          ) : (
+                            <div className="instagram-circle-icon solution">
+                              <Rocket size={16} />
+                            </div>
+                          )}
+                          <div className="instagram-row-info">
+                            <span className="instagram-post-title">{s.name}</span>
+                            <span className="instagram-post-meta">{s.tagline || s.industry}</span>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -475,6 +534,7 @@ export default function SearchOverlay({ isOpen, onClose, initialQuery = '' }: Se
             searchResults.problems.length === 0 &&
             searchResults.ideas.length === 0 &&
             searchResults.solutions.length === 0 &&
+            (!searchResults.startups || searchResults.startups.length === 0) &&
             searchResults.users.length === 0 && (
               <div className="instagram-empty-state">
                 <Search size={40} className="empty-icon" />

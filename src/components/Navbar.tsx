@@ -4,7 +4,7 @@ import React, { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams, usePathname } from 'next/navigation';
 import {
   Home,
-  NotebookPen,
+  Rocket,
   Bell,
   MessageCircle,
   User,
@@ -257,30 +257,7 @@ function NavbarInner() {
     refetchInterval: 120000
   });
 
-  const { data: pulseStats } = useQuery<{
-    stats: { totalSolutions: number; problemsSolved: number; unsolvedProblems: number };
-    postStats?: { totalProblems: number; totalIdeas: number; totalPosts: number };
-  }>({
-    queryKey: ['mobile-pulse-stats'],
-    queryFn: async () => {
-      const [solutionsRes, problemsRes, ideasRes] = await Promise.all([
-        fetch('/api/solutions?filter=all'),
-        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'problem'),
-        supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'idea'),
-      ]);
-      const solutionJson = solutionsRes.ok ? await solutionsRes.json() : { stats: { totalSolutions: 0, problemsSolved: 0, unsolvedProblems: 0 } };
-      const totalProblems = problemsRes.count || 0;
-      const totalIdeas = ideasRes.count || 0;
-      return {
-        ...solutionJson,
-        postStats: {
-          totalProblems,
-          totalIdeas,
-          totalPosts: totalProblems + totalIdeas,
-        },
-      };
-    },
-  });
+
 
   // Global message realtime listener for browser notifications
   useEffect(() => {
@@ -367,7 +344,7 @@ function NavbarInner() {
   const unreadMsgCount = session?.access_token ? messages.reduce((sum, m) => sum + (m.unread_count || 0), 0) : 0;
 
   const isHomeActive = pathname === '/' || pathname === '/home';
-  const isSolutionsActive = pathname === '/solutions';
+  const isStartupsActive = pathname === '/startups' || pathname.startsWith('/startups');
   const isNotificationsActive = pathname === '/notifications';
   const isChatsActive = pathname === '/chats';
   const isProfileActive = pathname === '/profile';
@@ -439,11 +416,11 @@ function NavbarInner() {
               <span>Home</span>
             </div>
 
-            <div className={`nav-item ${isSolutionsActive ? 'active' : ''}`} onClick={() => router.push('/solutions')}>
+            <div className={`nav-item ${isStartupsActive ? 'active' : ''}`} onClick={() => router.push('/startups')}>
               <div className="nav-icon-wrap">
-                <NotebookPen size={22} strokeWidth={2} />
+                <Rocket size={22} strokeWidth={2} />
               </div>
-              <span>Solution</span>
+              <span>Startups</span>
             </div>
 
             {/* Notifications Link */}
@@ -567,11 +544,11 @@ function NavbarInner() {
           </div>
           <span>Home</span>
         </div>
-        <div className={`mobile-nav-item ${isSolutionsActive ? 'active' : ''}`} onClick={() => router.push('/solutions')}>
+        <div className={`mobile-nav-item ${isStartupsActive ? 'active' : ''}`} onClick={() => router.push('/startups')}>
           <div className="nav-icon-wrap">
-            <NotebookPen size={20} strokeWidth={2} />
+            <Rocket size={20} strokeWidth={2} />
           </div>
-          <span>Solution</span>
+          <span>Startups</span>
         </div>
         <div className={`mobile-nav-item ${pathname === '/create-post' ? 'active' : ''}`} onClick={() => router.push('/create-post')}>
           <div className="nav-icon-wrap">
@@ -695,11 +672,11 @@ function NavbarInner() {
             </div>
 
             <div
-              className={`drawer-menu-item ${isSolutionsActive ? 'active' : ''}`}
-              onClick={() => { setIsOpen(false); router.push('/solutions'); }}
+              className={`drawer-menu-item ${isStartupsActive ? 'active' : ''}`}
+              onClick={() => { setIsOpen(false); router.push('/startups'); }}
             >
-              <NotebookPen size={20} />
-              <span>Solutions Feed</span>
+              <Rocket size={20} />
+              <span>Startups Feed</span>
             </div>
 
             <div
@@ -746,42 +723,7 @@ function NavbarInner() {
             )}
           </div>
 
-          <div className="drawer-pulse-card">
-            <div className="drawer-pulse-head">
-              <span>
-                <Lightbulb size={15} />
-                {isSolutionsActive ? 'Solution Pulse' : 'Problem Pulse'}
-              </span>
-            </div>
-            <div className="drawer-pulse-grid">
-              {isSolutionsActive ? (
-                <>
-                  <div><strong>{pulseStats?.stats?.totalSolutions ?? 0}</strong><span>Total</span></div>
-                  <div><strong>{pulseStats?.stats?.problemsSolved ?? 0}</strong><span>Solved</span></div>
-                  <div><strong>{pulseStats?.stats?.unsolvedProblems ?? 0}</strong><span>Open</span></div>
-                </>
-              ) : (
-                <>
-                  <div><strong>{pulseStats?.postStats?.totalProblems ?? 0}</strong><span>Problems</span></div>
-                  <div><strong>{pulseStats?.postStats?.totalIdeas ?? 0}</strong><span>Ideas</span></div>
-                  <div><strong>{pulseStats?.postStats?.totalPosts ?? 0}</strong><span>Total</span></div>
-                </>
-              )}
-            </div>
-            <p className="drawer-pulse-note">
-              {isSolutionsActive ? (
-                <>
-                  <CheckCircle size={13} />
-                  {pulseStats?.stats?.problemsSolved ?? 0} solved, <Clock size={13} /> {pulseStats?.stats?.unsolvedProblems ?? 0} open
-                </>
-              ) : (
-                <>
-                  <TrendingUp size={13} />
-                  Community problem and idea activity
-                </>
-              )}
-            </p>
-          </div>
+
         </div>
       </div>
 

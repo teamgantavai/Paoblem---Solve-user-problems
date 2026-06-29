@@ -10,9 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         '/post/*',
         '/user/*',
         '/tag/*',
-        '/category/*',
-        '/solutions',
-        '/solutions/*'
+        '/category/*'
       ],
       disallow: [
         '/api/*',

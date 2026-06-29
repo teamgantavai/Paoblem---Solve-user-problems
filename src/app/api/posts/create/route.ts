@@ -157,12 +157,7 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    if (parsed.data.type === 'startup' && (!parsed.data.external_link || !parsed.data.external_link.trim())) {
-      return NextResponse.json(
-        { error: 'Startup website link is required' },
-        { status: 400 },
-      );
-    }
+
 
     const {
       title,

@@ -73,7 +73,7 @@ function plainToHtml(text: string): string {
 function htmlToPlain(html: string): string {
   if (!html) return '';
   let text = html;
-  
+
   // Replace non-breaking spaces with standard spaces
   text = text.replace(/&nbsp;/gi, ' ').replace(/\u00a0/g, ' ');
 
@@ -94,10 +94,10 @@ function htmlToPlain(html: string): string {
   text = text.replace(/<\/ul>/gi, '\n');
   text = text.replace(/<ol\b[^>]*>/gi, '');
   text = text.replace(/<\/ol>/gi, '\n');
-  
+
   // Strip all other unsupported HTML tags (like <font>, <span>, style attrs, etc.)
   text = text.replace(/<\/?(?!strong\b|b\b|em\b|i\b|u\b|code\b|li\b|ul\b|ol\b)\w+[^>]*>/gi, '');
-  
+
   text = text.replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&amp;/g, '&');
   return text;
 }
@@ -137,6 +137,7 @@ function CreatePostForm({ session }: { session: Session }) {
   const [aiEnhancedUsed, setAiEnhancedUsed] = useState(false);
 
   const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [customCategory, setCustomCategory] = useState('');
 
   useEffect(() => {
     if (!session?.user?.id) return;
@@ -152,7 +153,7 @@ function CreatePostForm({ session }: { session: Session }) {
   useEffect(() => {
     if (!session?.user?.id) return;
     if (draftLoaded) return;
-    
+
     try {
       const key = `paoblem:create-post:draft:${session.user.id}`;
       const raw = localStorage.getItem(key);
@@ -170,7 +171,7 @@ function CreatePostForm({ session }: { session: Session }) {
         if (draft.externalLink) setLinkEnabled(true);
         if (Array.isArray(draft.tags) && draft.tags.length > 0) setTagsEnabled(true);
       }
-    } catch {}
+    } catch { }
     setDraftLoaded(true);
   }, [session?.user?.id, draftLoaded]);
 
@@ -215,10 +216,10 @@ function CreatePostForm({ session }: { session: Session }) {
     if (bodyRef.current) {
       const currentHtml = bodyRef.current.innerHTML;
       const currentPlain = htmlToPlain(currentHtml);
-      
+
       const normCurrent = currentPlain.replace(/\r?\n/g, '').trim();
       const normBody = body.replace(/\r?\n/g, '').trim();
-      
+
       if (normCurrent !== normBody) {
         bodyRef.current.innerHTML = plainToHtml(body);
       }
@@ -226,8 +227,7 @@ function CreatePostForm({ session }: { session: Session }) {
   }, [body]);
 
   const bodyCount = body.trim().length;
-  const isLinkValid = postType !== 'startup' || (externalLink.trim().length > 0);
-  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY && isLinkValid);
+  const isValid = Boolean(session && postType && title.trim().length >= 3 && body.trim().length >= 10 && bodyCount <= MAX_BODY);
 
   const addTag = () => {
     const next = normalizeTag(tagInput);
@@ -296,9 +296,6 @@ function CreatePostForm({ session }: { session: Session }) {
     event.preventDefault();
     if (!session) return setError('Please sign in to publish.');
     if (!postType) return setError('Please select a Post Type.');
-    if (postType === 'startup' && !externalLink.trim()) {
-      return setError('Startup website link is required.');
-    }
     if (!isValid) return setError('Please make sure your title has at least 3 characters and description has at least 10.');
 
     setSubmitting(true);
@@ -319,9 +316,9 @@ function CreatePostForm({ session }: { session: Session }) {
           image_url: imageUrls.length ? JSON.stringify(imageUrls) : null,
           external_link: formattedLink,
           link_name: linkName.trim() || null,
-          category: selectedCategory,
+          category: selectedCategory === 'Other' ? customCategory.trim() : selectedCategory,
           tags,
-          metadata: { visibility, category: selectedCategory, tags },
+          metadata: { visibility, category: selectedCategory === 'Other' ? customCategory.trim() : selectedCategory, tags },
         }),
       });
       const data = await res.json();
@@ -427,7 +424,7 @@ function CreatePostForm({ session }: { session: Session }) {
                   <option value="" disabled>Select post type...</option>
                   <option value="problem">Problem</option>
                   <option value="idea">Idea</option>
-                  <option value="startup">Startup</option>
+                  <option value="startup">Advice</option>
                 </select>
               </div>
 
@@ -445,9 +442,25 @@ function CreatePostForm({ session }: { session: Session }) {
                       {cat}
                     </option>
                   ))}
+                  <option value="Other">Other</option>
                 </select>
               </div>
             </div>
+
+            {selectedCategory === 'Other' && (
+              <div className="cp-field-group" style={{ animation: 'fadeIn 200ms ease', marginTop: '0.75rem' }}>
+                <label className="cp-input-label" htmlFor="custom-category">Which Category?</label>
+                <input
+                  id="custom-category"
+                  type="text"
+                  className="cp-text-input"
+                  placeholder="Please specify your category..."
+                  value={customCategory}
+                  onChange={(e) => setCustomCategory(e.target.value)}
+                  required
+                />
+              </div>
+            )}
 
 
             {/* DESCRIPTION WYSIWYG EDITOR */}
@@ -465,9 +478,9 @@ function CreatePostForm({ session }: { session: Session }) {
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('underline')} title="Underline" className="cp-toolbar-btn">
                     <Underline size={15} />
                   </button>
-                  
+
                   <span className="cp-toolbar-divider" />
-                  
+
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertCode} title="Code" className="cp-toolbar-btn">
                     <Code size={15} />
                   </button>
@@ -477,21 +490,21 @@ function CreatePostForm({ session }: { session: Session }) {
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={() => insertFormat('insertOrderedList')} title="Numbered List" className="cp-toolbar-btn">
                     <ListOrdered size={15} />
                   </button>
-                  
+
                   <span className="cp-toolbar-divider" />
-                  
+
                   <button type="button" onMouseDown={(e) => e.preventDefault()} onClick={insertLink} title="Link" className="cp-toolbar-btn">
                     <Link2 size={15} />
                   </button>
 
                   {aiEnhancing ? (
-                    <div 
-                      style={{ 
-                        marginLeft: 'auto', 
-                        display: 'flex', 
+                    <div
+                      style={{
+                        marginLeft: 'auto',
+                        display: 'flex',
                         flexDirection: 'column',
                         alignItems: 'flex-end',
-                        gap: '4px', 
+                        gap: '4px',
                         width: '100px',
                         paddingRight: '8px'
                       }}
@@ -505,15 +518,15 @@ function CreatePostForm({ session }: { session: Session }) {
                     <button
                       type="button"
                       className="cp-toolbar-btn"
-                      style={{ 
-                        marginLeft: 'auto', 
-                        display: 'flex', 
-                        alignItems: 'center', 
-                        gap: '4px', 
-                        width: 'auto', 
-                        padding: '0 8px', 
-                        fontSize: '0.75rem', 
-                        fontWeight: 600, 
+                      style={{
+                        marginLeft: 'auto',
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        width: 'auto',
+                        padding: '0 8px',
+                        fontSize: '0.75rem',
+                        fontWeight: 600,
                         color: (body.trim().length < 15 || aiEnhancedUsed) ? 'var(--text-muted)' : 'var(--accent-primary)',
                         cursor: (body.trim().length < 15 || aiEnhancedUsed) ? 'not-allowed' : 'pointer'
                       }}
@@ -531,7 +544,7 @@ function CreatePostForm({ session }: { session: Session }) {
                   ref={bodyRef}
                   contentEditable
                   onInput={(e) => setBody(htmlToPlain(e.currentTarget.innerHTML))}
-                  data-placeholder={postType === 'startup' ? "Share your startup journey..." : "Write something..."}
+                  data-placeholder={postType === 'startup' ? "Share your advice..." : "Write something..."}
                   className="cp-editor-textarea cp-editor-contenteditable"
                   style={{
                     minHeight: '180px',
@@ -549,29 +562,24 @@ function CreatePostForm({ session }: { session: Session }) {
               </div>
             </div>
 
-            {/* STARTUP WEBSITE LINK (Auto-expanded and required for startup type) */}
             {postType === 'startup' && (
               <div className="cp-field-group" style={{ borderTop: '1px solid var(--border-color)', paddingTop: '20px' }}>
-                <label className="cp-input-label">
-                  Startup Website Link <span style={{ color: 'var(--accent-danger)' }}>*</span>
-                </label>
                 <div className="cp-clean-grid">
                   <label className="cp-clean-field">
                     <span>Website URL</span>
-                    <input 
-                      value={externalLink} 
-                      onChange={(event) => setExternalLink(event.target.value)} 
-                      placeholder="https://yourstartup.com" 
-                      required 
+                    <input
+                      value={externalLink}
+                      onChange={(event) => setExternalLink(event.target.value)}
+                      placeholder="https://example.com"
                     />
                   </label>
                   <label className="cp-clean-field">
                     <span>Display Label (Optional)</span>
-                    <input 
-                      value={linkName} 
-                      onChange={(event) => setLinkName(event.target.value)} 
-                      maxLength={60} 
-                      placeholder="e.g. Website, Dashboard, App Store" 
+                    <input
+                      value={linkName}
+                      onChange={(event) => setLinkName(event.target.value)}
+                      maxLength={60}
+                      placeholder="e.g. Website, Dashboard, App Store"
                     />
                   </label>
                 </div>
@@ -711,14 +719,14 @@ function CreatePostForm({ session }: { session: Session }) {
 
                       <div>
                         <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Description / Text:</strong>
-                        <div 
-                          style={{ 
-                            fontSize: '0.9rem', 
-                            marginTop: '4px', 
-                            background: 'var(--bg-hover)', 
-                            padding: '12px', 
-                            borderRadius: '8px', 
-                            maxHeight: '200px', 
+                        <div
+                          style={{
+                            fontSize: '0.9rem',
+                            marginTop: '4px',
+                            background: 'var(--bg-hover)',
+                            padding: '12px',
+                            borderRadius: '8px',
+                            maxHeight: '200px',
                             overflowY: 'auto',
                             whiteSpace: 'pre-wrap',
                             border: '1px solid var(--border-color)',
@@ -736,9 +744,9 @@ function CreatePostForm({ session }: { session: Session }) {
               })()}
             </div>
             <div className="cp-modal-footer" style={{ borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '12px', display: 'flex', justifyContent: 'flex-end' }}>
-              <button 
-                type="button" 
-                className="cp-clean-cancel" 
+              <button
+                type="button"
+                className="cp-clean-cancel"
                 onClick={() => setDraftModalOpen(false)}
                 style={{ minHeight: '34px', padding: '0 16px' }}
               >
@@ -763,14 +771,14 @@ function CreatePostForm({ session }: { session: Session }) {
             <div className="cp-modal-body" style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
               <div>
                 <strong style={{ fontSize: '0.85rem', color: 'var(--text-muted)' }}>Original Text:</strong>
-                <div 
-                  style={{ 
-                    fontSize: '0.9rem', 
-                    marginTop: '4px', 
-                    background: 'var(--bg-hover)', 
-                    padding: '12px', 
-                    borderRadius: '8px', 
-                    maxHeight: '120px', 
+                <div
+                  style={{
+                    fontSize: '0.9rem',
+                    marginTop: '4px',
+                    background: 'var(--bg-hover)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    maxHeight: '120px',
                     overflowY: 'auto',
                     border: '1px solid var(--border-color)',
                     color: 'var(--text-muted)'
@@ -781,14 +789,14 @@ function CreatePostForm({ session }: { session: Session }) {
               </div>
               <div>
                 <strong style={{ fontSize: '0.85rem', color: '#c084fc' }}>AI Enhanced Text:</strong>
-                <div 
-                  style={{ 
-                    fontSize: '0.9rem', 
-                    marginTop: '4px', 
-                    background: 'rgba(168, 85, 247, 0.05)', 
-                    padding: '12px', 
-                    borderRadius: '8px', 
-                    maxHeight: '180px', 
+                <div
+                  style={{
+                    fontSize: '0.9rem',
+                    marginTop: '4px',
+                    background: 'rgba(168, 85, 247, 0.05)',
+                    padding: '12px',
+                    borderRadius: '8px',
+                    maxHeight: '180px',
                     overflowY: 'auto',
                     border: '1px solid rgba(168, 85, 247, 0.25)',
                     color: 'var(--text-main)'
@@ -799,17 +807,17 @@ function CreatePostForm({ session }: { session: Session }) {
               </div>
             </div>
             <div className="cp-modal-footer" style={{ borderTop: '1px solid var(--border-color)', marginTop: '16px', paddingTop: '12px', display: 'flex', justifyContent: 'flex-end', gap: '12px' }}>
-              <button 
-                type="button" 
-                className="cp-clean-cancel" 
+              <button
+                type="button"
+                className="cp-clean-cancel"
                 onClick={() => setAiPreviewOpen(false)}
                 style={{ minHeight: '34px', padding: '0 16px' }}
               >
                 Reject
               </button>
-              <button 
-                type="button" 
-                className="cp-clean-submit" 
+              <button
+                type="button"
+                className="cp-clean-submit"
                 onClick={() => { setBody(enhancedBody || ''); setAiPreviewOpen(false); }}
                 style={{ minHeight: '34px', padding: '0 16px' }}
               >

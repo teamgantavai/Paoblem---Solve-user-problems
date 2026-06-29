@@ -37,6 +37,14 @@
   --chip-startup-bg: rgba(139, 92, 246, 0.12);
   --chip-startup-border: rgba(139, 92, 246, 0.38);
   --chip-startup-text: #a78bfa;
+  /* Theme-adaptive button tokens */
+  --btn-primary-bg: #ffffff;
+  --btn-primary-text: #0b0b0d;
+  --btn-primary-hover: #e5e7eb;
+  --btn-secondary-bg: transparent;
+  --btn-secondary-border: #2d2d32;
+  --btn-secondary-text: #c9c9cf;
+  --btn-secondary-hover: #1c1c1f;
 }
 
 .light-theme {
@@ -78,4 +86,12 @@
   --chip-startup-bg: rgba(109, 40, 217, 0.1);
   --chip-startup-border: rgba(109, 40, 217, 0.28);
   --chip-startup-text: #6d28d9;
+  /* Theme-adaptive button tokens */
+  --btn-primary-bg: #111827;
+  --btn-primary-text: #ffffff;
+  --btn-primary-hover: #1f2937;
+  --btn-secondary-bg: transparent;
+  --btn-secondary-border: #d1d5db;
+  --btn-secondary-text: #374151;
+  --btn-secondary-hover: #f9fafb;
 }

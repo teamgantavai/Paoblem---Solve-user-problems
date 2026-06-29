@@ -13,7 +13,8 @@ import {
   LogIn,
   Lightbulb,
   CheckCircle,
-  Clock
+  Clock,
+  Rocket
 } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import Link from 'next/link';
@@ -25,23 +26,10 @@ const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
 import Avatar from './Avatar';
 
 const SIDEBAR_PROFILE_CACHE_KEY = 'sidebar-left-profile-cache';
-const SIDEBAR_PULSE_CACHE_KEY = 'sidebar-left-pulse-cache';
 const SIDEBAR_CACHE_TTL_MS = 5 * 60 * 1000;
 
 type CachedSidebarProfile = {
   data: { full_name: string | null; avatar_url: string | null; role: string | null; username?: string | null; cover_url?: string | null };
-  cachedAt: number;
-};
-
-type CachedPulseStats = {
-  data: {
-    totalSolutions: number;
-    problemsSolved: number;
-    unsolvedProblems: number;
-    totalProblems: number;
-    totalIdeas: number;
-    totalPosts: number;
-  };
   cachedAt: number;
 };
 
@@ -52,22 +40,35 @@ function SidebarLeftInner() {
   const filter = searchParams.get('filter') || 'all';
   const isHomeRoute = pathname === '/' || pathname === '/home';
   const isAnalyticsRoute = pathname === '/analytics';
-  const isSolutionsRoute = pathname === '/solutions';
+  const isStartupsRoute = pathname === '/startups' || pathname.startsWith('/startups');
 
-  const [session, setSession] = useState<any>(null);
-  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
+  const [session, setSession] = useState<any>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem('sb-session-cache');
+        return raw ? JSON.parse(raw) : null;
+      } catch { return null; }
+    }
+    return null;
+  });
+  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(() => {
+    if (typeof window !== 'undefined') {
+      try {
+        const raw = window.localStorage.getItem(SIDEBAR_PROFILE_CACHE_KEY);
+        if (raw) {
+          const parsed = JSON.parse(raw) as CachedSidebarProfile;
+          if (parsed?.data && (Date.now() - parsed.cachedAt) <= SIDEBAR_CACHE_TTL_MS) {
+            return parsed.data;
+          }
+        }
+      } catch {}
+    }
+    return null;
+  });
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
   const [noticeFeature, setNoticeFeature] = useState('');
-  const [pulseStats, setPulseStats] = useState({
-    totalSolutions: 0,
-    problemsSolved: 0,
-    unsolvedProblems: 0,
-    totalProblems: 0,
-    totalIdeas: 0,
-    totalPosts: 0,
-  });
 
   const triggerNotice = (feature: string) => {
     setNoticeFeature(feature);
@@ -94,33 +95,24 @@ function SidebarLeftInner() {
     } catch { }
   };
 
-  const readCachedPulse = () => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const raw = window.localStorage.getItem(SIDEBAR_PULSE_CACHE_KEY);
-      if (!raw) return null;
-      const parsed = JSON.parse(raw) as CachedPulseStats;
-      if (!parsed?.data || (Date.now() - parsed.cachedAt) > SIDEBAR_CACHE_TTL_MS) return null;
-      return parsed.data;
-    } catch {
-      return null;
-    }
-  };
-
-  const writeCachedPulse = (data: CachedPulseStats['data']) => {
-    if (typeof window === 'undefined') return;
-    try {
-      window.localStorage.setItem(SIDEBAR_PULSE_CACHE_KEY, JSON.stringify({ data, cachedAt: Date.now() } satisfies CachedPulseStats));
-    } catch { }
-  };
-
   useEffect(() => {
     supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
       setSession(currentSession);
+      if (currentSession && typeof window !== 'undefined') {
+        window.localStorage.setItem('sb-session-cache', JSON.stringify(currentSession));
+      }
     });
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, currentSession) => {
       setSession(currentSession);
+      if (typeof window !== 'undefined') {
+        if (currentSession) {
+          window.localStorage.setItem('sb-session-cache', JSON.stringify(currentSession));
+        } else {
+          window.localStorage.removeItem('sb-session-cache');
+          window.localStorage.removeItem(SIDEBAR_PROFILE_CACHE_KEY);
+        }
+      }
     });
 
     return () => subscription.unsubscribe();
@@ -158,47 +150,7 @@ function SidebarLeftInner() {
     };
   }, [session?.user?.id]);
 
-  useEffect(() => {
-    let cancelled = false;
-    async function fetchPulseStats() {
-      try {
-        const cachedPulse = readCachedPulse();
-        if (cachedPulse) {
-          setPulseStats(cachedPulse);
-          return;
-        }
-        const [solutionsRes, problemsRes, ideasRes] = await Promise.all([
-          fetch('/api/solutions?filter=all'),
-          supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'problem'),
-          supabase.from('posts').select('id', { count: 'exact', head: true }).eq('type', 'idea'),
-        ]);
 
-        const solutionJson = solutionsRes.ok ? await solutionsRes.json() : null;
-        const totalProblems = problemsRes.count || 0;
-        const totalIdeas = ideasRes.count || 0;
-
-        if (!cancelled) {
-          const nextStats = {
-            totalSolutions: solutionJson?.stats?.totalSolutions || 0,
-            problemsSolved: solutionJson?.stats?.problemsSolved || 0,
-            unsolvedProblems: solutionJson?.stats?.unsolvedProblems || 0,
-            totalProblems,
-            totalIdeas,
-            totalPosts: totalProblems + totalIdeas,
-          };
-          setPulseStats(nextStats);
-          writeCachedPulse(nextStats);
-        }
-      } catch (err) {
-        console.error('Failed to load pulse stats', err);
-      }
-    }
-
-    fetchPulseStats();
-    return () => {
-      cancelled = true;
-    };
-  }, []);
 
   const displayName = profile?.full_name || session?.user?.user_metadata?.full_name || 'Member';
   const displayRole = profile?.role || 'Innovator';
@@ -324,60 +276,7 @@ function SidebarLeftInner() {
         </div>
       </div>
 
-      <div className="card sidebar-solutions-card">
-        <div className="sidebar-solutions-head">
-          <span>
-            <Lightbulb size={15} />
-            {isSolutionsRoute ? 'Solution Pulse' : 'Problem Pulse'}
-          </span>
-          <button type="button" onClick={() => router.push(isSolutionsRoute ? '/' : '/solutions')}>
-            {isSolutionsRoute ? 'Home' : 'View'}
-          </button>
-        </div>
-        {isSolutionsRoute ? (
-          <>
-            <div className="sidebar-solutions-grid">
-              <div>
-                <strong>{pulseStats.totalSolutions}</strong>
-                <span>Total</span>
-              </div>
-              <div>
-                <strong>{pulseStats.problemsSolved}</strong>
-                <span>Solved</span>
-              </div>
-              <div>
-                <strong>{pulseStats.unsolvedProblems}</strong>
-                <span>Open</span>
-              </div>
-            </div>
-            <div className="sidebar-solution-status">
-              <CheckCircle size={18} strokeWidth={1.5} />
-              <span>{pulseStats.problemsSolved} problems solved by developers</span>
-            </div>
-            <div className="sidebar-solution-status sidebar-solution-status--open">
-              <Clock size={18} strokeWidth={1.5} />
-              <span>{pulseStats.unsolvedProblems} waiting for solutions</span>
-            </div>
-          </>
-        ) : (
-          <>
-            <div className="sidebar-solutions-grid">
-              <div>
-                <strong>{pulseStats.totalProblems}</strong>
-                <span>Problems</span>
-              </div>
-              <div>
-                <strong>{pulseStats.totalIdeas}</strong>
-                <span>Ideas</span>
-              </div>
-              <div>
-                <strong>{pulseStats.totalPosts}</strong>
-                <span>Total</span>
-              </div>
-            </div>
-          </>
-        )}
-      </div>
+
 
       {/* Legal Footer Links */}
       <div
@@ -413,10 +312,12 @@ function SidebarLeftInner() {
   );
 }
 
-export default function SidebarLeft() {
+const SidebarLeft = React.memo(function SidebarLeft() {
   return (
     <Suspense fallback={null}>
       <SidebarLeftInner />
     </Suspense>
   );
-}
+});
+
+export default SidebarLeft;
