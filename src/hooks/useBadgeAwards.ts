@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useCallback, useRef } from 'react';
 import { supabase } from '@/lib/supabase';
 import type { BadgeCategory, BadgeRarity } from '@/lib/badgeDefinitions';
 
@@ -25,11 +25,13 @@ export type BadgeCheckEvent =
 export function useBadgeAwards() {
   const [newlyAwarded, setNewlyAwarded] = useState<AwardedBadge[]>([]);
   const [checking, setChecking] = useState(false);
+  const checkingRef = useRef(false);
 
   const checkAndAward = useCallback(async (event?: BadgeCheckEvent) => {
-    if (checking) return;
+    if (checkingRef.current) return;
 
     try {
+      checkingRef.current = true;
       setChecking(true);
 
       const { data: { session } } = await supabase.auth.getSession();
@@ -54,9 +56,10 @@ export function useBadgeAwards() {
     } catch (_err) {
       // Silently fail — badge checks are non-critical
     } finally {
+      checkingRef.current = false;
       setChecking(false);
     }
-  }, [checking]);
+  }, []);
 
   const dismissBadge = useCallback((slug: string) => {
     setNewlyAwarded(prev => prev.filter(b => b.slug !== slug));

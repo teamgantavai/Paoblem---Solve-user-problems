@@ -424,7 +424,6 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
   const activeFilter = searchParams.get('filter') || defaultFilter || 'all';
   const [filterType, setFilterType] = useState<string>('all');
   const [session, setSession] = useState<any>(null);
-  const [profile, setProfile] = useState<any>(null);
   const [commentsModalPostId, setCommentsModalPostId] = useState<string | null>(null);
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [editingPost, setEditingPost] = useState<Post | null>(null);
@@ -533,24 +532,21 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchUserProfile = () => {
-    if (!session?.user?.id) {
-      setProfile(null);
-      return;
-    }
-    supabase
-      .from('profiles')
-      .select('full_name, avatar_url, role, username')
-      .eq('id', session.user.id)
-      .single()
-      .then(({ data }) => {
-        if (data) setProfile(data);
-      });
-  };
-
-  useEffect(() => {
-    fetchUserProfile();
-  }, [session?.user?.id]);
+  const { data: profile, refetch: refetchProfile } = useQuery({
+    queryKey: ['user-profile', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, role, username')
+        .eq('id', session.user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!session?.user?.id,
+    staleTime: 5 * 60 * 1000,
+  });
 
   // Fetch saved post IDs from server for synchronization
   useEffect(() => {
@@ -587,11 +583,14 @@ function FeedInner({ defaultFilter, initialPosts }: { defaultFilter?: string; in
   }, [queryClient]);
 
   useEffect(() => {
-    window.addEventListener('profile-updated', fetchUserProfile);
-    return () => {
-      window.removeEventListener('profile-updated', fetchUserProfile);
+    const handleProfileUpdate = () => {
+      refetchProfile();
     };
-  }, [session?.user?.id]);
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+    };
+  }, [refetchProfile]);
 
   const singlePostId = searchParams.get('post');
   const categoryParam = searchParams.get('category');

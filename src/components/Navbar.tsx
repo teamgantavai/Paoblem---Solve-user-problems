@@ -21,7 +21,8 @@ import {
   Lightbulb,
   CheckCircle,
   Clock,
-  PlusCircle
+  PlusCircle,
+  Users
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { supabase } from '@/lib/supabase';
@@ -87,8 +88,7 @@ function NavbarInner() {
   const [visible, setVisible] = useState(true);
   const lastScrollYRef = useRef(0);
 
-  // Profile fetched from DB (so role changes propagate immediately)
-  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(null);
+
 
   // Dropdown states for desktop notifications and chats (if clicking popovers is still desired, or if we go to page)
   // Let's make them navigate directly to their pages to fix active state cleanly as required
@@ -174,37 +174,31 @@ function NavbarInner() {
     return () => subscription.unsubscribe();
   }, [session?.user?.id, queryClient]);
 
-  const fetchNavProfile = () => {
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (currentSession) {
-        setSession(currentSession);
-        supabase
-          .from('profiles')
-          .select('full_name, avatar_url, role, username')
-          .eq('id', currentSession.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setProfile(data);
-              setAvatarFailed(false); // Reset failed flag on fresh fetch
-            }
-          });
-      } else {
-        setProfile(null);
-      }
-    });
-  };
+  const { data: profile, refetch: refetchProfile } = useQuery({
+    queryKey: ['user-profile', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, role, username')
+        .eq('id', session.user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!session?.user?.id,
+    staleTime: NAVBAR_CACHE_TTL_MS,
+  });
 
   useEffect(() => {
-    fetchNavProfile();
-  }, [session?.user?.id]);
-
-  useEffect(() => {
-    window.addEventListener('profile-updated', fetchNavProfile);
-    return () => {
-      window.removeEventListener('profile-updated', fetchNavProfile);
+    const handleProfileUpdate = () => {
+      refetchProfile();
     };
-  }, [session?.user?.id]);
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+    };
+  }, [refetchProfile]);
 
   useEffect(() => {
     setAvatarFailed(false);
@@ -315,21 +309,28 @@ function NavbarInner() {
     };
   }, [session?.user?.id, session?.access_token, queryClient]);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (session?.user?.id) {
-      try {
-        await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-      } catch (err) { }
+      (async () => {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ online: false, last_seen: new Date().toISOString() })
+            .eq('id', session.user.id);
+        } catch (_) {}
+      })();
     }
     if (typeof window !== 'undefined') {
       localStorage.removeItem(NAVBAR_NOTIFICATIONS_CACHE_KEY);
       localStorage.removeItem(NAVBAR_MESSAGES_CACHE_KEY);
       localStorage.removeItem('mock_admin');
     }
-    await supabase.auth.signOut();
+    supabase.auth.signOut().then(() => {});
     setIsOpen(false);
     router.push('/');
-    window.location.reload();
+    setTimeout(() => {
+      window.location.reload();
+    }, 50);
   };
 
   const handleMeClick = () => {
@@ -669,6 +670,21 @@ function NavbarInner() {
             >
               <BarChart2 size={20} />
               <span>Analytics</span>
+            </div>
+
+            <div
+              className={`drawer-menu-item ${pathname === '/chats' && searchParams.get('view') === 'groups' ? 'active' : ''}`}
+              onClick={() => {
+                setIsOpen(false);
+                if (!session) {
+                  setIsAuthOpen(true);
+                } else {
+                  router.push('/chats?view=groups');
+                }
+              }}
+            >
+              <Users size={20} />
+              <span>Group Chats</span>
             </div>
 
             <div

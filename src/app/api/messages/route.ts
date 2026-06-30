@@ -135,6 +135,17 @@ async function listConversations(userId: string, archived = false) {
   if (lastMessageError) throw lastMessageError;
   const lastMessageById = new Map((lastMessages || []).map((row: any) => [row.id, row]));
 
+  const { data: hiddenLastRows, error: hiddenLastError } = lastMessageIds.length
+    ? await supabaseAdmin
+      .from('message_deletions')
+      .select('message_id')
+      .in('message_id', lastMessageIds)
+      .eq('user_id', userId)
+    : { data: [], error: null };
+
+  if (hiddenLastError && hiddenLastError.code !== '42P01') throw hiddenLastError;
+  const hiddenLastIds = new Set((hiddenLastRows || []).map((row: any) => row.message_id));
+
   const { data: participants, error: participantError } = await supabaseAdmin
     .from('conversation_participants')
     .select('conversation_id, user_id')
@@ -227,7 +238,7 @@ async function listConversations(userId: string, archived = false) {
           is_online: !!presence?.is_online,
           last_seen_at: presence?.last_seen_at || null,
         },
-        last_message: lastMessage
+        last_message: lastMessage && !hiddenLastIds.has(lastMessage.id)
           ? {
             ...lastMessage,
             content: lastMessage.deleted_at ? 'This message was deleted' : lastMessage.content,
@@ -328,7 +339,7 @@ async function listMessages(conversationId: string, userId: string, cursor?: str
 
   if (cursor) query = query.lt('created_at', cursor);
   if (search?.trim()) query = query.ilike('content', `%${search.trim()}%`);
-  if (hiddenIds.length) query = query.not('id', 'in', `(${hiddenIds.join(',')})`);
+  if (hiddenIds.length) query = query.filter('id', 'not.in', `(${hiddenIds.join(',')})`);
 
   const { data, error } = await query;
   if (error) throw error;
@@ -615,7 +626,7 @@ export async function DELETE(req: NextRequest) {
     const { error } = await supabaseAdmin
       .from('messages')
       .update({
-        content: '',
+        content: 'This message was deleted',
         attachments: [],
         deleted_at: new Date().toISOString(),
         deleted_by: user.id,

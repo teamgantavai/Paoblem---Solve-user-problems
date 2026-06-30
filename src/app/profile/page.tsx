@@ -501,15 +501,22 @@ function ProfileView({ session, setSession, targetUserId, queryClient }: { sessi
     }, 0);
   }, [userBadges]);
 
-  const handleLogout = async () => {
+  const handleLogout = () => {
     if (session?.user?.id) {
-      try {
-        await supabase.from('profiles').update({ online: false, last_seen: new Date().toISOString() }).eq('id', session.user.id);
-      } catch (err) { }
+      (async () => {
+        try {
+          await supabase
+            .from('profiles')
+            .update({ online: false, last_seen: new Date().toISOString() })
+            .eq('id', session.user.id);
+        } catch (_) {}
+      })();
     }
-    await supabase.auth.signOut();
+    supabase.auth.signOut().then(() => {});
     router.push('/');
-    window.location.reload();
+    setTimeout(() => {
+      window.location.reload();
+    }, 50);
   };
 
   const profile = profileData?.profile;

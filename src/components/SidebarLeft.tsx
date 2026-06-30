@@ -23,6 +23,7 @@ import dynamic from 'next/dynamic';
 
 const AuthModal = dynamic(() => import('./AuthModal'), { ssr: false });
 const SettingsModal = dynamic(() => import('./SettingsModal'), { ssr: false });
+import { useQuery } from '@tanstack/react-query';
 import Avatar from './Avatar';
 
 const SIDEBAR_PROFILE_CACHE_KEY = 'sidebar-left-profile-cache';
@@ -51,20 +52,7 @@ function SidebarLeftInner() {
     }
     return null;
   });
-  const [profile, setProfile] = useState<{ full_name: string | null; avatar_url: string | null; role: string | null } | null>(() => {
-    if (typeof window !== 'undefined') {
-      try {
-        const raw = window.localStorage.getItem(SIDEBAR_PROFILE_CACHE_KEY);
-        if (raw) {
-          const parsed = JSON.parse(raw) as CachedSidebarProfile;
-          if (parsed?.data && (Date.now() - parsed.cachedAt) <= SIDEBAR_CACHE_TTL_MS) {
-            return parsed.data;
-          }
-        }
-      } catch {}
-    }
-    return null;
-  });
+
   const [isAuthOpen, setIsAuthOpen] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
   const [isNoticeOpen, setIsNoticeOpen] = useState(false);
@@ -118,37 +106,31 @@ function SidebarLeftInner() {
     return () => subscription.unsubscribe();
   }, []);
 
-  const fetchLeftProfile = () => {
-    supabase.auth.getSession().then(({ data: { session: currentSession } }) => {
-      if (currentSession) {
-        setSession(currentSession);
-        supabase
-          .from('profiles')
-          .select('full_name, avatar_url, role, username, cover_url')
-          .eq('id', currentSession.user.id)
-          .single()
-          .then(({ data }) => {
-            if (data) {
-              setProfile(data as any);
-              writeCachedProfile(data as any);
-            }
-          });
-      } else {
-        setProfile(null);
-      }
-    });
-  };
+  const { data: profile, refetch: refetchProfile } = useQuery({
+    queryKey: ['user-profile', session?.user?.id],
+    queryFn: async () => {
+      if (!session?.user?.id) return null;
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('full_name, avatar_url, role, username, cover_url')
+        .eq('id', session.user.id)
+        .single();
+      if (error) throw error;
+      return data;
+    },
+    enabled: !!session?.user?.id,
+    staleTime: SIDEBAR_CACHE_TTL_MS,
+  });
 
   useEffect(() => {
-    fetchLeftProfile();
-  }, [session?.user?.id]);
-
-  useEffect(() => {
-    window.addEventListener('profile-updated', fetchLeftProfile);
-    return () => {
-      window.removeEventListener('profile-updated', fetchLeftProfile);
+    const handleProfileUpdate = () => {
+      refetchProfile();
     };
-  }, [session?.user?.id]);
+    window.addEventListener('profile-updated', handleProfileUpdate);
+    return () => {
+      window.removeEventListener('profile-updated', handleProfileUpdate);
+    };
+  }, [refetchProfile]);
 
 
 

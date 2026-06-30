@@ -153,11 +153,11 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     return currentItem ? currentItem.label : 'Admin';
   };
 
-  const handleSignOut = async () => {
+  const handleSignOut = () => {
     if (typeof window !== 'undefined') {
       localStorage.removeItem('mock_admin');
     }
-    await supabase.auth.signOut();
+    supabase.auth.signOut().then(() => {});
     router.push('/');
   };
 
